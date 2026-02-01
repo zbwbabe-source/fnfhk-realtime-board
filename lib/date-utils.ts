@@ -41,12 +41,20 @@ export function formatDateYYYYMMDD(date: Date): string {
 }
 
 /**
- * 어제 날짜 반환
+ * 어제 날짜 반환 (한국 시간대 기준 KST/UTC+9)
+ * Vercel 서버는 UTC 기준이므로 한국 시간대로 변환 필요
  */
 export function getYesterday(): Date {
-  const date = new Date();
-  date.setDate(date.getDate() - 1);
-  return date;
+  // 현재 UTC 시간에 9시간(한국 시간대) 더하기
+  const now = new Date();
+  const kstOffset = 9 * 60; // 분 단위
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const kstTime = new Date(utcTime + (kstOffset * 60000));
+  
+  // KST 기준 어제
+  kstTime.setDate(kstTime.getDate() - 1);
+  kstTime.setHours(0, 0, 0, 0); // 자정으로 설정
+  return kstTime;
 }
 
 /**

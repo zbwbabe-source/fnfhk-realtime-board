@@ -185,7 +185,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          섹션 1: 매장별 매출 (ACT)
+          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
         </h2>
         <div className="text-center py-8 text-gray-600">Loading...</div>
       </div>
@@ -196,7 +196,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          섹션 1: 매장별 매출 (ACT)
+          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
         </h2>
         <div className="text-center py-8 text-red-600">
           Error: {error}
@@ -347,7 +347,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          섹션 1: 매장별 매출 (ACT 기준, Warehouse 제외)
+          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
         </h2>
         <button
           onClick={toggleAll}
