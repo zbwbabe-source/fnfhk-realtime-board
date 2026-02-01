@@ -1,0 +1,254 @@
+{
+  "2026-01": {
+    "HE1": {
+      "target_mth": 200000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "HE2": {
+      "target_mth": 600000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M01": {
+      "target_mth": 2300000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M02": {
+      "target_mth": 850000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M05": {
+      "target_mth": 1200000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M07": {
+      "target_mth": 2300000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M08": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M09": {
+      "target_mth": 800000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M10": {
+      "target_mth": 2600000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M11": {
+      "target_mth": 1600000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M12": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M13": {
+      "target_mth": 700000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M14": {
+      "target_mth": 2000000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M15": {
+      "target_mth": 850000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M16": {
+      "target_mth": 1100000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M17": {
+      "target_mth": 1200000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M18": {
+      "target_mth": 2400000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M19": {
+      "target_mth": 350000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M20": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M21": {
+      "target_mth": 1200000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "M22": {
+      "target_mth": 1000000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "MC1": {
+      "target_mth": 3500000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "MC2": {
+      "target_mth": 1100000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "MC3": {
+      "target_mth": 1900000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "MC4": {
+      "target_mth": 850000,
+      "country": "HKMC",
+      "currency": "HKD"
+    },
+    "T01": {
+      "target_mth": 2300000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T02": {
+      "target_mth": 2800000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T03": {
+      "target_mth": 2700000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T04": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T05": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T06": {
+      "target_mth": 2400000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T07": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T08": {
+      "target_mth": 4800000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T09": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T10": {
+      "target_mth": 3200000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T11": {
+      "target_mth": 1800000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T12": {
+      "target_mth": 3300000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T13": {
+      "target_mth": 1800000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T14": {
+      "target_mth": 2300000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T15": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T16": {
+      "target_mth": 1900000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T17": {
+      "target_mth": 2400000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "T18": {
+      "target_mth": 2400000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TE1": {
+      "target_mth": 8220000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TE2": {
+      "target_mth": 6500000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TE3": {
+      "target_mth": 2500000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TE4": {
+      "target_mth": 0,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TU1": {
+      "target_mth": 4000000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TU2": {
+      "target_mth": 2600000,
+      "country": "HKMC",
+      "currency": "TWD"
+    },
+    "TU3": {
+      "target_mth": 6000000,
+      "country": "HKMC",
+      "currency": "TWD"
+    }
+  }
+}

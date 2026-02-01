@@ -27,8 +27,10 @@ async function convertStoremaster() {
     })
     .map((r) => {
       const storeCode = r['Store code'] || r['﻿Store code']; // Handle both cases
+      const storeName = r['store name'] || r['Store name'] || '';
       return {
         store_code: storeCode.trim(),
+        store_name: storeName.trim(),
         brand: r['Brand'].trim(),
         country: r['country'].trim(),
         channel: r['channel'].trim(),

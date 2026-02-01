@@ -2,6 +2,7 @@ import storeMasterData from '@/data/store_master.json';
 
 export interface StoreRecord {
   store_code: string;
+  store_name: string;
   brand: string;
   country: string;
   channel: string;
@@ -10,6 +11,7 @@ export interface StoreRecord {
 interface StoreMasterJSON {
   stores: Array<{
     store_code: string;
+    store_name: string;
     brand: string;
     country: string;
     channel: string;
@@ -32,6 +34,7 @@ export function getStoreMaster(): StoreRecord[] {
   const data = storeMasterData as unknown as StoreMasterJSON;
   return data.stores.map(s => ({
     store_code: s.store_code,
+    store_name: s.store_name,
     brand: s.brand,
     country: s.country,
     channel: s.channel,

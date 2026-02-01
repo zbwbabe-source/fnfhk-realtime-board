@@ -2,414 +2,483 @@
   "stores": [
     {
       "store_code": "M18",
+      "store_name": "Langham",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M10",
+      "store_name": "ISQUARE",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M01",
+      "store_name": "Mongkok",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M14",
+      "store_name": "NTP1",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M11",
+      "store_name": "APM",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M17",
+      "store_name": "TMT",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M05",
+      "store_name": "LCX",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M02",
+      "store_name": "TimesSquare",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M22",
+      "store_name": "YOHO",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M09",
+      "store_name": "SheungShui",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M16",
+      "store_name": "HysanPlace",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M19",
+      "store_name": "NTP KIDS",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M07",
+      "store_name": "CITYGATE(O)",
       "brand": "M",
       "country": "HK",
       "channel": "아울렛"
     },
     {
       "store_code": "M21",
+      "store_name": "MOKO(O)",
       "brand": "M",
       "country": "HK",
       "channel": "아울렛"
     },
     {
       "store_code": "M15",
+      "store_name": "YuenLong(O)",
       "brand": "M",
       "country": "HK",
       "channel": "아울렛"
     },
     {
       "store_code": "M13",
+      "store_name": "MegaMall",
       "brand": "M",
       "country": "HK",
       "channel": "아울렛"
     },
     {
       "store_code": "M08",
+      "store_name": "VCity",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M12",
+      "store_name": "WTC",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "MC1",
+      "store_name": "Venetian",
       "brand": "M",
       "country": "MC",
       "channel": "정상"
     },
     {
       "store_code": "MC3",
+      "store_name": "SenadoSquare",
       "brand": "M",
       "country": "MC",
       "channel": "정상"
     },
     {
       "store_code": "MC2",
+      "store_name": "Londoner",
       "brand": "M",
       "country": "MC",
       "channel": "정상"
     },
     {
       "store_code": "MC4",
+      "store_name": "Senado(O)",
       "brand": "M",
       "country": "MC",
       "channel": "아울렛"
     },
     {
       "store_code": "HE1",
+      "store_name": "Zalora",
       "brand": "M",
       "country": "HK",
       "channel": "온라인"
     },
     {
       "store_code": "HE2",
+      "store_name": "Official MLB",
       "brand": "M",
       "country": "HK",
       "channel": "온라인"
     },
     {
       "store_code": "X01",
+      "store_name": "K11Musea",
       "brand": "X",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "XE1",
+      "store_name": "Official DX",
       "brand": "X",
       "country": "HK",
       "channel": "온라인"
     },
     {
       "store_code": "M03",
+      "store_name": "0",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M06",
+      "store_name": "K11",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "M20",
+      "store_name": "OT KIDS",
       "brand": "M",
       "country": "HK",
       "channel": "정상"
     },
     {
       "store_code": "WMM",
+      "store_name": "MCMAINWAREHOUSE",
       "brand": "M",
       "country": "MC",
       "channel": "Warehouse"
     },
     {
       "store_code": "XHM",
+      "store_name": "MAINWAREHOUSE",
       "brand": "X",
       "country": "HK",
       "channel": "Warehouse"
     },
     {
       "store_code": "WHM",
+      "store_name": "MAINWAREHOUSE",
       "brand": "M",
       "country": "HK",
       "channel": "Warehouse"
     },
     {
       "store_code": "MC3DGM",
+      "store_name": "0",
       "brand": "M",
       "country": "MC",
       "channel": "Warehouse"
     },
     {
       "store_code": "T01",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T02",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T03",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T04",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T05",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T06",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T07",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T08",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T09",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T10",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T11",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T12",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T13",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "TU1",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "TU2",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "T14",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T15",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T16",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "TU3",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "T17",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T18",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D01",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D02",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D03",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D04",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D05",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "DE1",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "DE2",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE1",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE2",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE3",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE4",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "DTE",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "DTM",
+      "store_name": "",
       "brand": "X",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "WTE",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "WTM",
+      "store_name": "",
       "brand": "M",
       "country": "TW",
       "channel": "Warehouse"
