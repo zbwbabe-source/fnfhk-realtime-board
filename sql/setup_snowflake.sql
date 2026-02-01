@@ -1,0 +1,53 @@
+# ============================================================
+# Snowflake 초기 설정 가이드
+# ============================================================
+
+# 1. 데이터베이스 및 스키마 생성
+USE ROLE ACCOUNTADMIN;
+
+CREATE DATABASE IF NOT EXISTS SAP_FNF;
+CREATE SCHEMA IF NOT EXISTS SAP_FNF.DASH;
+
+# 2. Warehouse 생성 (없으면)
+CREATE WAREHOUSE IF NOT EXISTS COMPUTE_WH
+  WITH WAREHOUSE_SIZE = 'SMALL'
+  AUTO_SUSPEND = 300
+  AUTO_RESUME = TRUE;
+
+# 3. 역할 생성 및 권한 부여
+CREATE ROLE IF NOT EXISTS FNF_DASHBOARD_ROLE;
+
+GRANT USAGE ON DATABASE SAP_FNF TO ROLE FNF_DASHBOARD_ROLE;
+GRANT USAGE ON SCHEMA SAP_FNF.DASH TO ROLE FNF_DASHBOARD_ROLE;
+GRANT USAGE ON WAREHOUSE COMPUTE_WH TO ROLE FNF_DASHBOARD_ROLE;
+
+# 원천 테이블 조회 권한
+GRANT SELECT ON TABLE SAP_FNF.DW_HMD_SALE_D TO ROLE FNF_DASHBOARD_ROLE;
+GRANT SELECT ON TABLE SAP_FNF.DW_HMD_STOCK_SNAP_D TO ROLE FNF_DASHBOARD_ROLE;
+
+# DASH 스키마 전체 권한
+GRANT ALL ON SCHEMA SAP_FNF.DASH TO ROLE FNF_DASHBOARD_ROLE;
+GRANT ALL ON ALL TABLES IN SCHEMA SAP_FNF.DASH TO ROLE FNF_DASHBOARD_ROLE;
+GRANT ALL ON FUTURE TABLES IN SCHEMA SAP_FNF.DASH TO ROLE FNF_DASHBOARD_ROLE;
+
+# 4. 사용자 생성 및 역할 부여
+CREATE USER IF NOT EXISTS fnf_dashboard_user
+  PASSWORD = 'YourSecurePassword123!'
+  DEFAULT_ROLE = FNF_DASHBOARD_ROLE
+  DEFAULT_WAREHOUSE = COMPUTE_WH;
+
+GRANT ROLE FNF_DASHBOARD_ROLE TO USER fnf_dashboard_user;
+
+# 5. 테이블 생성 (sql/ddl_create_tables.sql 참조)
+# Snowflake UI 또는 CLI에서 sql/ddl_create_tables.sql 실행
+
+# ============================================================
+# 완료 후 환경 변수에 다음 정보 입력:
+# - SNOWFLAKE_ACCOUNT: your_account.region (예: abc12345.ap-northeast-1)
+# - SNOWFLAKE_USERNAME: fnf_dashboard_user
+# - SNOWFLAKE_PASSWORD: YourSecurePassword123!
+# - SNOWFLAKE_DATABASE: SAP_FNF
+# - SNOWFLAKE_SCHEMA: DASH
+# - SNOWFLAKE_WAREHOUSE: COMPUTE_WH
+# - SNOWFLAKE_ROLE: FNF_DASHBOARD_ROLE
+# ============================================================

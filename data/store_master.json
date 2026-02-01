@@ -1,0 +1,459 @@
+{
+  "stores": [
+    {
+      "store_code": "M18",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M10",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M01",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M14",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M11",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M17",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M05",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M02",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M22",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M09",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M16",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M19",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M07",
+      "brand": "M",
+      "country": "HK",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "M21",
+      "brand": "M",
+      "country": "HK",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "M15",
+      "brand": "M",
+      "country": "HK",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "M13",
+      "brand": "M",
+      "country": "HK",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "M08",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M12",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "MC1",
+      "brand": "M",
+      "country": "MC",
+      "channel": "정상"
+    },
+    {
+      "store_code": "MC3",
+      "brand": "M",
+      "country": "MC",
+      "channel": "정상"
+    },
+    {
+      "store_code": "MC2",
+      "brand": "M",
+      "country": "MC",
+      "channel": "정상"
+    },
+    {
+      "store_code": "MC4",
+      "brand": "M",
+      "country": "MC",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "HE1",
+      "brand": "M",
+      "country": "HK",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "HE2",
+      "brand": "M",
+      "country": "HK",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "X01",
+      "brand": "X",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "XE1",
+      "brand": "X",
+      "country": "HK",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "M03",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M06",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "M20",
+      "brand": "M",
+      "country": "HK",
+      "channel": "정상"
+    },
+    {
+      "store_code": "WMM",
+      "brand": "M",
+      "country": "MC",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "XHM",
+      "brand": "X",
+      "country": "HK",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "WHM",
+      "brand": "M",
+      "country": "HK",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "MC3DGM",
+      "brand": "M",
+      "country": "MC",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "T01",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T02",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T03",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T04",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T05",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T06",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T07",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T08",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T09",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T10",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T11",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T12",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T13",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "TU1",
+      "brand": "M",
+      "country": "TW",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "TU2",
+      "brand": "M",
+      "country": "TW",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "T14",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T15",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T16",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "TU3",
+      "brand": "M",
+      "country": "TW",
+      "channel": "아울렛"
+    },
+    {
+      "store_code": "T17",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "T18",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "D01",
+      "brand": "X",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "D02",
+      "brand": "X",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "D03",
+      "brand": "X",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "D04",
+      "brand": "X",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "D05",
+      "brand": "X",
+      "country": "TW",
+      "channel": "정상"
+    },
+    {
+      "store_code": "DE1",
+      "brand": "X",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "DE2",
+      "brand": "X",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "TE1",
+      "brand": "M",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "TE2",
+      "brand": "M",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "TE3",
+      "brand": "M",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "TE4",
+      "brand": "M",
+      "country": "TW",
+      "channel": "온라인"
+    },
+    {
+      "store_code": "DTE",
+      "brand": "X",
+      "country": "TW",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "DTM",
+      "brand": "X",
+      "country": "TW",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "WTE",
+      "brand": "M",
+      "country": "TW",
+      "channel": "Warehouse"
+    },
+    {
+      "store_code": "WTM",
+      "brand": "M",
+      "country": "TW",
+      "channel": "Warehouse"
+    }
+  ],
+  "hkmc_stores_non_wh": [
+    "M18",
+    "M10",
+    "M01",
+    "M14",
+    "M11",
+    "M17",
+    "M05",
+    "M02",
+    "M22",
+    "M09",
+    "M16",
+    "M19",
+    "M07",
+    "M21",
+    "M15",
+    "M13",
+    "M08",
+    "M12",
+    "MC1",
+    "MC3",
+    "MC2",
+    "MC4",
+    "HE1",
+    "HE2",
+    "X01",
+    "XE1",
+    "M03",
+    "M06",
+    "M20"
+  ],
+  "hkmc_wh_stores": [
+    "WMM",
+    "XHM",
+    "WHM",
+    "MC3DGM"
+  ],
+  "main_wh_mapping": {
+    "M": "WHM",
+    "X": "XHM"
+  }
+}

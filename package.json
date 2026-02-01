@@ -1,0 +1,34 @@
+{
+  "name": "fnfhk-realtime-dashboard",
+  "version": "1.0.0",
+  "description": "HKMC Real-time Dashboard MVP with Next.js + Snowflake + Vercel Cron",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "convert-store-master": "node scripts/convert_store_master.js"
+  },
+  "dependencies": {
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "snowflake-sdk": "^1.9.3",
+    "date-fns": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.17",
+    "csv-parse": "^5.5.5",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
