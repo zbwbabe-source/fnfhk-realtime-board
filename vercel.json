@@ -4,15 +4,5 @@
       "path": "/api/cron/daily-aggregate",
       "schedule": "0 5 * * *"
     }
-  ],
-  "env": {
-    "SNOWFLAKE_ACCOUNT": "@snowflake_account",
-    "SNOWFLAKE_USERNAME": "@snowflake_username",
-    "SNOWFLAKE_PASSWORD": "@snowflake_password",
-    "SNOWFLAKE_DATABASE": "@snowflake_database",
-    "SNOWFLAKE_SCHEMA": "@snowflake_schema",
-    "SNOWFLAKE_WAREHOUSE": "@snowflake_warehouse",
-    "SNOWFLAKE_ROLE": "@snowflake_role",
-    "CRON_SECRET": "@cron_secret"
-  }
+  ]
 }
