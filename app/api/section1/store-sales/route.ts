@@ -7,34 +7,40 @@ import targetData from '@/data/target.json';
 export const dynamic = 'force-dynamic';
 
 /**
- * YTD 목표 계산 함수
+ * 매장별 YTD 목표 계산 함수
  * ytd_target = Σ TARGET_AMT(1월~직전월) + TARGET_AMT(당월) * (당일/당월말일)
  */
-function calculateYtdTarget(year: number, currentMonth: number, currentDay: number, targetData: any): number {
+function calculateYtdTargetForStore(
+  shopCd: string, 
+  year: number, 
+  currentMonth: number, 
+  currentDay: number, 
+  targetData: any
+): number {
   let ytdTarget = 0;
   
   // 1월부터 직전월까지의 목표 합산
   for (let m = 1; m < currentMonth; m++) {
     const periodKey = `${year}-${String(m).padStart(2, '0')}`;
     const periodData = targetData[periodKey] || {};
-    
-    // 해당 월의 모든 매장 목표 합산
-    for (const shopCd in periodData) {
-      ytdTarget += periodData[shopCd].target_mth || 0;
+    const storeTarget = periodData[shopCd];
+    if (storeTarget) {
+      ytdTarget += storeTarget.target_mth || 0;
     }
   }
   
   // 당월 목표 비례 계산
   const currentPeriodKey = `${year}-${String(currentMonth).padStart(2, '0')}`;
   const currentPeriodData = targetData[currentPeriodKey] || {};
+  const currentStoreTarget = currentPeriodData[shopCd];
   
-  // 당월 말일 계산
-  const daysInMonth = new Date(year, currentMonth, 0).getDate();
-  const ratio = currentDay / daysInMonth;
-  
-  // 당월 목표 × 비율
-  for (const shopCd in currentPeriodData) {
-    ytdTarget += (currentPeriodData[shopCd].target_mth || 0) * ratio;
+  if (currentStoreTarget) {
+    // 당월 말일 계산
+    const daysInMonth = new Date(year, currentMonth, 0).getDate();
+    const ratio = currentDay / daysInMonth;
+    
+    // 당월 목표 × 비율
+    ytdTarget += (currentStoreTarget.target_mth || 0) * ratio;
   }
   
   return ytdTarget;
@@ -224,8 +230,8 @@ export async function GET(request: NextRequest) {
       const target_mth = targetInfo ? targetInfo.target_mth : 0;
       const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
 
-      // YTD 목표 계산
-      const ytd_target = calculateYtdTarget(year, month, asofDate.getDate(), targetData);
+      // YTD 목표 계산 (매장별)
+      const ytd_target = calculateYtdTargetForStore(row.SHOP_CD, year, month, asofDate.getDate(), targetData);
       const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
 
       // 월말환산 계산 (MTD 기준)
