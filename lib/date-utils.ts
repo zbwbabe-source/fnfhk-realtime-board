@@ -51,9 +51,18 @@ export function getYesterday(): Date {
   const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
   const kstTime = new Date(utcTime + (kstOffset * 60000));
   
+  console.log('🕐 Date calculation:', {
+    serverTime: now.toISOString(),
+    kstTime: kstTime.toISOString(),
+    kstDate: formatDateYYYYMMDD(kstTime),
+  });
+  
   // KST 기준 어제
   kstTime.setDate(kstTime.getDate() - 1);
   kstTime.setHours(0, 0, 0, 0); // 자정으로 설정
+  
+  console.log('📅 Yesterday (KST):', formatDateYYYYMMDD(kstTime));
+  
   return kstTime;
 }
 
