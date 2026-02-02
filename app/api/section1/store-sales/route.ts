@@ -170,14 +170,14 @@ export async function GET(request: NextRequest) {
         mtd_act_py,
         CASE
           WHEN mtd_act_py > 0
-          THEN ((mtd_act - mtd_act_py) / mtd_act_py) * 100
+          THEN (mtd_act / mtd_act_py) * 100
           ELSE 0
         END AS yoy,
         ytd_act,
         ytd_act_py,
         CASE
           WHEN ytd_act_py > 0
-          THEN ((ytd_act - ytd_act_py) / ytd_act_py) * 100
+          THEN (ytd_act / ytd_act_py) * 100
           ELSE 0
         END AS yoy_ytd
       FROM store_sales
