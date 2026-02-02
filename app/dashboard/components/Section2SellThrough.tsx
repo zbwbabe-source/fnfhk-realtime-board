@@ -6,6 +6,7 @@ interface Section2Props {
   region: string;
   brand: string;
   date: string;
+  onDataChange?: (data: any) => void;
 }
 
 interface ProductRow {
@@ -22,7 +23,7 @@ interface NoInboundRow {
   sales_tag: number;
 }
 
-export default function Section2SellThrough({ region, brand, date }: Section2Props) {
+export default function Section2SellThrough({ region, brand, date, onDataChange }: Section2Props) {
   const [expanded, setExpanded] = useState(false);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,11 @@ export default function Section2SellThrough({ region, brand, date }: Section2Pro
         
         const json = await res.json();
         setData(json);
+        
+        // 부모 컴포넌트에 데이터 전달
+        if (onDataChange) {
+          onDataChange(json);
+        }
       } catch (err: any) {
         console.error('Section2 fetch error:', err);
         setError(err.message);
@@ -55,7 +61,7 @@ export default function Section2SellThrough({ region, brand, date }: Section2Pro
     }
 
     fetchData();
-  }, [expanded, region, brand, date]);
+  }, [expanded, region, brand, date, onDataChange]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('en-US', { 

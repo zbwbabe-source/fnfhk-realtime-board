@@ -6,6 +6,7 @@ import BrandSelect from './components/BrandSelect';
 import DateSelect from './components/DateSelect';
 import Section1Table from './components/Section1Table';
 import Section2SellThrough from './components/Section2SellThrough';
+import SummaryCards from './components/SummaryCards';
 
 export default function DashboardPage() {
   const [region, setRegion] = useState('HKMC');
@@ -13,6 +14,12 @@ export default function DashboardPage() {
   const [date, setDate] = useState('');
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isYtdMode, setIsYtdMode] = useState(false);
+  
+  // 섹션 데이터 상태
+  const [section1Data, setSection1Data] = useState<any>(null);
+  const [section2Data, setSection2Data] = useState<any>(null);
+  const [section3Data, setSection3Data] = useState<any>(null);
 
   // 메타 데이터 로드
   useEffect(() => {
@@ -74,11 +81,33 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
+        {/* Summary Cards */}
+        <SummaryCards
+          region={region}
+          brand={brand}
+          date={date}
+          isYtdMode={isYtdMode}
+          section1Data={section1Data}
+          section2Data={section2Data}
+          section3Data={section3Data}
+        />
+
         {/* Section 1: Store Sales */}
-        <Section1Table region={region} brand={brand} date={date} />
+        <Section1Table 
+          region={region} 
+          brand={brand} 
+          date={date}
+          onDataChange={setSection1Data}
+          onYtdModeChange={setIsYtdMode}
+        />
 
         {/* Section 2: Sell-through */}
-        <Section2SellThrough region={region} brand={brand} date={date} />
+        <Section2SellThrough 
+          region={region} 
+          brand={brand} 
+          date={date}
+          onDataChange={setSection2Data}
+        />
 
         {/* Section 3: Placeholder */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

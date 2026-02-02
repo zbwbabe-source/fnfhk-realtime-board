@@ -6,6 +6,8 @@ interface Section1TableProps {
   region: string;
   brand: string;
   date: string;
+  onDataChange?: (data: any) => void;
+  onYtdModeChange?: (isYtd: boolean) => void;
 }
 
 interface StoreRow {
@@ -33,7 +35,7 @@ interface StoreRow {
   forecast: number | null;
 }
 
-export default function Section1Table({ region, brand, date }: Section1TableProps) {
+export default function Section1Table({ region, brand, date, onDataChange, onYtdModeChange }: Section1TableProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -182,6 +184,11 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
         
         const json = await res.json();
         setData(json);
+        
+        // 부모 컴포넌트에 데이터 전달
+        if (onDataChange) {
+          onDataChange(json);
+        }
       } catch (err: any) {
         console.error('Section1 fetch error:', err);
         setError(err.message);
@@ -191,7 +198,14 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     }
 
     fetchData();
-  }, [region, brand, date]);
+  }, [region, brand, date, onDataChange]);
+
+  // YTD 모드 변경 시 부모에게 알림
+  useEffect(() => {
+    if (onYtdModeChange) {
+      onYtdModeChange(isYtdMode);
+    }
+  }, [isYtdMode, onYtdModeChange]);
 
   if (loading) {
     return (
