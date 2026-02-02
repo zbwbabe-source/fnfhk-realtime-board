@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
         SELECT SUM(TAG_SALE_AMT) AS sales_ty
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          -- SESN 필터 제거: 날짜 범위로만 필터링 (시즌 시작일-6개월 ~ asof_date)
+          AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
       ),
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
         SELECT SUM(TAG_SALE_AMT) AS sales_ly
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          -- SESN 필터 제거: 날짜 범위로만 필터링
+          AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
       ),
@@ -216,14 +216,14 @@ export async function GET(request: NextRequest) {
     `;
 
     const headerRows = await executeSnowflakeQuery(headerQuery, [
-      // TY - sales_ty (SESN 제거)
-      brand, startDateStr, date,
+      // TY - sales_ty
+      brand, sesn, startDateStr, date,
       // TY - latest_stock_date_ty
       brand, sesn, date,
       // TY - stock_ty
       brand, sesn,
-      // LY - sales_ly (SESN 제거)
-      brand, startDateStrLY, dateLY,
+      // LY - sales_ly
+      brand, sesnLY, startDateStrLY, dateLY,
       // LY - latest_stock_date_ly
       brand, sesnLY, dateLY,
       // LY - stock_ly
@@ -300,7 +300,7 @@ export async function GET(request: NextRequest) {
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
           (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
-          -- SESN 필터 제거
+          AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
         GROUP BY PRDT_CD
@@ -323,9 +323,9 @@ export async function GET(request: NextRequest) {
     `;
 
     const rows = await executeSnowflakeQuery(productQuery, [
-      brand, sesn, date,                // latest_stock_date (재고는 SESN 유지)
-      brand, sesn,                      // ending_stock (재고는 SESN 유지)
-      brand, startDateStr, date         // sales_agg (SESN 제거)
+      brand, sesn, date,                // latest_stock_date
+      brand, sesn,                      // ending_stock
+      brand, sesn, startDateStr, date   // sales_agg
     ]);
 
     console.log('📊 Section2 Query Result:', {
