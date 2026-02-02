@@ -39,6 +39,7 @@ export default function SummaryCards({
   // Section1 KPI 계산
   const calculateSection1KPIs = (): CardKPIs => {
     if (!section1Data?.total_subtotal) {
+      console.log('⚠️ Section1 data not loaded yet');
       return {
         k1: { label: isYtdMode ? '누적실적' : '당월실적', value: 'N/A' },
         k2: { label: 'YoY', value: 'N/A' },
@@ -47,6 +48,30 @@ export default function SummaryCards({
     }
 
     const total = section1Data.total_subtotal;
+    
+    // MTD/YTD 데이터 확인
+    if (isYtdMode) {
+      // YTD 모드일 때 ytd_act가 있는지 확인
+      if (typeof total.ytd_act === 'undefined') {
+        console.log('⚠️ YTD data not available in total_subtotal');
+        return {
+          k1: { label: '누적실적', value: 'N/A' },
+          k2: { label: 'YoY', value: 'N/A' },
+          k3: { label: '목표대비', value: 'N/A' },
+        };
+      }
+    } else {
+      // MTD 모드일 때 mtd_act가 있는지 확인
+      if (typeof total.mtd_act === 'undefined') {
+        console.log('⚠️ MTD data not available in total_subtotal');
+        return {
+          k1: { label: '당월실적', value: 'N/A' },
+          k2: { label: 'YoY', value: 'N/A' },
+          k3: { label: '목표대비', value: 'N/A' },
+        };
+      }
+    }
+
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
     const yoy = isYtdMode ? total.yoy_ytd : total.yoy;
     const progress = isYtdMode ? total.progress_ytd : total.progress;
