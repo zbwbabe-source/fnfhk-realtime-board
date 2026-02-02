@@ -282,7 +282,13 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               }`}>
                 {formatPercent(subtotalYoy)}
               </td>
-              {!isYtdMode && (
+              {isYtdMode ? (
+                <>
+                  {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
+                  <td className="px-4 py-2 border-b border-gray-200"></td>
+                  <td className="px-4 py-2 border-b border-gray-200"></td>
+                </>
+              ) : (
                 <>
                   <td className="px-4 py-2 border-b border-gray-200 text-right">
                     {formatNumber(subtotal.monthEndProjection)}
@@ -296,7 +302,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               )}
             </>
           ) : (
-            <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 border-b border-gray-200"></td>
+            <td colSpan={8} className="px-4 py-2 border-b border-gray-200"></td>
           )}
         </tr>
         {isExpanded && sortedStores.map((row: StoreRow) => renderRow(row))}
@@ -361,7 +367,13 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
         }`}>
           {formatPercent(yoyValue)}
         </td>
-        {!isYtdMode && (
+        {isYtdMode ? (
+          <>
+            {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
+            <td className="px-4 py-2 border-b border-gray-200"></td>
+            <td className="px-4 py-2 border-b border-gray-200"></td>
+          </>
+        ) : (
           <>
             <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
               {formatNumber(row.monthEndProjection)}
@@ -462,7 +474,13 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
                   {getSortIcon('yoy')}
                 </div>
               </th>
-              {!isYtdMode && (
+              {isYtdMode ? (
+                <>
+                  {/* YTD 모드일 때 빈 헤더 2개로 레이아웃 유지 */}
+                  <th className="px-4 py-2 text-right font-medium text-gray-700"></th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-700"></th>
+                </>
+              ) : (
                 <>
                   <th 
                     className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200 relative group"
@@ -516,7 +534,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               <>
                 <tr className="h-2"></tr>
                 <tr className="bg-yellow-50">
-                  <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 font-bold text-gray-800">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
                     MC 전체 합계
                   </td>
                 </tr>
@@ -529,7 +547,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               <>
                 <tr className="h-4"></tr>
                 <tr className="bg-indigo-50">
-                  <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 font-bold text-gray-800">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
                     HKMC 전체 합계
                   </td>
                 </tr>
