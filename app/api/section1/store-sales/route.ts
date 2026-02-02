@@ -352,6 +352,10 @@ export async function GET(request: NextRequest) {
     const hk_outlet_subtotal = calculateSubtotal(hk_outlet, 'HK 아울렛 합계', 'HK', '아울렛');
     const hk_online_subtotal = calculateSubtotal(hk_online, 'HK 온라인 합계', 'HK', '온라인');
 
+    // HK 전체 합계
+    const hk_all_stores = [...hk_normal, ...hk_outlet, ...hk_online];
+    const hk_subtotal = calculateSubtotal(hk_all_stores, 'HK 전체', 'HK', '전체');
+
     // MC 채널별 합계
     const mc_normal_subtotal = calculateSubtotal(mc_normal, 'MC 정상 합계', 'MC', '정상');
     const mc_outlet_subtotal = calculateSubtotal(mc_outlet, 'MC 아울렛 합계', 'MC', '아울렛');
@@ -375,6 +379,7 @@ export async function GET(request: NextRequest) {
       hk_outlet_subtotal,
       hk_online,
       hk_online_subtotal,
+      hk_subtotal,
       mc_normal,
       mc_normal_subtotal,
       mc_outlet,

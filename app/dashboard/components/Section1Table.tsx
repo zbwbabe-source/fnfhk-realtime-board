@@ -558,6 +558,22 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             {/* HK 온라인 */}
             {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
 
+            {/* HK 전체 합계 */}
+            {data.hk_subtotal && (
+              <>
+                <tr className="h-2"></tr>
+                <tr className="bg-yellow-50">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                    HK 전체 합계
+                  </td>
+                </tr>
+                {renderRow(data.hk_subtotal, true)}
+              </>
+            )}
+
+            {/* HK와 MC 사이 간격 */}
+            <tr className="h-4"></tr>
+
             {/* MC 정상 */}
             {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
 

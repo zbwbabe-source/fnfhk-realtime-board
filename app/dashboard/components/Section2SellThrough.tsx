@@ -40,7 +40,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
   const [showAllCategories, setShowAllCategories] = useState(false); // 전체 카테고리 토글
   const [showAllProducts, setShowAllProducts] = useState(false); // 전체 품번 토글
   const [categorySortConfig, setCategorySortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'sales_tag', direction: 'desc' });
-  const [productSortConfig, setProductSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'sellthrough', direction: 'desc' });
+  const [productSortConfig, setProductSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'sales_tag', direction: 'desc' });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // 필터용
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
