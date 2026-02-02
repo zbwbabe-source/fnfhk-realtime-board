@@ -128,16 +128,16 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
       <td className="px-4 py-2 border-b border-gray-200">{row.prdt_cd}</td>
       <td className="px-4 py-2 border-b border-gray-200">{row.category}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.inbound_tag)}
-      </td>
-      <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.inbound_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.sales_tag)}
+        {formatNumber(row.sales_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.sales_qty)}
+        {formatNumber(row.inbound_tag)}
+      </td>
+      <td className="px-4 py-2 border-b border-gray-200 text-right">
+        {formatNumber(row.sales_tag)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right font-medium">
         {formatPercent(row.sellthrough)}
@@ -246,27 +246,27 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                         <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
-                          onClick={() => handleSort('inbound_tag')}
-                        >
-                          누적입고(TAG){getSortIcon('inbound_tag')}
-                        </th>
-                        <th 
-                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleSort('inbound_qty')}
                         >
                           입고수량{getSortIcon('inbound_qty')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
-                          onClick={() => handleSort('sales_tag')}
-                        >
-                          누적판매(TAG){getSortIcon('sales_tag')}
-                        </th>
-                        <th 
-                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleSort('sales_qty')}
                         >
                           판매수량{getSortIcon('sales_qty')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('inbound_tag')}
+                        >
+                          누적입고(TAG){getSortIcon('inbound_tag')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('sales_tag')}
+                        >
+                          누적판매(TAG){getSortIcon('sales_tag')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
