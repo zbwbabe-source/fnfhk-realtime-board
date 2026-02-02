@@ -34,15 +34,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { region, brand, asofDate, mode, kpis } = body;
 
-    // 캐시 키 생성
-    const cacheKey = `${region}-${brand}-${asofDate}-${mode}`;
-    
-    // 캐시 확인
-    const cached = insightCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log('✅ Returning cached insights for:', cacheKey);
-      return NextResponse.json(cached.insights);
-    }
+    // 캐시 사용 안 함 - 항상 최신 KPI로 인사이트 생성
+    console.log('📊 Generating insights for:', { region, brand, asofDate, mode, kpis });
 
     // 인사이트 생성
     const insights = {
@@ -51,18 +44,7 @@ export async function POST(request: NextRequest) {
       section3Line: generateSection3Insight(kpis.section3),
     };
 
-    // 캐시 저장
-    insightCache.set(cacheKey, { insights, timestamp: Date.now() });
-
-    // 오래된 캐시 정리 (간단한 구현)
-    if (insightCache.size > 100) {
-      const oldestKey = insightCache.keys().next().value;
-      if (oldestKey) {
-        insightCache.delete(oldestKey);
-      }
-    }
-
-    console.log('✅ Generated new insights for:', cacheKey);
+    console.log('✅ Generated insights:', insights);
     return NextResponse.json(insights);
 
   } catch (error: any) {
