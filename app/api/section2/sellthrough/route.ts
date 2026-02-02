@@ -281,6 +281,18 @@ export async function GET(request: NextRequest) {
       sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
     }));
 
+    // 🔍 판매수량 0인 제품 확인
+    const zeroSalesQtyProducts = allProducts.filter(p => p.sales_qty === 0);
+    console.log('📊 판매수량 0인 제품:', {
+      count: zeroSalesQtyProducts.length,
+      samples: zeroSalesQtyProducts.slice(0, 5).map(p => ({
+        prdt_cd: p.prdt_cd,
+        sales_qty: p.sales_qty,
+        stock_qty: p.inbound_qty - p.sales_qty,
+        sellthrough: p.sellthrough
+      }))
+    });
+
     // No Sales & No Stock (제외)
     const no_inbound: any[] = [];
 

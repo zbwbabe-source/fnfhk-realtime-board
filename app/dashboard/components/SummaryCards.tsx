@@ -227,6 +227,14 @@ export default function SummaryCards({
     fetchInsights();
   }, [region, brand, date, isYtdMode, section1KPIs, section2KPIs, section3KPIs]);
 
+  // 부드러운 스크롤 이동 함수
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const cards = [
     {
       title: '섹션1: 매장별 매출',
@@ -235,6 +243,7 @@ export default function SummaryCards({
       insight: insights?.section1Line || '분석 중...',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
+      sectionId: 'section1',
     },
     {
       title: '섹션2: 당시즌 판매율',
@@ -243,6 +252,7 @@ export default function SummaryCards({
       insight: insights?.section2Line || '분석 중...',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
+      sectionId: 'section2',
     },
     {
       title: '섹션3: 과시즌 재고 소진',
@@ -251,6 +261,7 @@ export default function SummaryCards({
       insight: insights?.section3Line || '분석 중...',
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
+      sectionId: 'section3',
     },
   ];
 
@@ -259,7 +270,8 @@ export default function SummaryCards({
       {cards.map((card, idx) => (
         <div
           key={idx}
-          className={`${card.bgColor} ${card.borderColor} border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow`}
+          onClick={() => scrollToSection(card.sectionId)}
+          className={`${card.bgColor} ${card.borderColor} border rounded-lg p-4 shadow-sm hover:shadow-md transition-all cursor-pointer transform hover:scale-[1.02]`}
         >
           {/* 상단: 제목 */}
           <div className="mb-3">

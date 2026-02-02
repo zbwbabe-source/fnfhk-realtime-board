@@ -156,7 +156,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div id="section2" className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header - Collapsible */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <button

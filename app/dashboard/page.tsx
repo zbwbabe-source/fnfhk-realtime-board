@@ -110,7 +110,7 @@ export default function DashboardPage() {
         />
 
         {/* Section 3: Placeholder */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div id="section3" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">
             섹션 3 (예정)
           </h2>
