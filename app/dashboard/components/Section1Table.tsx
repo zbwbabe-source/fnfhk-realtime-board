@@ -410,16 +410,23 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
           <h2 className="text-lg font-semibold text-gray-900">
             섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
           </h2>
-          <button
-            onClick={() => setIsYtdMode(!isYtdMode)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
-              isYtdMode 
-                ? 'bg-purple-500 text-white hover:bg-purple-600' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            {isYtdMode ? '✓ 누적' : '누적'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsYtdMode(!isYtdMode)}
+              className={`px-3 py-1 text-sm rounded transition-colors ${
+                isYtdMode 
+                  ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {isYtdMode ? '✓ 누적' : '누적'}
+            </button>
+            {isYtdMode && date && (
+              <span className="text-xs text-gray-600">
+                ({new Date(date).getFullYear()}/1/1 ~ {date.replace(/-/g, '/')} 누적실적)
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={toggleAll}
