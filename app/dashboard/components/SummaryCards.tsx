@@ -127,9 +127,13 @@ export default function SummaryCards({
   };
 
   // Section1 KPI 계산 (useMemo로 캐싱)
-  const section1KPIs = useMemo(() => calculateSection1KPIs(), [section1Data, isYtdMode]);
-  const section2KPIs = useMemo(() => calculateSection2KPIs(), [section2Data]);
-  const section3KPIs = useMemo(() => calculateSection3KPIs(), [section3Data]);
+  const section1KPIs = useMemo(() => {
+    console.log('🔄 Recalculating Section1 KPIs', { brand, date, isYtdMode, hasData: !!section1Data });
+    return calculateSection1KPIs();
+  }, [section1Data, isYtdMode, brand, date]);
+  
+  const section2KPIs = useMemo(() => calculateSection2KPIs(), [section2Data, brand, date]);
+  const section3KPIs = useMemo(() => calculateSection3KPIs(), [section3Data, brand, date]);
 
   // AI 인사이트 가져오기
   useEffect(() => {
