@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
-import { getStoreMaster, normalizeBrand, getWarehouseStores } from '@/lib/store-utils';
+import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
 import { getSeasonCode } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
@@ -37,21 +37,13 @@ export async function GET(request: NextRequest) {
     const asofDate = new Date(date);
     const sesn = getSeasonCode(asofDate);
 
-    // Store master 로드
-    const storeMaster = getStoreMaster();
-    const countries = region === 'HKMC' ? ['HK', 'MC'] : ['TW'];
-    
-    // Section 2용 매장: Warehouse 제외 (판매 매장)
-    const salesStores = storeMaster.filter(s => 
-      countries.includes(s.country) && 
-      normalizeBrand(s.brand) === brand &&
-      s.channel !== 'Warehouse'
-    );
+    // 매장 코드 준비
+    // - all_store_codes: HKMC 전체 매장 (warehouse 포함) - inbound 계산용
+    // - store_codes: warehouse 제외 매장 - sales 계산용
+    const allStoreCodes = getAllStoresByRegionBrand(region, brand);
+    const salesStoreCodes = getStoresByRegionBrandChannel(region, brand, true); // warehouse 제외
 
-    // Warehouse 매장 (입고 기준)
-    const warehouseStores = getWarehouseStores(region, brand);
-
-    if (salesStores.length === 0 || warehouseStores.length === 0) {
+    if (allStoreCodes.length === 0 || salesStoreCodes.length === 0) {
       return NextResponse.json({
         asof_date: date,
         region,
@@ -63,21 +55,45 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const salesStoreCodes = salesStores.map(s => `'${s.store_code}'`).join(',');
-    const warehouseCodes = warehouseStores.map(w => `'${w}'`).join(',');
+    const allStoreCodesStr = allStoreCodes.map(s => `'${s}'`).join(',');
+    const salesStoreCodesStr = salesStoreCodes.map(s => `'${s}'`).join(',');
 
-    // DW_HMD_SALE_D, DW_HMD_STOCK_SNAP_D에서 직접 집계
+    console.log('📊 Section2 Params:', {
+      region,
+      brand,
+      date,
+      sesn,
+      allStoresCount: allStoreCodes.length,
+      salesStoresCount: salesStoreCodes.length,
+    });
+
+    // ⚠️ 중요: 이 방식은 매장 간 재고 이동(transfer)도 positive delta로 잡히므로
+    // '외부/본사 입고'만이 아닌 '재고 유입 이벤트' 기준 inbound로 해석
     const query = `
-      WITH inbound AS (
+      WITH inbound_calc AS (
+        SELECT 
+          LOCAL_SHOP_CD,
+          PRDT_CD,
+          PART_CD,
+          TAG_STOCK_AMT,
+          STOCK_DT,
+          LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
+            OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS prev_stock,
+          TAG_STOCK_AMT - LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
+            OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS delta
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+        WHERE 
+          (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+          AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND STOCK_DT <= ?
+      ),
+      inbound AS (
         SELECT
           PRDT_CD,
           SUBSTR(PART_CD, 3, 2) AS category,
-          SUM(TAG_STOCK_AMT) AS inbound_tag
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE STOCK_DT = ?
-          AND LOCAL_SHOP_CD IN (${warehouseCodes})
-          AND BRD_CD IN ('M', 'I', 'X')
-          AND SESN = ?
+          SUM(GREATEST(delta, 0)) AS inbound_tag
+        FROM inbound_calc
         GROUP BY PRDT_CD, SUBSTR(PART_CD, 3, 2)
       ),
       sales AS (
@@ -85,9 +101,11 @@ export async function GET(request: NextRequest) {
           PRDT_CD,
           SUM(TAG_SALE_AMT) AS sales_tag
         FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE LOCAL_SHOP_CD IN (${salesStoreCodes})
-          AND BRD_CD IN ('M', 'I', 'X')
+        WHERE 
+          (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
           AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+          AND SALE_DT <= ?
         GROUP BY PRDT_CD
       )
       SELECT
@@ -97,7 +115,7 @@ export async function GET(request: NextRequest) {
         COALESCE(s.sales_tag, 0) AS sales_tag,
         CASE 
           WHEN COALESCE(i.inbound_tag, 0) > 0 
-          THEN COALESCE(s.sales_tag, 0) / i.inbound_tag
+          THEN (COALESCE(s.sales_tag, 0) / i.inbound_tag) * 100
           ELSE 0
         END AS sellthrough
       FROM inbound i
@@ -105,16 +123,18 @@ export async function GET(request: NextRequest) {
       ORDER BY sellthrough DESC
     `;
 
-    const rows = await executeSnowflakeQuery(query, [date, sesn, sesn]);
+    const rows = await executeSnowflakeQuery(query, [
+      brand, sesn, date,  // inbound_calc
+      brand, sesn, date   // sales
+    ]);
 
     console.log('📊 Section2 Query Result:', {
       region,
       brand,
       date,
       sesn,
-      salesStoresCount: salesStores.length,
-      warehouseStoresCount: warehouseStores.length,
-      warehouseCodes,
+      allStoresCount: allStoreCodes.length,
+      salesStoresCount: salesStoreCodes.length,
       rowsCount: rows.length,
       sampleRow: rows[0],
     });

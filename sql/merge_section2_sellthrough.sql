@@ -7,49 +7,39 @@
 --   :region - 'HKMC' or 'TW'
 --   :brand - 'M' or 'X' (normalized)
 --   :sesn - 시즌 코드 (예: '25F', '26S')
---   :warehouse_codes - Warehouse 매장 코드 리스트
---   :store_codes - 일반 매장 코드 리스트 (Warehouse 제외)
+--   :all_store_codes - HKMC 전체 매장 코드 리스트 (warehouse 포함) - inbound 계산용
+--   :store_codes - 일반 매장 코드 리스트 (warehouse 제외) - sales 계산용
+-- ============================================================
+-- ⚠️ 중요: 이 방식은 매장 간 재고 이동(transfer)도 positive delta로 잡히므로
+-- '외부/본사 입고'만이 아닌 '재고 유입 이벤트' 기준 inbound로 해석해야 함
 -- ============================================================
 
 MERGE INTO SAP_FNF.DASH.DASH_SEASON_SELLTHROUGH AS target
 USING (
     WITH inbound_calc AS (
-        -- Inbound 계산: Warehouse only, TAG 기준, Delta 방식
+        -- Inbound 계산: HKMC 전체 매장 (warehouse 포함), TAG 기준, Delta 방식
         SELECT 
             LOCAL_SHOP_CD,
             PRDT_CD,
             PART_CD,
-            -- Delta 계산: 증가분만 합산
-            SUM(
-                GREATEST(
-                    TAG_STOCK_AMT - LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
-                        OVER (
-                            PARTITION BY LOCAL_SHOP_CD, PRDT_CD 
-                            ORDER BY STOCK_DT
-                        ),
-                    0
-                )
-            ) AS positive_delta,
-            -- Base (첫 재고)
-            FIRST_VALUE(TAG_STOCK_AMT) 
-                OVER (
-                    PARTITION BY LOCAL_SHOP_CD, PRDT_CD 
-                    ORDER BY STOCK_DT
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                ) AS base_stock
+            TAG_STOCK_AMT,
+            STOCK_DT,
+            LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
+              OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS prev_stock,
+            TAG_STOCK_AMT - LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
+              OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS delta
         FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
         WHERE 
             (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = :brand
             AND SESN = :sesn
-            AND LOCAL_SHOP_CD IN (:warehouse_codes)
+            AND LOCAL_SHOP_CD IN (:all_store_codes)   -- ✅ 변경: 전체 매장 포함
             AND STOCK_DT <= :asof_date
-        GROUP BY LOCAL_SHOP_CD, PRDT_CD, PART_CD, TAG_STOCK_AMT, STOCK_DT
     ),
     inbound_agg AS (
         SELECT 
             PRDT_CD,
             ANY_VALUE(PART_CD) AS PART_CD,
-            SUM(positive_delta + base_stock) AS inbound_tag
+            SUM(GREATEST(delta, 0)) AS inbound_tag  -- positive delta만 합산
         FROM inbound_calc
         GROUP BY PRDT_CD
     ),
@@ -62,8 +52,8 @@ USING (
         WHERE 
             (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = :brand
             AND SESN = :sesn
-            AND LOCAL_SHOP_CD IN (:store_codes)
-            AND SALES_DT <= :asof_date
+            AND LOCAL_SHOP_CD IN (:store_codes)       -- ✅ 기존 유지: warehouse 제외
+            AND SALE_DT <= :asof_date
         GROUP BY PRDT_CD
     )
     SELECT 
@@ -77,7 +67,7 @@ USING (
         COALESCE(s.sales_tag, 0) AS sales_tag,
         CASE 
             WHEN COALESCE(i.inbound_tag, 0) > 0 
-            THEN COALESCE(s.sales_tag, 0) / i.inbound_tag
+            THEN (COALESCE(s.sales_tag, 0) / i.inbound_tag) * 100
             ELSE 0 
         END AS sellthrough
     FROM inbound_agg i

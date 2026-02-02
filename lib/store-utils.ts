@@ -78,6 +78,17 @@ export function getStoresByRegionBrandChannel(
     .map((s) => s.store_code);
 }
 
+/**
+ * HKMC 전체 매장 코드 가져오기 (warehouse 포함)
+ * Section2의 inbound 계산용: 모든 매장의 재고 증가분을 포함
+ */
+export function getAllStoresByRegionBrand(
+  region: string,
+  brand: string
+): string[] {
+  return getStoresByRegionBrandChannel(region, brand, false); // warehouse 포함
+}
+
 export function getWarehouseStores(region: string, brand: string): string[] {
   const warehouses = MAIN_WAREHOUSE_MAPPING[region]?.[brand] || [];
   return warehouses;
