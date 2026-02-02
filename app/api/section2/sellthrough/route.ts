@@ -57,6 +57,16 @@ export async function GET(request: NextRequest) {
         region,
         brand,
         header: { sesn, overall_sellthrough: 0 },
+        categories: [],
+        category_total: {
+          category: '전체',
+          inbound_tag: 0,
+          sales_tag: 0,
+          inbound_qty: 0,
+          sales_qty: 0,
+          product_count: 0,
+          sellthrough: 0,
+        },
         all_products: [],
         no_inbound: [],
       });
@@ -256,6 +266,16 @@ export async function GET(request: NextRequest) {
           sales_yoy_pct: null,
           inbound_yoy_pct: null,
         },
+        categories: [],
+        category_total: {
+          category: '전체',
+          inbound_tag: 0,
+          sales_tag: 0,
+          inbound_qty: 0,
+          sales_qty: 0,
+          product_count: 0,
+          sellthrough: 0,
+        },
         top10: [],
         all_products: [],
         no_inbound: [],
@@ -293,6 +313,59 @@ export async function GET(request: NextRequest) {
       }))
     });
 
+    // 중분류별 집계 (카테고리 그룹핑)
+    const categoryMap = new Map<string, any>();
+    
+    allProducts.forEach(product => {
+      const cat = product.category || 'UNKNOWN';
+      if (!categoryMap.has(cat)) {
+        categoryMap.set(cat, {
+          category: cat,
+          inbound_tag: 0,
+          sales_tag: 0,
+          inbound_qty: 0,
+          sales_qty: 0,
+          product_count: 0,
+        });
+      }
+      
+      const catData = categoryMap.get(cat);
+      catData.inbound_tag += product.inbound_tag;
+      catData.sales_tag += product.sales_tag;
+      catData.inbound_qty += product.inbound_qty;
+      catData.sales_qty += product.sales_qty;
+      catData.product_count += 1;
+    });
+
+    // 판매율 계산 및 배열 변환
+    const categories = Array.from(categoryMap.values()).map(cat => ({
+      ...cat,
+      sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
+    }));
+
+    // 전체 합계 계산
+    const category_total = {
+      category: '전체',
+      inbound_tag: categories.reduce((sum, c) => sum + c.inbound_tag, 0),
+      sales_tag: categories.reduce((sum, c) => sum + c.sales_tag, 0),
+      inbound_qty: categories.reduce((sum, c) => sum + c.inbound_qty, 0),
+      sales_qty: categories.reduce((sum, c) => sum + c.sales_qty, 0),
+      product_count: categories.reduce((sum, c) => sum + c.product_count, 0),
+      sellthrough: 0,
+    };
+    category_total.sellthrough = category_total.inbound_tag > 0 
+      ? (category_total.sales_tag / category_total.inbound_tag) * 100 
+      : 0;
+
+    console.log('📊 카테고리별 집계:', {
+      categoriesCount: categories.length,
+      categories: categories.map(c => ({
+        category: c.category,
+        product_count: c.product_count,
+        sellthrough: c.sellthrough.toFixed(1) + '%'
+      }))
+    });
+
     // No Sales & No Stock (제외)
     const no_inbound: any[] = [];
 
@@ -307,6 +380,8 @@ export async function GET(request: NextRequest) {
         total_inbound: totalInbound,
         total_sales: totalSales,
       },
+      categories,
+      category_total,
       all_products: allProducts,
       no_inbound,
     };
