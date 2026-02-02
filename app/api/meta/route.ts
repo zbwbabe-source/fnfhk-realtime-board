@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getAvailableDates } from '@/lib/date-utils';
 import { getAvailableBrands, getAvailableRegions } from '@/lib/store-utils';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/meta
  * 
