@@ -14,6 +14,8 @@ interface ProductRow {
   category: string;
   inbound_tag: number;
   sales_tag: number;
+  inbound_qty: number;
+  sales_qty: number;
   sellthrough: number;
 }
 
@@ -129,7 +131,13 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
         {formatNumber(row.inbound_tag)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
+        {formatNumber(row.inbound_qty)}
+      </td>
+      <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.sales_tag)}
+      </td>
+      <td className="px-4 py-2 border-b border-gray-200 text-right">
+        {formatNumber(row.sales_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right font-medium">
         {formatPercent(row.sellthrough)}
@@ -244,9 +252,21 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('inbound_qty')}
+                        >
+                          입고수량{getSortIcon('inbound_qty')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleSort('sales_tag')}
                         >
                           누적판매(TAG){getSortIcon('sales_tag')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('sales_qty')}
+                        >
+                          판매수량{getSortIcon('sales_qty')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"

@@ -171,7 +171,8 @@ export async function GET(request: NextRequest) {
         SELECT 
           s.PRDT_CD, 
           ANY_VALUE(s.PART_CD) AS PART_CD, 
-          SUM(s.TAG_STOCK_AMT) AS stock_tag
+          SUM(s.TAG_STOCK_AMT) AS stock_tag,
+          SUM(s.STOCK_QTY) AS stock_qty
         FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
         CROSS JOIN latest_stock_date l
         WHERE 
@@ -185,7 +186,8 @@ export async function GET(request: NextRequest) {
         SELECT 
           PRDT_CD, 
           ANY_VALUE(PART_CD) AS PART_CD, 
-          SUM(TAG_SALE_AMT) AS sales_tag
+          SUM(TAG_SALE_AMT) AS sales_tag,
+          SUM(SALE_QTY) AS sales_qty
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
           (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
@@ -200,6 +202,9 @@ export async function GET(request: NextRequest) {
         COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
         COALESCE(s.sales_tag, 0) AS sales_tag,
         COALESCE(e.stock_tag, 0) AS stock_tag,
+        COALESCE(s.sales_qty, 0) + COALESCE(e.stock_qty, 0) AS inbound_qty,
+        COALESCE(s.sales_qty, 0) AS sales_qty,
+        COALESCE(e.stock_qty, 0) AS stock_qty,
         CASE
           WHEN (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0)) > 0
           THEN (COALESCE(s.sales_tag, 0) / (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0))) * 100
@@ -271,6 +276,8 @@ export async function GET(request: NextRequest) {
       category: r.CATEGORY,
       inbound_tag: parseFloat(r.INBOUND_TAG || 0),
       sales_tag: parseFloat(r.SALES_TAG || 0),
+      inbound_qty: parseInt(r.INBOUND_QTY || 0),
+      sales_qty: parseInt(r.SALES_QTY || 0),
       sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
     }));
 
