@@ -79,10 +79,13 @@ export async function POST(request: NextRequest) {
 function generateSection1Insight(kpis: any, mode: string): string {
   const { k2, k3 } = kpis; // k2: YoY, k3: 목표대비
   
+  console.log('📊 Generating insight from KPIs:', { k2, k3, mode });
+  
   const yoyMatch = k2.match(/([0-9.]+)%/);
   const progressMatch = k3.match(/([0-9.]+)%/);
   
   if (!yoyMatch || !progressMatch) {
+    console.log('❌ Failed to parse KPIs:', { yoyMatch, progressMatch });
     return '데이터 분석 중입니다.';
   }
   
@@ -90,11 +93,23 @@ function generateSection1Insight(kpis: any, mode: string): string {
   const progress = parseFloat(progressMatch[1]);
   const modeText = mode === 'ytd' ? '누적' : '당월';
 
-  // 목표대비 기준 인사이트
+  console.log('✅ Parsed values:', { yoy, progress });
+
+  // 목표대비와 YoY를 함께 고려한 인사이트
   if (progress >= 100) {
-    return `${modeText} 목표 ${progress.toFixed(1)}% 달성, 우수한 성과를 유지 중입니다.`;
+    if (yoy >= 100) {
+      return `${modeText} 목표 ${progress.toFixed(1)}% 달성, 전년대비 ${yoy.toFixed(1)}%로 성장세 지속.`;
+    } else {
+      return `${modeText} 목표 ${progress.toFixed(1)}% 달성, 우수한 성과를 유지 중입니다.`;
+    }
   } else if (progress >= 80) {
-    return `${modeText} 목표대비 ${progress.toFixed(1)}%로 양호, 마감 전 추가 매출 집중 필요.`;
+    if (yoy >= 90) {
+      return `${modeText} 목표대비 ${progress.toFixed(1)}%로 양호, 전년 수준 유지 중.`;
+    } else if (yoy >= 70) {
+      return `목표대비 ${progress.toFixed(1)}%로 양호하나, 전년대비 ${yoy.toFixed(1)}%로 둔화.`;
+    } else {
+      return `목표대비 ${progress.toFixed(1)}%이나 YoY ${yoy.toFixed(1)}%로 부진, 개선 필요.`;
+    }
   } else if (progress >= 60) {
     return `목표대비 ${progress.toFixed(1)}%로 둔화, 주말 프로모션 검토 권장.`;
   } else {
