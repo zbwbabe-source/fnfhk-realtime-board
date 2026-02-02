@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
     // 오래된 캐시 정리 (간단한 구현)
     if (insightCache.size > 100) {
       const oldestKey = insightCache.keys().next().value;
-      insightCache.delete(oldestKey);
+      if (oldestKey) {
+        insightCache.delete(oldestKey);
+      }
     }
 
     console.log('✅ Generated new insights for:', cacheKey);
