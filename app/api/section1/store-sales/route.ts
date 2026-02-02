@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
           /* MTD ACT */
           SUM(
             CASE
-              WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', ?) AND ?
+              WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
               THEN ACT_SALE_AMT ELSE 0
             END
           ) AS mtd_act,
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
           /* MTD ACT PY */
           SUM(
             CASE
-              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', ?)) AND DATEADD(YEAR, -1, ?)
+              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
               THEN ACT_SALE_AMT ELSE 0
             END
           ) AS mtd_act_py,
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
           /* YTD ACT */
           SUM(
             CASE
-              WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', ?) AND ?
+              WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
               THEN ACT_SALE_AMT ELSE 0
             END
           ) AS ytd_act,
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
           /* YTD ACT PY */
           SUM(
             CASE
-              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', ?)) AND DATEADD(YEAR, -1, ?)
+              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
               THEN ACT_SALE_AMT ELSE 0
             END
           ) AS ytd_act_py
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
         WHERE
           (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodes})
-          AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', ?)) AND ?
+          AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND TO_DATE(?)
         GROUP BY LOCAL_SHOP_CD
       )
       SELECT
