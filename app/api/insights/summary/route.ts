@@ -77,15 +77,16 @@ export async function POST(request: NextRequest) {
  * 규칙: 한국어 1문장, 60자 이내, 숫자 1개 포함
  */
 function generateSection1Insight(kpis: any, mode: string): string {
-  const { k2, k3 } = kpis; // k2: YoY, k3: 목표대비
+  const { k1, k2, k3 } = kpis; // k1: 실적, k2: YoY, k3: 목표대비
   
-  console.log('📊 Generating insight from KPIs:', { k2, k3, mode });
+  console.log('📊 Generating insight from KPIs:', { k1, k2, k3, mode });
   
-  const yoyMatch = k2.match(/([0-9.]+)%/);
-  const progressMatch = k3.match(/([0-9.]+)%/);
+  // k2, k3가 문자열 "0.0%" 같은 경우도 처리
+  const yoyMatch = String(k2).match(/([0-9.]+)%/);
+  const progressMatch = String(k3).match(/([0-9.]+)%/);
   
   if (!yoyMatch || !progressMatch) {
-    console.log('❌ Failed to parse KPIs:', { yoyMatch, progressMatch });
+    console.log('❌ Failed to parse KPIs:', { k2, k3, yoyMatch, progressMatch });
     return '데이터 분석 중입니다.';
   }
   
@@ -93,22 +94,26 @@ function generateSection1Insight(kpis: any, mode: string): string {
   const progress = parseFloat(progressMatch[1]);
   const modeText = mode === 'ytd' ? '누적' : '당월';
 
-  console.log('✅ Parsed values:', { yoy, progress });
+  console.log('✅ Parsed values:', { yoy, progress, mode });
 
   // 목표대비와 YoY를 함께 고려한 인사이트
   if (progress >= 100) {
     if (yoy >= 100) {
       return `${modeText} 목표 ${progress.toFixed(1)}% 달성, 전년대비 ${yoy.toFixed(1)}%로 성장세 지속.`;
-    } else {
+    } else if (yoy > 0) {
       return `${modeText} 목표 ${progress.toFixed(1)}% 달성, 우수한 성과를 유지 중입니다.`;
+    } else {
+      return `${modeText} 목표 ${progress.toFixed(1)}% 달성했으나 전년 데이터 부재로 비교 불가.`;
     }
   } else if (progress >= 80) {
     if (yoy >= 90) {
       return `${modeText} 목표대비 ${progress.toFixed(1)}%로 양호, 전년 수준 유지 중.`;
     } else if (yoy >= 70) {
       return `목표대비 ${progress.toFixed(1)}%로 양호하나, 전년대비 ${yoy.toFixed(1)}%로 둔화.`;
-    } else {
+    } else if (yoy > 0) {
       return `목표대비 ${progress.toFixed(1)}%이나 YoY ${yoy.toFixed(1)}%로 부진, 개선 필요.`;
+    } else {
+      return `목표대비 ${progress.toFixed(1)}%로 양호, 마감 전 추가 매출 집중 필요.`;
     }
   } else if (progress >= 60) {
     return `목표대비 ${progress.toFixed(1)}%로 둔화, 주말 프로모션 검토 권장.`;
