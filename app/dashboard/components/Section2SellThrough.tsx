@@ -75,7 +75,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
   };
 
   const formatPercent = (num: number) => {
-    return `${num.toFixed(2)}%`;
+    return `${num.toFixed(1)}%`;
   };
 
   // 정렬 함수
@@ -158,33 +158,44 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header - Collapsible */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-      >
-        <h2 className="text-lg font-semibold text-gray-900">
-          섹션 2: 당시즌 판매율 (TAG 기준)
-        </h2>
-        <svg
-          className={`w-5 h-5 text-gray-600 transition-transform ${
-            expanded ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2 hover:text-gray-700 transition-colors"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+          <h2 className="text-lg font-semibold text-gray-900">
+            섹션 2: 당시즌 판매율 (TAG 기준)
+          </h2>
+          <svg
+            className={`w-5 h-5 text-gray-600 transition-transform ${
+              expanded ? 'rotate-180' : ''
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
+        
+        {expanded && data && data.all_products && data.all_products.length > 10 && (
+          <button
+            onClick={() => setShowAllProducts(!showAllProducts)}
+            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            {showAllProducts ? 'TOP 10만 보기' : '전체 펼치기'}
+          </button>
+        )}
+      </div>
 
       {/* Content */}
       {expanded && (
-        <div className="px-6 pb-6 border-t border-gray-200">
+        <div className="px-6 pb-6">{/* border-t 제거 */}
           {loading && (
             <div className="text-center py-8 text-gray-600">Loading...</div>
           )}
@@ -281,26 +292,6 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                     </tbody>
                   </table>
                 </div>
-
-                {/* 전체 품번 보기 버튼 */}
-                {!showAllProducts && data.all_products && data.all_products.length > 10 && (
-                  <button
-                    onClick={() => setShowAllProducts(true)}
-                    className="w-full mt-4 px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors text-blue-700 font-medium"
-                  >
-                    전체 품번 보기 ({data.all_products.length}개) ▼
-                  </button>
-                )}
-
-                {/* 접기 버튼 */}
-                {showAllProducts && (
-                  <button
-                    onClick={() => setShowAllProducts(false)}
-                    className="w-full mt-4 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors text-gray-700 font-medium"
-                  >
-                    상위 10개만 보기 ▲
-                  </button>
-                )}
               </div>
             </div>
           )}
