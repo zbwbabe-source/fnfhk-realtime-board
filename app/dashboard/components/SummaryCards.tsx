@@ -142,37 +142,44 @@ export default function SummaryCards({
 
       setLoading(true);
       try {
+        const requestBody = {
+          region,
+          brand,
+          asofDate: date,
+          mode: isYtdMode ? 'ytd' : 'mtd',
+          kpis: {
+            section1: {
+              k1: section1KPIs.k1.value,
+              k2: section1KPIs.k2.value,
+              k3: section1KPIs.k3.value,
+            },
+            section2: {
+              k1: section2KPIs.k1.value,
+              k2: section2KPIs.k2.value,
+              k3: section2KPIs.k3.value,
+            },
+            section3: {
+              k1: section3KPIs.k1.value,
+              k2: section3KPIs.k2.value,
+              k3: section3KPIs.k3.value,
+            },
+          },
+        };
+        
+        console.log('📤 Sending insight request:', requestBody);
+        
         const response = await fetch('/api/insights/summary', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            region,
-            brand,
-            asofDate: date,
-            mode: isYtdMode ? 'ytd' : 'mtd',
-            kpis: {
-              section1: {
-                k1: section1KPIs.k1.value,
-                k2: section1KPIs.k2.value,
-                k3: section1KPIs.k3.value,
-              },
-              section2: {
-                k1: section2KPIs.k1.value,
-                k2: section2KPIs.k2.value,
-                k3: section2KPIs.k3.value,
-              },
-              section3: {
-                k1: section3KPIs.k1.value,
-                k2: section3KPIs.k2.value,
-                k3: section3KPIs.k3.value,
-              },
-            },
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (response.ok) {
           const data = await response.json();
+          console.log('📥 Received insights:', data);
           setInsights(data);
+        } else {
+          console.error('❌ Insights API error:', response.status, await response.text());
         }
       } catch (error) {
         console.error('Failed to fetch insights:', error);
