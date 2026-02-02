@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
-import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD, getSeasonStartDate } from '@/lib/date-utils';
-import { parseISO, subMonths } from 'date-fns';
+import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,30 +41,8 @@ export async function GET(request: NextRequest) {
     const startDate = getSection2StartDate(asofDate);
     const startDateStr = formatDateYYYYMMDD(startDate);
 
-    // =====================
-    // 전년(LY) 계산: TY 시즌에서 연도만 -1
-    // =====================
-    const asofDateLY = new Date(asofDate);
-    asofDateLY.setFullYear(asofDateLY.getFullYear() - 1);
-    const dateLY = formatDateYYYYMMDD(asofDateLY);
-    
-    // LY 시즌: TY 시즌에서 연도만 -1 (예: 25F -> 24F, 26S -> 25S)
-    // getSeasonCode(asof_date_ly) 사용 금지 (시즌 경계 오류 방지)
-    const sesnYear = parseInt(sesn.substring(0, 2), 10);
-    const sesnType = sesn.substring(2); // 'F' or 'S'
-    const sesnLY = `${(sesnYear - 1).toString().padStart(2, '0')}${sesnType}`;
-    
-    // LY 시즌 시작일 - 6개월
-    // LY 시즌 코드로부터 실제 날짜 역산
-    const lySeasonYear = 2000 + sesnYear - 1; // 예: 24F -> 2024
-    const lySeasonDate = new Date(lySeasonYear, sesnType === 'F' ? 8 : 2, 1); // F=9월, S=3월
-    const seasonStartDateLY = getSeasonStartDate(lySeasonDate);
-    const startDateLY = subMonths(seasonStartDateLY, 6);
-    const startDateStrLY = formatDateYYYYMMDD(startDateLY);
-
     console.log('📅 Date & Season Calculation:', {
       current: { date, sesn, startDate: startDateStr },
-      lastYear: { date: dateLY, sesn: sesnLY, startDate: startDateStrLY },
     });
 
     // 매장 코드 준비
@@ -100,7 +77,7 @@ export async function GET(request: NextRequest) {
     });
 
     // =====================
-    // 헤더용 단일 SQL (TY / LY + YoY)
+    // 헤더용 SQL (TY만)
     // ⚠️ STOCK_DT가 없을 경우 가장 최근 데이터 사용
     // =====================
     const headerQuery = `
@@ -130,33 +107,6 @@ export async function GET(request: NextRequest) {
           AND s.SESN = ?
           AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
           AND s.STOCK_DT = l.stock_dt
-      ),
-      
-      -- LAST YEAR (LY)
-      sales_ly AS (
-        SELECT SUM(TAG_SALE_AMT) AS sales_ly
-        FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-          AND SALE_DT BETWEEN ? AND ?
-      ),
-      latest_stock_date_ly AS (
-        SELECT MAX(STOCK_DT) AS stock_dt
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND STOCK_DT <= DATEADD(DAY, 1, ?)
-      ),
-      stock_ly AS (
-        SELECT SUM(s.TAG_STOCK_AMT) AS stock_ly, MAX(s.STOCK_DT) AS stock_dt_used
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
-        CROSS JOIN latest_stock_date_ly l
-        WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
-          AND s.SESN = ?
-          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND s.STOCK_DT = l.stock_dt
       )
       
       SELECT
@@ -169,50 +119,10 @@ export async function GET(request: NextRequest) {
           WHEN (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) > 0
           THEN (COALESCE(s_ty.sales_ty, 0) / (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0))) * 100
           ELSE NULL
-        END AS sellthrough_ty,
-      
-        /* LY */
-        COALESCE(s_ly.sales_ly, 0) AS sales_ly,
-        COALESCE(st_ly.stock_ly, 0) AS stock_ly,
-        st_ly.stock_dt_used AS stock_dt_ly,
-        (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) AS inbound_ly,
-        CASE
-          WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
-          THEN (COALESCE(s_ly.sales_ly, 0) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) * 100
-          ELSE NULL
-        END AS sellthrough_ly,
-      
-        /* YoY metrics */
-        (
-          CASE
-            WHEN (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) > 0
-            THEN (COALESCE(s_ty.sales_ty, 0) / (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0))) * 100
-            ELSE NULL
-          END
-          -
-          CASE
-            WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
-            THEN (COALESCE(s_ly.sales_ly, 0) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) * 100
-            ELSE NULL
-          END
-        ) AS sellthrough_yoy_pp,
-      
-        CASE
-          WHEN COALESCE(s_ly.sales_ly, 0) > 0
-          THEN ((COALESCE(s_ty.sales_ty, 0) / COALESCE(s_ly.sales_ly, 0)) - 1) * 100
-          ELSE NULL
-        END AS sales_yoy_pct,
-      
-        CASE
-          WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
-          THEN (((COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) - 1) * 100
-          ELSE NULL
-        END AS inbound_yoy_pct
+        END AS sellthrough_ty
       
       FROM sales_ty s_ty
       CROSS JOIN stock_ty st_ty
-      CROSS JOIN sales_ly s_ly
-      CROSS JOIN stock_ly st_ly
     `;
 
     const headerRows = await executeSnowflakeQuery(headerQuery, [
@@ -221,13 +131,7 @@ export async function GET(request: NextRequest) {
       // TY - latest_stock_date_ty
       brand, sesn, date,
       // TY - stock_ty
-      brand, sesn,
-      // LY - sales_ly
-      brand, sesnLY, startDateStrLY, dateLY,
-      // LY - latest_stock_date_ly
-      brand, sesnLY, dateLY,
-      // LY - stock_ly
-      brand, sesnLY
+      brand, sesn
     ]);
 
     const headerData = headerRows[0] || {};
@@ -235,19 +139,12 @@ export async function GET(request: NextRequest) {
     const totalStock = parseFloat(headerData.STOCK_TY || 0);
     const totalInbound = parseFloat(headerData.INBOUND_TY || 0);
     const overall_sellthrough = headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
-    
-    const sellthrough_yoy_pp = headerData.SELLTHROUGH_YOY_PP !== null ? parseFloat(headerData.SELLTHROUGH_YOY_PP) : null;
-    const sales_yoy_pct = headerData.SALES_YOY_PCT !== null ? parseFloat(headerData.SALES_YOY_PCT) : null;
-    const inbound_yoy_pct = headerData.INBOUND_YOY_PCT !== null ? parseFloat(headerData.INBOUND_YOY_PCT) : null;
 
-    console.log('📊 Header YoY Calculation:', {
+    console.log('📊 Header Calculation:', {
       params: {
-        asof_date_ty: date,
-        sesn_ty: sesn,
-        start_date_ty: startDateStr,
-        asof_date_ly: dateLY,
-        sesn_ly: sesnLY,
-        start_date_ly: startDateStrLY,
+        asof_date: date,
+        sesn: sesn,
+        start_date: startDateStr,
       },
       ty: { 
         sales: totalSales, 
@@ -256,14 +153,6 @@ export async function GET(request: NextRequest) {
         inbound: totalInbound, 
         sellthrough: overall_sellthrough 
       },
-      ly: { 
-        sales: headerData.SALES_LY, 
-        stock: headerData.STOCK_LY,
-        stock_dt: headerData.STOCK_DT_LY,
-        inbound: headerData.INBOUND_LY, 
-        sellthrough: headerData.SELLTHROUGH_LY 
-      },
-      yoy: { sellthrough_yoy_pp, sales_yoy_pct, inbound_yoy_pct },
     });
 
     // ⚠️ 품번별 데이터 조회 (테이블용)
@@ -398,12 +287,8 @@ export async function GET(request: NextRequest) {
         overall_sellthrough: Math.round(overall_sellthrough * 100) / 100,
         total_inbound: totalInbound,
         total_sales: totalSales,
-        // YoY 추가 (NULL 가능)
-        sellthrough_yoy_pp: sellthrough_yoy_pp !== null ? Math.round(sellthrough_yoy_pp * 100) / 100 : null,
-        sales_yoy_pct: sales_yoy_pct !== null ? Math.round(sales_yoy_pct * 100) / 100 : null,
-        inbound_yoy_pct: inbound_yoy_pct !== null ? Math.round(inbound_yoy_pct * 100) / 100 : null,
       },
-      all_products: allProducts, // 전체 품번 데이터
+      all_products: allProducts,
       no_inbound,
     };
 

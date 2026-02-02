@@ -204,13 +204,6 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                       <span className="ml-2 text-lg font-semibold text-blue-600">
                         {data.header.overall_sellthrough.toFixed(2)}%
                       </span>
-                      {data.header.sellthrough_yoy_pp !== null && data.header.sellthrough_yoy_pp !== undefined ? (
-                        <span className={`ml-2 text-sm ${data.header.sellthrough_yoy_pp >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ({data.header.sellthrough_yoy_pp >= 0 ? '+' : ''}{data.header.sellthrough_yoy_pp.toFixed(1)}%p)
-                        </span>
-                      ) : (
-                        <span className="ml-2 text-sm text-gray-400">(-)</span>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -219,26 +212,12 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                       <span className="ml-2 text-md font-semibold text-gray-900">
                         {formatNumber(data.header.total_sales)}
                       </span>
-                      {data.header.sales_yoy_pct !== null && data.header.sales_yoy_pct !== undefined ? (
-                        <span className={`ml-2 text-sm ${data.header.sales_yoy_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          (YoY: {data.header.sales_yoy_pct >= 0 ? '+' : ''}{data.header.sales_yoy_pct.toFixed(1)}%)
-                        </span>
-                      ) : (
-                        <span className="ml-2 text-sm text-gray-400">(-)</span>
-                      )}
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">누적입고:</span>
                       <span className="ml-2 text-md font-semibold text-gray-900">
                         {formatNumber(data.header.total_inbound)}
                       </span>
-                      {data.header.inbound_yoy_pct !== null && data.header.inbound_yoy_pct !== undefined ? (
-                        <span className={`ml-2 text-sm ${data.header.inbound_yoy_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          (YoY: {data.header.inbound_yoy_pct >= 0 ? '+' : ''}{data.header.inbound_yoy_pct.toFixed(1)}%)
-                        </span>
-                      ) : (
-                        <span className="ml-2 text-sm text-gray-400">(-)</span>
-                      )}
                     </div>
                   </div>
                   {data.stock_dt_used && (
