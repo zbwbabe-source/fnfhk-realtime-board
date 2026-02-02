@@ -307,8 +307,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               {isYtdMode ? (
                 <>
                   {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
-                  <td className="px-4 py-2 border-b border-gray-200"></td>
-                  <td className="px-4 py-2 border-b border-gray-200"></td>
+                  <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
+                  <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
                 </>
               ) : (
                 <>
@@ -392,8 +392,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
         {isYtdMode ? (
           <>
             {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
-            <td className="px-4 py-2 border-b border-gray-200"></td>
-            <td className="px-4 py-2 border-b border-gray-200"></td>
+            <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
+            <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
           </>
         ) : (
           <>
@@ -506,8 +506,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               {isYtdMode ? (
                 <>
                   {/* YTD 모드일 때 빈 헤더 2개로 레이아웃 유지 */}
-                  <th className="px-4 py-2 text-right font-medium text-gray-700"></th>
-                  <th className="px-4 py-2 text-right font-medium text-gray-700"></th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-700 text-gray-300">-</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-700 text-gray-300">-</th>
                 </>
               ) : (
                 <>
