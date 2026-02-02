@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
-import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
+import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD, getSeasonStartDate } from '@/lib/date-utils';
+import { parseISO, subMonths } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,13 +42,26 @@ export async function GET(request: NextRequest) {
     const startDate = getSection2StartDate(asofDate);
     const startDateStr = formatDateYYYYMMDD(startDate);
 
-    // 전년 동일 날짜 및 시즌 계산
+    // =====================
+    // 전년(LY) 계산: TY 시즌에서 연도만 -1
+    // =====================
     const asofDateLY = new Date(asofDate);
     asofDateLY.setFullYear(asofDateLY.getFullYear() - 1);
-    const sesnLY = getSeasonCode(asofDateLY);
-    const startDateLY = getSection2StartDate(asofDateLY);
-    const startDateStrLY = formatDateYYYYMMDD(startDateLY);
     const dateLY = formatDateYYYYMMDD(asofDateLY);
+    
+    // LY 시즌: TY 시즌에서 연도만 -1 (예: 25F -> 24F, 26S -> 25S)
+    // getSeasonCode(asof_date_ly) 사용 금지 (시즌 경계 오류 방지)
+    const sesnYear = parseInt(sesn.substring(0, 2), 10);
+    const sesnType = sesn.substring(2); // 'F' or 'S'
+    const sesnLY = `${(sesnYear - 1).toString().padStart(2, '0')}${sesnType}`;
+    
+    // LY 시즌 시작일 - 6개월
+    // LY 시즌 코드로부터 실제 날짜 역산
+    const lySeasonYear = 2000 + sesnYear - 1; // 예: 24F -> 2024
+    const lySeasonDate = new Date(lySeasonYear, sesnType === 'F' ? 8 : 2, 1); // F=9월, S=3월
+    const seasonStartDateLY = getSeasonStartDate(lySeasonDate);
+    const startDateLY = subMonths(seasonStartDateLY, 6);
+    const startDateStrLY = formatDateYYYYMMDD(startDateLY);
 
     console.log('📅 Date & Season Calculation:', {
       current: { date, sesn, startDate: startDateStr },
