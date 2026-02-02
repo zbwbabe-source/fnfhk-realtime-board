@@ -51,6 +51,20 @@ export default function SummaryCards({
     const yoy = isYtdMode ? total.yoy_ytd : total.yoy;
     const progress = isYtdMode ? total.progress_ytd : total.progress;
 
+    console.log('🎯 Section1 KPI Calculation:', {
+      isYtdMode,
+      total,
+      actual,
+      yoy,
+      progress,
+      mtd_act: total.mtd_act,
+      mtd_yoy: total.yoy,
+      mtd_progress: total.progress,
+      ytd_act: total.ytd_act,
+      ytd_yoy: total.yoy_ytd,
+      ytd_progress: total.progress_ytd,
+    });
+
     return {
       k1: {
         label: isYtdMode ? '누적실적' : '당월실적',
