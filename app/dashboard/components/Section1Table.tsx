@@ -438,10 +438,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
         </div>
         <button
           onClick={toggleAll}
-          className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
+          className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
         >
-          <span>{isAllExpanded ? '▼' : '▶'}</span>
-          <span>{isAllExpanded ? '전체 접기' : '전체 펼치기'}</span>
+          {isAllExpanded ? '전체 접기' : '전체 펼치기'}
         </button>
       </div>
 
