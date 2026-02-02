@@ -17,22 +17,23 @@ async function convertTarget() {
   const lines = csvContent.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim());
   
+  console.log('CSV Headers:', headers);
+  
   const targets = {};
   
   for (let i = 1; i < lines.length; i++) {
     const values = lines[i].split(',').map(v => v.trim());
-    if (values.length < 5) continue;
+    if (values.length < 6) continue;
     
-    const period = values[0]; // e.g., "2601"
-    const storeCode = values[1]; // e.g., "M01"
-    const targetValue = parseFloat(values[2]) || 0;
-    const country = values[3];
-    const currency = values[4];
+    const year = values[0]; // e.g., "2026"
+    const month = values[1]; // e.g., "1"
+    const storeCode = values[2]; // e.g., "M01"
+    const targetValue = parseFloat(values[3]) || 0;
+    const country = values[4];
+    const currency = values[5];
     
-    // Convert period "2601" to "2026-01"
-    const year = '20' + period.substring(0, 2);
-    const month = period.substring(2, 4);
-    const periodKey = `${year}-${month}`;
+    // Create period key "2026-01"
+    const periodKey = `${year}-${month.padStart(2, '0')}`;
     
     if (!targets[periodKey]) {
       targets[periodKey] = {};

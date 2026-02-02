@@ -109,6 +109,8 @@ export async function GET(request: NextRequest) {
     // 목표값 데이터 로드 (period 기준)
     const periodKey = `${year}-${String(month).padStart(2, '0')}`;
     const targetsByStore = (targetData as any)[periodKey] || {};
+    
+    console.log(`📊 Target period: ${periodKey}, stores with targets: ${Object.keys(targetsByStore).length}`);
 
     // 가중치 데이터 로드 (서버 사이드)
     const weightMap = await loadWeightDataServer();
