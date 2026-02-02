@@ -169,6 +169,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
   useEffect(() => {
     if (!date) return;
 
+    console.log('🔍 Section1Table - Fetching data with params:', { region, brand, date });
+
     async function fetchData() {
       setLoading(true);
       setError('');

@@ -68,6 +68,8 @@ export async function GET(request: NextRequest) {
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
 
+    console.log('🔍 API Section1 - Received params:', { region, brand, date });
+
     if (!date) {
       return NextResponse.json(
         { error: 'Missing required parameter: date' },
@@ -85,6 +87,8 @@ export async function GET(request: NextRequest) {
       normalizeBrand(s.brand) === brand &&
       s.channel !== 'Warehouse'
     );
+
+    console.log(`📊 Filtered stores: ${targetStores.length} stores (brand=${brand})`);
 
     if (targetStores.length === 0) {
       return NextResponse.json({
