@@ -201,8 +201,8 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
 
   const renderProductRow = (row: ProductRow) => (
     <tr key={row.prdt_cd}>
-      <td className="px-4 py-2 border-b border-gray-200">{row.prdt_cd}</td>
       <td className="px-4 py-2 border-b border-gray-200">{row.category}</td>
+      <td className="px-4 py-2 border-b border-gray-200">{row.prdt_cd}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.inbound_qty)}
       </td>
@@ -471,8 +471,8 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                   <table className="min-w-full text-sm">
                     <thead className="bg-green-50">
                       <tr>
-                        <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
                         <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('inbound_qty')}
