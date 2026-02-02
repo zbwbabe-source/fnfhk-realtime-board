@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface SummaryCardsProps {
   region: string;
@@ -126,6 +126,11 @@ export default function SummaryCards({
     };
   };
 
+  // Section1 KPI 계산 (useMemo로 캐싱)
+  const section1KPIs = useMemo(() => calculateSection1KPIs(), [section1Data, isYtdMode]);
+  const section2KPIs = useMemo(() => calculateSection2KPIs(), [section2Data]);
+  const section3KPIs = useMemo(() => calculateSection3KPIs(), [section3Data]);
+
   // AI 인사이트 가져오기
   useEffect(() => {
     const fetchInsights = async () => {
@@ -133,10 +138,6 @@ export default function SummaryCards({
 
       setLoading(true);
       try {
-        const section1KPIs = calculateSection1KPIs();
-        const section2KPIs = calculateSection2KPIs();
-        const section3KPIs = calculateSection3KPIs();
-
         const response = await fetch('/api/insights/summary', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -177,11 +178,7 @@ export default function SummaryCards({
     };
 
     fetchInsights();
-  }, [region, brand, date, isYtdMode, section1Data, section2Data, section3Data]);
-
-  const section1KPIs = calculateSection1KPIs();
-  const section2KPIs = calculateSection2KPIs();
-  const section3KPIs = calculateSection3KPIs();
+  }, [region, brand, date, isYtdMode, section1KPIs, section2KPIs, section3KPIs]);
 
   const cards = [
     {
