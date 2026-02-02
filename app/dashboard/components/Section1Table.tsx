@@ -446,7 +446,17 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm table-fixed">
+          <colgroup>
+            <col style={{ width: '180px' }} /> {/* 매장 */}
+            <col style={{ width: '120px' }} /> {/* 목표 */}
+            <col style={{ width: '120px' }} /> {/* 실적 */}
+            <col style={{ width: '100px' }} /> {/* 목표대비 */}
+            <col style={{ width: '120px' }} /> {/* 전년 */}
+            <col style={{ width: '100px' }} /> {/* YoY */}
+            <col style={{ width: '120px' }} /> {/* 월말환산 or - */}
+            <col style={{ width: '100px' }} /> {/* 환산YoY or - */}
+          </colgroup>
           <thead className="bg-gray-100">
             <tr>
               <th 
