@@ -209,41 +209,40 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
           {!loading && !error && data && (
             <div className="space-y-6 mt-4">
               {/* Header Info */}
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm text-gray-600">시즌:</span>
-                      <span className="ml-2 text-lg font-semibold text-gray-900">
-                        {data.header.sesn}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">전체 판매율:</span>
-                      <span className="ml-2 text-lg font-semibold text-blue-600">
-                        {data.header.overall_sellthrough.toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm text-gray-600">누적판매:</span>
-                      <span className="ml-2 text-md font-semibold text-gray-900">
-                        {formatNumber(data.header.total_sales)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600">누적입고:</span>
-                      <span className="ml-2 text-md font-semibold text-gray-900">
-                        {formatNumber(data.header.total_inbound)}
-                      </span>
-                    </div>
+              <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-lg border border-blue-200">
+                {/* 시즌 정보 */}
+                <div className="flex items-center justify-between mb-4 pb-4 border-b border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">시즌:</span>
+                    <span className="text-xl font-bold text-gray-900">{data.header.sesn}</span>
                   </div>
                   {data.stock_dt_used && (
-                    <div className="col-span-full text-xs text-gray-500 text-center" title={`재고는 적재일 기준으로 ${data.stock_dt_used} 스냅샷 사용`}>
+                    <div className="text-xs text-gray-500" title={`재고는 적재일 기준으로 ${data.stock_dt_used} 스냅샷 사용`}>
                       재고 기준일: {data.stock_dt_used}
                     </div>
                   )}
+                </div>
+                
+                {/* 주요 지표 - 3컬럼 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600 mb-1">전체 판매율</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {data.header.overall_sellthrough.toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="text-center border-l border-r border-blue-200">
+                    <div className="text-xs text-gray-600 mb-1">누적판매</div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(data.header.total_sales)}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-600 mb-1">누적입고</div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {formatNumber(data.header.total_inbound)}
+                    </div>
+                  </div>
                 </div>
               </div>
 
