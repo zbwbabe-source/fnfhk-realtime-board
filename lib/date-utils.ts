@@ -31,6 +31,47 @@ export function getSeasonCode(date: Date): string {
 }
 
 /**
+ * 시즌 시작일 계산 함수
+ * 
+ * 시즌별 시작 월:
+ * - YYF (Fall/Winter): 9월 1일
+ * - YYS (Spring/Summer): 3월 1일
+ * 
+ * 예시:
+ * - 25F -> 2025-09-01
+ * - 26S -> 2026-03-01
+ */
+export function getSeasonStartDate(date: Date): Date {
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+
+  if (month >= 9 && month <= 12) {
+    // 9~12월: 해당 연도 9월 1일
+    return new Date(year, 8, 1); // month는 0-based
+  } else if (month >= 1 && month <= 2) {
+    // 1~2월: 전년도 9월 1일
+    return new Date(year - 1, 8, 1);
+  } else {
+    // 3~8월: 해당 연도 3월 1일
+    return new Date(year, 2, 1);
+  }
+}
+
+/**
+ * 섹션2 계산용 시작일 (시즌 시작일 - 6개월)
+ * 
+ * 예시:
+ * - 2026-01-31 선택 -> 시즌 25F (2025-09-01) -> 계산 시작: 2025-03-01
+ * - 2026-05-15 선택 -> 시즌 26S (2026-03-01) -> 계산 시작: 2025-09-01
+ */
+export function getSection2StartDate(date: Date): Date {
+  const seasonStart = getSeasonStartDate(date);
+  const startDate = new Date(seasonStart);
+  startDate.setMonth(startDate.getMonth() - 6);
+  return startDate;
+}
+
+/**
  * 날짜 문자열을 YYYY-MM-DD 형식으로 포맷
  */
 export function formatDateYYYYMMDD(date: Date): string {

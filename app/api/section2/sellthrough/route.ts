@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
-import { getSeasonCode } from '@/lib/date-utils';
+import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +36,23 @@ export async function GET(request: NextRequest) {
     // 시즌 코드 계산
     const asofDate = new Date(date);
     const sesn = getSeasonCode(asofDate);
+    
+    // 섹션2 계산 시작일: 시즌 시작일 - 6개월
+    const startDate = getSection2StartDate(asofDate);
+    const startDateStr = formatDateYYYYMMDD(startDate);
+
+    // 전년 동일 날짜 및 시즌 계산
+    const asofDateLY = new Date(asofDate);
+    asofDateLY.setFullYear(asofDateLY.getFullYear() - 1);
+    const sesnLY = getSeasonCode(asofDateLY);
+    const startDateLY = getSection2StartDate(asofDateLY);
+    const startDateStrLY = formatDateYYYYMMDD(startDateLY);
+    const dateLY = formatDateYYYYMMDD(asofDateLY);
+
+    console.log('📅 Date & Season Calculation:', {
+      current: { date, sesn, startDate: startDateStr },
+      lastYear: { date: dateLY, sesn: sesnLY, startDate: startDateStrLY },
+    });
 
     // 매장 코드 준비
     // - all_store_codes: HKMC 전체 매장 (warehouse 포함) - inbound 계산용
@@ -49,8 +66,7 @@ export async function GET(request: NextRequest) {
         region,
         brand,
         header: { sesn, overall_sellthrough: 0 },
-        top10: [],
-        bad10: [],
+        all_products: [],
         no_inbound: [],
       });
     }
@@ -63,69 +79,231 @@ export async function GET(request: NextRequest) {
       brand,
       date,
       sesn,
+      startDate: startDateStr,
+      periodInfo: `${startDateStr} ~ ${date}`,
       allStoresCount: allStoreCodes.length,
       salesStoresCount: salesStoreCodes.length,
     });
 
-    // ⚠️ 중요: 이 방식은 매장 간 재고 이동(transfer)도 positive delta로 잡히므로
-    // '외부/본사 입고'만이 아닌 '재고 유입 이벤트' 기준 inbound로 해석
-    const query = `
-      WITH inbound_calc AS (
-        SELECT 
-          LOCAL_SHOP_CD,
-          PRDT_CD,
-          PART_CD,
-          TAG_STOCK_AMT,
-          STOCK_DT,
-          LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
-            OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS prev_stock,
-          TAG_STOCK_AMT - LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
-            OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS delta
+    // =====================
+    // 헤더용 단일 SQL (TY / LY + YoY)
+    // ⚠️ STOCK_DT가 없을 경우 가장 최근 데이터 사용
+    // =====================
+    const headerQuery = `
+      WITH
+      -- THIS YEAR (TY)
+      sales_ty AS (
+        SELECT SUM(TAG_SALE_AMT) AS sales_ty
+        FROM SAP_FNF.DW_HMD_SALE_D
+        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+          AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+          AND SALE_DT BETWEEN ? AND ?
+      ),
+      latest_stock_date_ty AS (
+        SELECT MAX(STOCK_DT) AS stock_dt
         FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE 
-          (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND SESN = ?
           AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND STOCK_DT <= ?
+          AND STOCK_DT <= DATEADD(DAY, 1, ?)
       ),
-      inbound AS (
-        SELECT
-          PRDT_CD,
-          SUBSTR(PART_CD, 3, 2) AS category,
-          SUM(GREATEST(delta, 0)) AS inbound_tag
-        FROM inbound_calc
-        GROUP BY PRDT_CD, SUBSTR(PART_CD, 3, 2)
+      stock_ty AS (
+        SELECT SUM(s.TAG_STOCK_AMT) AS stock_ty, MAX(s.STOCK_DT) AS stock_dt_used
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+        CROSS JOIN latest_stock_date_ty l
+        WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+          AND s.SESN = ?
+          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND s.STOCK_DT = l.stock_dt
       ),
-      sales AS (
-        SELECT
-          PRDT_CD,
+      
+      -- LAST YEAR (LY)
+      sales_ly AS (
+        SELECT SUM(TAG_SALE_AMT) AS sales_ly
+        FROM SAP_FNF.DW_HMD_SALE_D
+        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+          AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+          AND SALE_DT BETWEEN ? AND ?
+      ),
+      latest_stock_date_ly AS (
+        SELECT MAX(STOCK_DT) AS stock_dt
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+          AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND STOCK_DT <= DATEADD(DAY, 1, ?)
+      ),
+      stock_ly AS (
+        SELECT SUM(s.TAG_STOCK_AMT) AS stock_ly, MAX(s.STOCK_DT) AS stock_dt_used
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+        CROSS JOIN latest_stock_date_ly l
+        WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+          AND s.SESN = ?
+          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND s.STOCK_DT = l.stock_dt
+      )
+      
+      SELECT
+        /* TY */
+        COALESCE(s_ty.sales_ty, 0) AS sales_ty,
+        COALESCE(st_ty.stock_ty, 0) AS stock_ty,
+        st_ty.stock_dt_used AS stock_dt_ty,
+        (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) AS inbound_ty,
+        CASE
+          WHEN (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) > 0
+          THEN (COALESCE(s_ty.sales_ty, 0) / (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0))) * 100
+          ELSE NULL
+        END AS sellthrough_ty,
+      
+        /* LY */
+        COALESCE(s_ly.sales_ly, 0) AS sales_ly,
+        COALESCE(st_ly.stock_ly, 0) AS stock_ly,
+        st_ly.stock_dt_used AS stock_dt_ly,
+        (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) AS inbound_ly,
+        CASE
+          WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
+          THEN (COALESCE(s_ly.sales_ly, 0) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) * 100
+          ELSE NULL
+        END AS sellthrough_ly,
+      
+        /* YoY metrics */
+        (
+          CASE
+            WHEN (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) > 0
+            THEN (COALESCE(s_ty.sales_ty, 0) / (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0))) * 100
+            ELSE NULL
+          END
+          -
+          CASE
+            WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
+            THEN (COALESCE(s_ly.sales_ly, 0) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) * 100
+            ELSE NULL
+          END
+        ) AS sellthrough_yoy_pp,
+      
+        CASE
+          WHEN COALESCE(s_ly.sales_ly, 0) > 0
+          THEN ((COALESCE(s_ty.sales_ty, 0) / COALESCE(s_ly.sales_ly, 0)) - 1) * 100
+          ELSE NULL
+        END AS sales_yoy_pct,
+      
+        CASE
+          WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
+          THEN (((COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) - 1) * 100
+          ELSE NULL
+        END AS inbound_yoy_pct
+      
+      FROM sales_ty s_ty
+      CROSS JOIN stock_ty st_ty
+      CROSS JOIN sales_ly s_ly
+      CROSS JOIN stock_ly st_ly
+    `;
+
+    const headerRows = await executeSnowflakeQuery(headerQuery, [
+      // TY - sales_ty
+      brand, sesn, startDateStr, date,
+      // TY - latest_stock_date_ty
+      brand, sesn, date,
+      // TY - stock_ty
+      brand, sesn,
+      // LY - sales_ly
+      brand, sesnLY, startDateStrLY, dateLY,
+      // LY - latest_stock_date_ly
+      brand, sesnLY, dateLY,
+      // LY - stock_ly
+      brand, sesnLY
+    ]);
+
+    const headerData = headerRows[0] || {};
+    const totalSales = parseFloat(headerData.SALES_TY || 0);
+    const totalStock = parseFloat(headerData.STOCK_TY || 0);
+    const totalInbound = parseFloat(headerData.INBOUND_TY || 0);
+    const overall_sellthrough = headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
+    
+    const sellthrough_yoy_pp = headerData.SELLTHROUGH_YOY_PP !== null ? parseFloat(headerData.SELLTHROUGH_YOY_PP) : null;
+    const sales_yoy_pct = headerData.SALES_YOY_PCT !== null ? parseFloat(headerData.SALES_YOY_PCT) : null;
+    const inbound_yoy_pct = headerData.INBOUND_YOY_PCT !== null ? parseFloat(headerData.INBOUND_YOY_PCT) : null;
+
+    console.log('📊 Header YoY Calculation:', {
+      ty: { 
+        sales: totalSales, 
+        stock: totalStock, 
+        stock_dt: headerData.STOCK_DT_TY,
+        inbound: totalInbound, 
+        sellthrough: overall_sellthrough 
+      },
+      ly: { 
+        sales: headerData.SALES_LY, 
+        stock: headerData.STOCK_LY,
+        stock_dt: headerData.STOCK_DT_LY,
+        inbound: headerData.INBOUND_LY, 
+        sellthrough: headerData.SELLTHROUGH_LY 
+      },
+      yoy: { sellthrough_yoy_pp, sales_yoy_pct, inbound_yoy_pct },
+    });
+
+    // ⚠️ 품번별 데이터 조회 (테이블용)
+    // 헤더 YoY는 위의 headerQuery 결과 사용
+    const productQuery = `
+      WITH 
+      latest_stock_date AS (
+        SELECT MAX(STOCK_DT) AS stock_dt
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+          AND SESN = ?
+          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND STOCK_DT <= DATEADD(DAY, 1, ?)
+      ),
+      ending_stock AS (
+        SELECT 
+          s.PRDT_CD, 
+          ANY_VALUE(s.PART_CD) AS PART_CD, 
+          SUM(s.TAG_STOCK_AMT) AS stock_tag
+        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+        CROSS JOIN latest_stock_date l
+        WHERE 
+          (CASE WHEN s.BRD_CD IN ('M', 'I') THEN 'M' ELSE s.BRD_CD END) = ?
+          AND s.SESN = ?
+          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+          AND s.STOCK_DT = l.stock_dt
+        GROUP BY s.PRDT_CD
+      ),
+      sales_agg AS (
+        SELECT 
+          PRDT_CD, 
+          ANY_VALUE(PART_CD) AS PART_CD, 
           SUM(TAG_SALE_AMT) AS sales_tag
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
           (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
           AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-          AND SALE_DT <= ?
+          AND SALE_DT BETWEEN ? AND ?
         GROUP BY PRDT_CD
       )
       SELECT
-        COALESCE(i.PRDT_CD, s.PRDT_CD) AS prdt_cd,
-        i.category,
-        COALESCE(i.inbound_tag, 0) AS inbound_tag,
+        COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
+        SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
+        COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
         COALESCE(s.sales_tag, 0) AS sales_tag,
-        CASE 
-          WHEN COALESCE(i.inbound_tag, 0) > 0 
-          THEN (COALESCE(s.sales_tag, 0) / i.inbound_tag) * 100
+        COALESCE(e.stock_tag, 0) AS stock_tag,
+        CASE
+          WHEN (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0)) > 0
+          THEN (COALESCE(s.sales_tag, 0) / (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0))) * 100
           ELSE 0
-        END AS sellthrough
-      FROM inbound i
-      FULL OUTER JOIN sales s ON i.PRDT_CD = s.PRDT_CD
-      ORDER BY sellthrough DESC
+        END AS sellthrough_pct
+      FROM sales_agg s
+      FULL OUTER JOIN ending_stock e ON s.PRDT_CD = e.PRDT_CD
+      WHERE COALESCE(s.PRDT_CD, e.PRDT_CD) IS NOT NULL
+      ORDER BY sellthrough_pct DESC
     `;
 
-    const rows = await executeSnowflakeQuery(query, [
-      brand, sesn, date,  // inbound_calc
-      brand, sesn, date   // sales
+    const rows = await executeSnowflakeQuery(productQuery, [
+      brand, sesn, date,                // latest_stock_date
+      brand, sesn,                      // ending_stock
+      brand, sesn, startDateStr, date   // sales_agg
     ]);
 
     console.log('📊 Section2 Query Result:', {
@@ -133,76 +311,77 @@ export async function GET(request: NextRequest) {
       brand,
       date,
       sesn,
+      startDate: startDateStr,
+      stockDtUsed: `${date} + 1 day`,
       allStoresCount: allStoreCodes.length,
       salesStoresCount: salesStoreCodes.length,
       rowsCount: rows.length,
-      sampleRow: rows[0],
+      sampleRows: rows.slice(0, 5).map((r: any) => ({
+        prdt_cd: r.PRDT_CD,
+        inbound: r.INBOUND_TAG,
+        sales: r.SALES_TAG,
+        stock: r.STOCK_TAG,
+        sellthrough: r.SELLTHROUGH_PCT,
+      })),
     });
 
     if (rows.length === 0) {
       return NextResponse.json({
         asof_date: date,
+        stock_dt_used: formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000)),
         region,
         brand,
-        header: { sesn, overall_sellthrough: 0 },
+        header: { 
+          sesn, 
+          overall_sellthrough: 0,
+          total_inbound: 0,
+          total_sales: 0,
+          sellthrough_yoy_pp: null,
+          sales_yoy_pct: null,
+          inbound_yoy_pct: null,
+        },
         top10: [],
-        bad10: [],
+        all_products: [],
         no_inbound: [],
       });
     }
 
-    // inbound > 0 데이터만 필터
-    const validRows = rows.filter((r: any) => parseFloat(r.INBOUND_TAG || 0) > 0);
+    // sales_tag > 0 또는 stock_tag > 0 데이터만 필터
+    const validRows = rows.filter((r: any) => 
+      parseFloat(r.SALES_TAG || 0) > 0 || parseFloat(r.STOCK_TAG || 0) > 0
+    );
 
-    // Overall sell-through 계산
-    const totalInbound = validRows.reduce((sum: number, r: any) => sum + parseFloat(r.INBOUND_TAG || 0), 0);
-    const totalSales = validRows.reduce((sum: number, r: any) => sum + parseFloat(r.SALES_TAG || 0), 0);
-    const overall_sellthrough = totalInbound > 0 ? (totalSales / totalInbound) * 100 : 0;
+    // stock_dt_used (실제 사용된 재고 날짜)
+    const stockDtUsed = headerData.STOCK_DT_TY ? formatDateYYYYMMDD(new Date(headerData.STOCK_DT_TY)) : formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000));
 
-    // TOP 10 (sellthrough 높은 순)
-    const top10 = validRows
-      .sort((a: any, b: any) => parseFloat(b.SELLTHROUGH || 0) - parseFloat(a.SELLTHROUGH || 0))
-      .slice(0, 10)
-      .map((r: any) => ({
-        prdt_cd: r.PRDT_CD,
-        category: r.CATEGORY,
-        inbound_tag: parseFloat(r.INBOUND_TAG || 0),
-        sales_tag: parseFloat(r.SALES_TAG || 0),
-        sellthrough: parseFloat(r.SELLTHROUGH || 0) * 100, // 퍼센트로 변환
-      }));
+    // 전체 데이터 매핑
+    const allProducts = validRows.map((r: any) => ({
+      prdt_cd: r.PRDT_CD,
+      category: r.CATEGORY,
+      inbound_tag: parseFloat(r.INBOUND_TAG || 0),
+      sales_tag: parseFloat(r.SALES_TAG || 0),
+      sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
+    }));
 
-    // BAD 10 (sellthrough 낮은 순)
-    const bad10 = validRows
-      .sort((a: any, b: any) => parseFloat(a.SELLTHROUGH || 0) - parseFloat(b.SELLTHROUGH || 0))
-      .slice(0, 10)
-      .map((r: any) => ({
-        prdt_cd: r.PRDT_CD,
-        category: r.CATEGORY,
-        inbound_tag: parseFloat(r.INBOUND_TAG || 0),
-        sales_tag: parseFloat(r.SALES_TAG || 0),
-        sellthrough: parseFloat(r.SELLTHROUGH || 0) * 100,
-      }));
-
-    // No Inbound (inbound = 0, sales > 0)
-    const no_inbound = rows
-      .filter((r: any) => parseFloat(r.INBOUND_TAG || 0) === 0 && parseFloat(r.SALES_TAG || 0) > 0)
-      .slice(0, 10)
-      .map((r: any) => ({
-        prdt_cd: r.PRDT_CD,
-        category: r.CATEGORY,
-        sales_tag: parseFloat(r.SALES_TAG || 0),
-      }));
+    // No Sales & No Stock (제외)
+    const no_inbound: any[] = [];
 
     const response = {
       asof_date: date,
+      stock_dt_used: stockDtUsed,
       region,
       brand,
       header: {
         sesn,
         overall_sellthrough: Math.round(overall_sellthrough * 100) / 100,
+        total_inbound: totalInbound,
+        total_sales: totalSales,
+        // YoY 추가 (NULL 가능)
+        sellthrough_yoy_pp: sellthrough_yoy_pp !== null ? Math.round(sellthrough_yoy_pp * 100) / 100 : null,
+        sales_yoy_pct: sales_yoy_pct !== null ? Math.round(sales_yoy_pct * 100) / 100 : null,
+        inbound_yoy_pct: inbound_yoy_pct !== null ? Math.round(inbound_yoy_pct * 100) / 100 : null,
       },
-      top10,
-      bad10,
+      all_products: allProducts, // 전체 품번 데이터
       no_inbound,
     };
 

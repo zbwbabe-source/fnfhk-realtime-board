@@ -24,13 +24,15 @@ interface NoInboundRow {
 }
 
 export default function Section2SellThrough({ region, brand, date, onDataChange }: Section2Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true); // 기본 펼침
+  const [showAllProducts, setShowAllProducts] = useState(false); // 전체 품번 토글
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'sellthrough', direction: 'desc' }); // 기본: 판매율 내림차순
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!expanded || !date) return;
+    if (!date) return; // 항상 로드
 
     async function fetchData() {
       setLoading(true);
@@ -61,7 +63,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
     }
 
     fetchData();
-  }, [expanded, region, brand, date, onDataChange]);
+  }, [region, brand, date, onDataChange]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('en-US', { 
@@ -72,6 +74,51 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
 
   const formatPercent = (num: number) => {
     return `${num.toFixed(2)}%`;
+  };
+
+  // 정렬 함수
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // 정렬된 전체 품번 데이터
+  const getSortedProducts = () => {
+    if (!data || !data.all_products) return [];
+    
+    const products = [...data.all_products];
+    
+    products.sort((a: any, b: any) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+      
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    
+    return products;
+  };
+
+  // 표시할 품번 (10개 또는 전체)
+  const getDisplayProducts = () => {
+    const sorted = getSortedProducts();
+    return showAllProducts ? sorted : sorted.slice(0, 10);
+  };
+
+  // 정렬 아이콘
+  const getSortIcon = (key: string) => {
+    if (sortConfig.key !== key) {
+      return ' ↕';
+    }
+    return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
   };
 
   const renderProductRow = (row: ProductRow) => (
@@ -144,90 +191,118 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
             <div className="space-y-6 mt-4">
               {/* Header Info */}
               <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-600">시즌:</span>
-                    <span className="ml-2 text-lg font-semibold text-gray-900">
-                      {data.header.sesn}
-                    </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm text-gray-600">시즌:</span>
+                      <span className="ml-2 text-lg font-semibold text-gray-900">
+                        {data.header.sesn}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">전체 판매율:</span>
+                      <span className="ml-2 text-lg font-semibold text-blue-600">
+                        {data.header.overall_sellthrough.toFixed(2)}%
+                      </span>
+                      {data.header.sellthrough_yoy_pp !== null && data.header.sellthrough_yoy_pp !== undefined ? (
+                        <span className={`ml-2 text-sm ${data.header.sellthrough_yoy_pp >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ({data.header.sellthrough_yoy_pp >= 0 ? '+' : ''}{data.header.sellthrough_yoy_pp.toFixed(1)}%p)
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-sm text-gray-400">(-)</span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-sm text-gray-600">전체 판매율:</span>
-                    <span className="ml-2 text-lg font-semibold text-blue-600">
-                      {data.header.overall_sellthrough.toFixed(2)}%
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm text-gray-600">누적판매:</span>
+                      <span className="ml-2 text-md font-semibold text-gray-900">
+                        {formatNumber(data.header.total_sales)}
+                      </span>
+                      {data.header.sales_yoy_pct !== null && data.header.sales_yoy_pct !== undefined ? (
+                        <span className={`ml-2 text-sm ${data.header.sales_yoy_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          (YoY: {data.header.sales_yoy_pct >= 0 ? '+' : ''}{data.header.sales_yoy_pct.toFixed(1)}%)
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-sm text-gray-400">(-)</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">누적입고:</span>
+                      <span className="ml-2 text-md font-semibold text-gray-900">
+                        {formatNumber(data.header.total_inbound)}
+                      </span>
+                      {data.header.inbound_yoy_pct !== null && data.header.inbound_yoy_pct !== undefined ? (
+                        <span className={`ml-2 text-sm ${data.header.inbound_yoy_pct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          (YoY: {data.header.inbound_yoy_pct >= 0 ? '+' : ''}{data.header.inbound_yoy_pct.toFixed(1)}%)
+                        </span>
+                      ) : (
+                        <span className="ml-2 text-sm text-gray-400">(-)</span>
+                      )}
+                    </div>
                   </div>
+                  {data.stock_dt_used && (
+                    <div className="col-span-full text-xs text-gray-500 text-center" title={`재고는 적재일 기준으로 ${data.stock_dt_used} 스냅샷 사용`}>
+                      재고 기준일: {data.stock_dt_used}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* TOP 10 */}
+              {/* 품번 테이블 (상위 10개 또는 전체) */}
               <div>
-                <h3 className="text-md font-semibold text-gray-900 mb-2">
-                  TOP 10 (판매율 높은 순)
-                </h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-green-50">
                       <tr>
                         <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
                         <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">입고(TAG)</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">판매(TAG)</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">판매율</th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('inbound_tag')}
+                        >
+                          누적입고(TAG){getSortIcon('inbound_tag')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('sales_tag')}
+                        >
+                          누적판매(TAG){getSortIcon('sales_tag')}
+                        </th>
+                        <th 
+                          className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
+                          onClick={() => handleSort('sellthrough')}
+                        >
+                          판매율{getSortIcon('sellthrough')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.top10.map((row: ProductRow) => renderProductRow(row))}
+                      {getDisplayProducts().map((row: ProductRow) => renderProductRow(row))}
                     </tbody>
                   </table>
                 </div>
-              </div>
 
-              {/* BAD 10 */}
-              <div>
-                <h3 className="text-md font-semibold text-gray-900 mb-2">
-                  BAD 10 (판매율 낮은 순)
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-red-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
-                        <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">입고(TAG)</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">판매(TAG)</th>
-                        <th className="px-4 py-2 text-right font-medium text-gray-700">판매율</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.bad10.map((row: ProductRow) => renderProductRow(row))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                {/* 전체 품번 보기 버튼 */}
+                {!showAllProducts && data.all_products && data.all_products.length > 10 && (
+                  <button
+                    onClick={() => setShowAllProducts(true)}
+                    className="w-full mt-4 px-4 py-3 bg-blue-50 hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors text-blue-700 font-medium"
+                  >
+                    전체 품번 보기 ({data.all_products.length}개) ▼
+                  </button>
+                )}
 
-              {/* No Inbound */}
-              {data.no_inbound && data.no_inbound.length > 0 && (
-                <div>
-                  <h3 className="text-md font-semibold text-gray-900 mb-2">
-                    입고 없음 (No Inbound)
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-yellow-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
-                          <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
-                          <th className="px-4 py-2 text-right font-medium text-gray-700">판매(TAG)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.no_inbound.map((row: NoInboundRow) => renderNoInboundRow(row))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                {/* 접기 버튼 */}
+                {showAllProducts && (
+                  <button
+                    onClick={() => setShowAllProducts(false)}
+                    className="w-full mt-4 px-4 py-3 bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center justify-center transition-colors text-gray-700 font-medium"
+                  >
+                    상위 10개만 보기 ▲
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

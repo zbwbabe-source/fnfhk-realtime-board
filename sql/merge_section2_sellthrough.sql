@@ -1,59 +1,55 @@
 -- ============================================================
--- 섹션2: DASH_SEASON_SELLTHROUGH MERGE 쿼리
+-- 섹션2: DASH_SEASON_SELLTHROUGH MERGE 쿼리 (참고용)
 -- ============================================================
 -- Purpose: 당시즌 판매율 집계 (TAG 기준)
+-- ⚠️ 주의: 현재 API는 DASH 테이블을 사용하지 않고 직접 SELECT를 실행합니다.
+--          이 파일은 향후 배치 작업 참고용입니다.
+-- 
 -- Input Parameters:
---   :asof_date - 기준일 (어제)
+--   :asof_date - 기준일 (영업일 기준)
+--   :start_date - 계산 시작일 (시즌 시작일 - 6개월)
 --   :region - 'HKMC' or 'TW'
 --   :brand - 'M' or 'X' (normalized)
 --   :sesn - 시즌 코드 (예: '25F', '26S')
---   :all_store_codes - HKMC 전체 매장 코드 리스트 (warehouse 포함) - inbound 계산용
---   :store_codes - 일반 매장 코드 리스트 (warehouse 제외) - sales 계산용
+--   :all_store_codes - HKMC 전체 매장 코드 리스트 (warehouse 포함)
+--   :store_codes - 일반 매장 코드 리스트 (warehouse 제외)
 -- ============================================================
--- ⚠️ 중요: 이 방식은 매장 간 재고 이동(transfer)도 positive delta로 잡히므로
--- '외부/본사 입고'만이 아닌 '재고 유입 이벤트' 기준 inbound로 해석해야 함
+-- ⚠️ 핵심 로직: 
+-- 1. 판매율 = 판매 / (판매 + 재고) × 100
+-- 2. 재고 STOCK_DT = asof_date + 1 (적재일 기준)
+-- 3. 판매 SALE_DT = asof_date (영업일 기준, +1 금지)
+-- 4. SESN 필터 유지 (해당 시즌만)
+-- 5. 판매 기간: 시즌 시작일 - 6개월 ~ asof_date
 -- ============================================================
 
 MERGE INTO SAP_FNF.DASH.DASH_SEASON_SELLTHROUGH AS target
 USING (
-    WITH inbound_calc AS (
-        -- Inbound 계산: HKMC 전체 매장 (warehouse 포함), TAG 기준, Delta 방식
+    WITH ending_stock AS (
+        -- 기말재고: asof_date + 1 (적재일), SESN 필터 적용, warehouse 포함
         SELECT 
-            LOCAL_SHOP_CD,
             PRDT_CD,
-            PART_CD,
-            TAG_STOCK_AMT,
-            STOCK_DT,
-            LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
-              OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS prev_stock,
-            TAG_STOCK_AMT - LAG(TAG_STOCK_AMT, 1, TAG_STOCK_AMT) 
-              OVER (PARTITION BY LOCAL_SHOP_CD, PRDT_CD ORDER BY STOCK_DT) AS delta
+            ANY_VALUE(PART_CD) AS PART_CD,
+            SUM(TAG_STOCK_AMT) AS stock_tag
         FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
         WHERE 
             (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = :brand
             AND SESN = :sesn
-            AND LOCAL_SHOP_CD IN (:all_store_codes)   -- ✅ 변경: 전체 매장 포함
-            AND STOCK_DT <= :asof_date
-    ),
-    inbound_agg AS (
-        SELECT 
-            PRDT_CD,
-            ANY_VALUE(PART_CD) AS PART_CD,
-            SUM(GREATEST(delta, 0)) AS inbound_tag  -- positive delta만 합산
-        FROM inbound_calc
+            AND LOCAL_SHOP_CD IN (:all_store_codes)
+            AND STOCK_DT = DATEADD(DAY, 1, :asof_date)
         GROUP BY PRDT_CD
     ),
     sales_agg AS (
-        -- Sales 계산: 일반 매장 (Warehouse 제외), TAG 기준
+        -- 판매: 시즌 시작일 - 6개월 ~ asof_date (영업일), SESN 필터 적용, warehouse 제외
         SELECT 
             PRDT_CD,
+            ANY_VALUE(PART_CD) AS PART_CD,
             SUM(TAG_SALE_AMT) AS sales_tag
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
             (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = :brand
             AND SESN = :sesn
-            AND LOCAL_SHOP_CD IN (:store_codes)       -- ✅ 기존 유지: warehouse 제외
-            AND SALE_DT <= :asof_date
+            AND LOCAL_SHOP_CD IN (:store_codes)
+            AND SALE_DT BETWEEN :start_date AND :asof_date
         GROUP BY PRDT_CD
     )
     SELECT 
@@ -61,19 +57,19 @@ USING (
         :region AS region,
         :brand AS brand,
         :sesn AS sesn,
-        COALESCE(i.PRDT_CD, s.PRDT_CD) AS prdt_cd,
-        SUBSTR(i.PART_CD, 3, 2) AS category,
-        COALESCE(i.inbound_tag, 0) AS inbound_tag,
+        COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
+        SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
         COALESCE(s.sales_tag, 0) AS sales_tag,
+        COALESCE(e.stock_tag, 0) AS stock_tag,
         CASE 
-            WHEN COALESCE(i.inbound_tag, 0) > 0 
-            THEN (COALESCE(s.sales_tag, 0) / i.inbound_tag) * 100
+            WHEN (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0)) > 0 
+            THEN (COALESCE(s.sales_tag, 0) / (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0))) * 100
             ELSE 0 
-        END AS sellthrough
-    FROM inbound_agg i
-    FULL OUTER JOIN sales_agg s 
-        ON i.PRDT_CD = s.PRDT_CD
-    WHERE COALESCE(i.PRDT_CD, s.PRDT_CD) IS NOT NULL
+        END AS sellthrough_pct
+    FROM sales_agg s
+    FULL OUTER JOIN ending_stock e 
+        ON s.PRDT_CD = e.PRDT_CD
+    WHERE COALESCE(s.PRDT_CD, e.PRDT_CD) IS NOT NULL
 ) AS source
 ON target.asof_date = source.asof_date 
    AND target.region = source.region 
@@ -83,18 +79,18 @@ ON target.asof_date = source.asof_date
 WHEN MATCHED THEN 
     UPDATE SET 
         target.category = source.category,
-        target.inbound_tag = source.inbound_tag,
         target.sales_tag = source.sales_tag,
-        target.sellthrough = source.sellthrough,
+        target.stock_tag = source.stock_tag,
+        target.sellthrough_pct = source.sellthrough_pct,
         target.updated_at = CURRENT_TIMESTAMP()
 WHEN NOT MATCHED THEN 
     INSERT (
         asof_date, region, brand, sesn, prdt_cd,
-        category, inbound_tag, sales_tag, sellthrough,
+        category, sales_tag, stock_tag, sellthrough_pct,
         created_at, updated_at
     )
     VALUES (
         source.asof_date, source.region, source.brand, source.sesn, source.prdt_cd,
-        source.category, source.inbound_tag, source.sales_tag, source.sellthrough,
+        source.category, source.sales_tag, source.stock_tag, source.sellthrough_pct,
         CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
     );

@@ -113,13 +113,42 @@ export default function SummaryCards({
     };
   };
 
-  // Section2 KPI 계산 (임시 - 실제 데이터 구조에 맞게 수정 필요)
+  // Section2 KPI 계산
   const calculateSection2KPIs = (): CardKPIs => {
-    // TODO: section2Data 구조 확인 후 수정
+    if (!section2Data?.header) {
+      console.log('⚠️ Section2 data not loaded yet');
+      return {
+        k1: { label: '판매율', value: 'N/A' },
+        k2: { label: '누적판매', value: 'N/A' },
+        k3: { label: '누적입고', value: 'N/A' },
+      };
+    }
+
+    const header = section2Data.header;
+    const sellthrough = header.overall_sellthrough || 0;
+    const totalSales = header.total_sales || 0;
+    const totalInbound = header.total_inbound || 0;
+
+    console.log('🎯 Section2 KPI Calculation:', {
+      header,
+      sellthrough,
+      totalSales,
+      totalInbound,
+    });
+
     return {
-      k1: { label: 'Sell-through', value: 'N/A' },
-      k2: { label: '재고금액', value: 'N/A' },
-      k3: { label: '전월대비', value: 'N/A' },
+      k1: {
+        label: '판매율',
+        value: `${sellthrough.toFixed(1)}%`,
+      },
+      k2: {
+        label: '누적판매',
+        value: formatCurrency(totalSales),
+      },
+      k3: {
+        label: '누적입고',
+        value: formatCurrency(totalInbound),
+      },
     };
   };
 
