@@ -98,6 +98,11 @@ function generateSection1Insight(kpis: any, mode: string): string {
 
   console.log('✅ Parsed values:', { yoy, progress, mode });
 
+  // 실적이 0인 경우 (데이터 없음)
+  if (progress === 0 && yoy === 0) {
+    return `${modeText} 데이터가 아직 집계되지 않았습니다.`;
+  }
+
   // 목표대비와 YoY를 함께 고려한 인사이트
   if (progress >= 100) {
     if (yoy >= 100) {
@@ -119,8 +124,10 @@ function generateSection1Insight(kpis: any, mode: string): string {
     }
   } else if (progress >= 60) {
     return `목표대비 ${progress.toFixed(1)}%로 둔화, 주말 프로모션 검토 권장.`;
-  } else {
+  } else if (progress > 0) {
     return `목표대비 ${progress.toFixed(1)}%로 부진, 즉시 판매 전략 점검 필요.`;
+  } else {
+    return `${modeText} 실적 데이터 집계 대기 중입니다.`;
   }
 }
 
