@@ -13,13 +13,23 @@ interface StoreRow {
   shop_name: string;
   country: string;
   channel: string;
+  
+  // MTD
   target_mth: number;
   mtd_act: number;
   progress: number;
   mtd_act_py: number;
   yoy: number;
-  monthEndProjection: number; // 월말환산
-  projectedYoY: number; // 환산 YoY
+  monthEndProjection: number;
+  projectedYoY: number;
+  
+  // YTD
+  ytd_target: number;
+  ytd_act: number;
+  progress_ytd: number;
+  ytd_act_py: number;
+  yoy_ytd: number;
+  
   forecast: number | null;
 }
 
@@ -27,6 +37,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isYtdMode, setIsYtdMode] = useState(false); // 누적(YTD) 모드 토글
   const [expandedChannels, setExpandedChannels] = useState<Record<string, boolean>>({
     'hk_normal': false,
     'hk_outlet': false,
@@ -59,9 +70,10 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     if (!sortConfig || !stores) return stores;
 
     return [...stores].sort((a, b) => {
-      // 영업종료 매장(당월실적 0)은 항상 맨 아래로
-      const aIsClosed = a.mtd_act === 0;
-      const bIsClosed = b.mtd_act === 0;
+      // 영업종료 매장(실적 0)은 항상 맨 아래로
+      const actualValue = isYtdMode ? 'ytd_act' : 'mtd_act';
+      const aIsClosed = a[actualValue] === 0;
+      const bIsClosed = b[actualValue] === 0;
       
       if (aIsClosed && !bIsClosed) return 1;
       if (!aIsClosed && bIsClosed) return -1;
@@ -75,25 +87,25 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
           aValue = a.shop_name || a.shop_cd;
           bValue = b.shop_name || b.shop_cd;
           break;
-        case 'target_mth':
-          aValue = a.target_mth;
-          bValue = b.target_mth;
+        case 'target':
+          aValue = isYtdMode ? a.ytd_target : a.target_mth;
+          bValue = isYtdMode ? b.ytd_target : b.target_mth;
           break;
-        case 'mtd_act':
-          aValue = a.mtd_act;
-          bValue = b.mtd_act;
+        case 'actual':
+          aValue = isYtdMode ? a.ytd_act : a.mtd_act;
+          bValue = isYtdMode ? b.ytd_act : b.mtd_act;
           break;
         case 'progress':
-          aValue = a.progress;
-          bValue = b.progress;
+          aValue = isYtdMode ? a.progress_ytd : a.progress;
+          bValue = isYtdMode ? b.progress_ytd : b.progress;
           break;
-        case 'mtd_act_py':
-          aValue = a.mtd_act_py;
-          bValue = b.mtd_act_py;
+        case 'actual_py':
+          aValue = isYtdMode ? a.ytd_act_py : a.mtd_act_py;
+          bValue = isYtdMode ? b.ytd_act_py : b.mtd_act_py;
           break;
         case 'yoy':
-          aValue = a.yoy;
-          bValue = b.yoy;
+          aValue = isYtdMode ? a.yoy_ytd : a.yoy;
+          bValue = isYtdMode ? b.yoy_ytd : b.yoy;
           break;
         case 'monthEndProjection':
           aValue = a.monthEndProjection;
@@ -229,6 +241,13 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
     const isExpanded = expandedChannels[channelKey];
     const sortedStores = getSortedStores(stores);
     
+    // MTD/YTD 모드에 따라 사용할 subtotal 값 결정
+    const subtotalTarget = subtotal ? (isYtdMode ? subtotal.ytd_target : subtotal.target_mth) : 0;
+    const subtotalActual = subtotal ? (isYtdMode ? subtotal.ytd_act : subtotal.mtd_act) : 0;
+    const subtotalProgress = subtotal ? (isYtdMode ? subtotal.progress_ytd : subtotal.progress) : 0;
+    const subtotalActualPy = subtotal ? (isYtdMode ? subtotal.ytd_act_py : subtotal.mtd_act_py) : 0;
+    const subtotalYoy = subtotal ? (isYtdMode ? subtotal.yoy_ytd : subtotal.yoy) : 0;
+    
     return (
       <>
         <tr 
@@ -245,35 +264,39 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
           {subtotal ? (
             <>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
-                {formatNumber(subtotal.target_mth)}
+                {formatNumber(subtotalTarget)}
               </td>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
-                {formatNumber(subtotal.mtd_act)}
+                {formatNumber(subtotalActual)}
               </td>
               <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-                subtotal.progress < 80 ? 'text-red-600' : 'text-green-600'
+                subtotalProgress < 80 ? 'text-red-600' : 'text-green-600'
               }`}>
-                {formatPercent(subtotal.progress)}
+                {formatPercent(subtotalProgress)}
               </td>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
-                {formatNumber(subtotal.mtd_act_py)}
+                {formatNumber(subtotalActualPy)}
               </td>
               <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-                subtotal.yoy < 80 ? 'text-red-600' : 'text-green-600'
+                subtotalYoy < 80 ? 'text-red-600' : 'text-green-600'
               }`}>
-                {formatPercent(subtotal.yoy)}
+                {formatPercent(subtotalYoy)}
               </td>
-              <td className="px-4 py-2 border-b border-gray-200 text-right">
-                {formatNumber(subtotal.monthEndProjection)}
-              </td>
-              <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-                subtotal.projectedYoY < 80 ? 'text-red-600' : 'text-green-600'
-              }`}>
-                {formatPercent(subtotal.projectedYoY)}
-              </td>
+              {!isYtdMode && (
+                <>
+                  <td className="px-4 py-2 border-b border-gray-200 text-right">
+                    {formatNumber(subtotal.monthEndProjection)}
+                  </td>
+                  <td className={`px-4 py-2 border-b border-gray-200 text-right ${
+                    subtotal.projectedYoY < 80 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {formatPercent(subtotal.projectedYoY)}
+                  </td>
+                </>
+              )}
             </>
           ) : (
-            <td colSpan={7} className="px-4 py-2 border-b border-gray-200"></td>
+            <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 border-b border-gray-200"></td>
           )}
         </tr>
         {isExpanded && sortedStores.map((row: StoreRow) => renderRow(row))}
@@ -291,7 +314,14 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
   };
 
   const renderRow = (row: StoreRow, isSubtotal = false) => {
-    const isClosed = !isSubtotal && row.mtd_act === 0;
+    // MTD/YTD 모드에 따라 사용할 값 결정
+    const actualValue = isYtdMode ? row.ytd_act : row.mtd_act;
+    const actualPyValue = isYtdMode ? row.ytd_act_py : row.mtd_act_py;
+    const targetValue = isYtdMode ? row.ytd_target : row.target_mth;
+    const progressValue = isYtdMode ? row.progress_ytd : row.progress;
+    const yoyValue = isYtdMode ? row.yoy_ytd : row.yoy;
+    
+    const isClosed = !isSubtotal && actualValue === 0;
     
     return (
       <tr key={row.shop_cd} className={`${isSubtotal ? 'bg-blue-50 font-semibold' : ''} ${isClosed ? 'bg-gray-100 opacity-60' : ''}`}>
@@ -313,32 +343,36 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
           </div>
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-          {formatNumber(row.target_mth)}
+          {formatNumber(targetValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-          {formatNumber(row.mtd_act)}
+          {formatNumber(actualValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-          isClosed ? 'text-gray-400' : (row.progress < 80 ? 'text-red-600' : 'text-green-600')
+          isClosed ? 'text-gray-400' : (progressValue < 80 ? 'text-red-600' : 'text-green-600')
         }`}>
-          {formatPercent(row.progress)}
+          {formatPercent(progressValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-          {formatNumber(row.mtd_act_py)}
+          {formatNumber(actualPyValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-          isClosed ? 'text-gray-400' : (row.yoy < 80 ? 'text-red-600' : 'text-green-600')
+          isClosed ? 'text-gray-400' : (yoyValue < 80 ? 'text-red-600' : 'text-green-600')
         }`}>
-          {formatPercent(row.yoy)}
+          {formatPercent(yoyValue)}
         </td>
-        <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-          {formatNumber(row.monthEndProjection)}
-        </td>
-        <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-          isClosed ? 'text-gray-400' : (row.projectedYoY < 80 ? 'text-red-600' : 'text-green-600')
-        }`}>
-          {formatPercent(row.projectedYoY)}
-        </td>
+        {!isYtdMode && (
+          <>
+            <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
+              {formatNumber(row.monthEndProjection)}
+            </td>
+            <td className={`px-4 py-2 border-b border-gray-200 text-right ${
+              isClosed ? 'text-gray-400' : (row.projectedYoY < 80 ? 'text-red-600' : 'text-green-600')
+            }`}>
+              {formatPercent(row.projectedYoY)}
+            </td>
+          </>
+        )}
       </tr>
     );
   };
@@ -346,9 +380,21 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">
-          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
-        </h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
+          </h2>
+          <button
+            onClick={() => setIsYtdMode(!isYtdMode)}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              isYtdMode 
+                ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {isYtdMode ? '✓ 누적' : '누적'}
+          </button>
+        </div>
         <button
           onClick={toggleAll}
           className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-2"
@@ -373,20 +419,20 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               </th>
               <th 
                 className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                onClick={() => handleSort('target_mth')}
+                onClick={() => handleSort('target')}
               >
                 <div className="flex items-center justify-end">
-                  목표(월)
-                  {getSortIcon('target_mth')}
+                  {isYtdMode ? '목표(누적)' : '목표(월)'}
+                  {getSortIcon('target')}
                 </div>
               </th>
               <th 
                 className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                onClick={() => handleSort('mtd_act')}
+                onClick={() => handleSort('actual')}
               >
                 <div className="flex items-center justify-end">
-                  당월실적
-                  {getSortIcon('mtd_act')}
+                  {isYtdMode ? '누적실적' : '당월실적'}
+                  {getSortIcon('actual')}
                 </div>
               </th>
               <th 
@@ -400,11 +446,11 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               </th>
               <th 
                 className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                onClick={() => handleSort('mtd_act_py')}
+                onClick={() => handleSort('actual_py')}
               >
                 <div className="flex items-center justify-end">
-                  전년동월
-                  {getSortIcon('mtd_act_py')}
+                  {isYtdMode ? '전년누적' : '전년동월'}
+                  {getSortIcon('actual_py')}
                 </div>
               </th>
               <th 
@@ -416,30 +462,34 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
                   {getSortIcon('yoy')}
                 </div>
               </th>
-              <th 
-                className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200 relative group"
-                onClick={() => handleSort('monthEndProjection')}
-              >
-                <div className="flex items-center justify-end">
-                  월말환산
-                  {getSortIcon('monthEndProjection')}
-                  <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
-                </div>
-                <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 -top-16 right-0 w-64 z-10 shadow-lg">
-                  과거 2개년치 휴일/평일 일별 매출을 근거로 일자별 가중치를 계산함.
-                  <br/>
-                  <span className="text-gray-300 italic">MTD × (월전체가중치/누적가중치)</span>
-                </div>
-              </th>
-              <th 
-                className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                onClick={() => handleSort('projectedYoY')}
-              >
-                <div className="flex items-center justify-end">
-                  환산 YoY
-                  {getSortIcon('projectedYoY')}
-                </div>
-              </th>
+              {!isYtdMode && (
+                <>
+                  <th 
+                    className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200 relative group"
+                    onClick={() => handleSort('monthEndProjection')}
+                  >
+                    <div className="flex items-center justify-end">
+                      월말환산
+                      {getSortIcon('monthEndProjection')}
+                      <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
+                    </div>
+                    <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 -top-16 right-0 w-64 z-10 shadow-lg">
+                      과거 2개년치 휴일/평일 일별 매출을 근거로 일자별 가중치를 계산함.
+                      <br/>
+                      <span className="text-gray-300 italic">MTD × (월전체가중치/누적가중치)</span>
+                    </div>
+                  </th>
+                  <th 
+                    className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
+                    onClick={() => handleSort('projectedYoY')}
+                  >
+                    <div className="flex items-center justify-end">
+                      환산 YoY
+                      {getSortIcon('projectedYoY')}
+                    </div>
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -466,7 +516,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               <>
                 <tr className="h-2"></tr>
                 <tr className="bg-yellow-50">
-                  <td colSpan={7} className="px-4 py-2 font-bold text-gray-800">
+                  <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 font-bold text-gray-800">
                     MC 전체 합계
                   </td>
                 </tr>
@@ -479,7 +529,7 @@ export default function Section1Table({ region, brand, date }: Section1TableProp
               <>
                 <tr className="h-4"></tr>
                 <tr className="bg-indigo-50">
-                  <td colSpan={7} className="px-4 py-2 font-bold text-gray-800">
+                  <td colSpan={isYtdMode ? 6 : 8} className="px-4 py-2 font-bold text-gray-800">
                     HKMC 전체 합계
                   </td>
                 </tr>

@@ -7,6 +7,40 @@ import targetData from '@/data/target.json';
 export const dynamic = 'force-dynamic';
 
 /**
+ * YTD 목표 계산 함수
+ * ytd_target = Σ TARGET_AMT(1월~직전월) + TARGET_AMT(당월) * (당일/당월말일)
+ */
+function calculateYtdTarget(year: number, currentMonth: number, currentDay: number, targetData: any): number {
+  let ytdTarget = 0;
+  
+  // 1월부터 직전월까지의 목표 합산
+  for (let m = 1; m < currentMonth; m++) {
+    const periodKey = `${year}-${String(m).padStart(2, '0')}`;
+    const periodData = targetData[periodKey] || {};
+    
+    // 해당 월의 모든 매장 목표 합산
+    for (const shopCd in periodData) {
+      ytdTarget += periodData[shopCd].target_mth || 0;
+    }
+  }
+  
+  // 당월 목표 비례 계산
+  const currentPeriodKey = `${year}-${String(currentMonth).padStart(2, '0')}`;
+  const currentPeriodData = targetData[currentPeriodKey] || {};
+  
+  // 당월 말일 계산
+  const daysInMonth = new Date(year, currentMonth, 0).getDate();
+  const ratio = currentDay / daysInMonth;
+  
+  // 당월 목표 × 비율
+  for (const shopCd in currentPeriodData) {
+    ytdTarget += (currentPeriodData[shopCd].target_mth || 0) * ratio;
+  }
+  
+  return ytdTarget;
+}
+
+/**
  * GET /api/section1/store-sales
  * 
  * Query Parameters:
@@ -61,14 +95,10 @@ export async function GET(request: NextRequest) {
 
     const storeCodes = targetStores.map(s => `'${s.store_code}'`).join(',');
 
-    // 월초, 작년 월초/기준일 계산
+    // 날짜 계산
     const asofDate = new Date(date);
     const year = asofDate.getFullYear();
     const month = asofDate.getMonth() + 1;
-    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-    const pyYear = year - 1;
-    const pyMonthStart = `${pyYear}-${String(month).padStart(2, '0')}-01`;
-    const pyAsofDate = `${pyYear}-${String(month).padStart(2, '0')}-${String(asofDate.getDate()).padStart(2, '0')}`;
 
     // 목표값 데이터 로드 (period 기준)
     const periodKey = `${year}-${String(month).padStart(2, '0')}`;
@@ -77,55 +107,91 @@ export async function GET(request: NextRequest) {
     // 가중치 데이터 로드 (서버 사이드)
     const weightMap = await loadWeightDataServer();
 
-    // DW_HMD_SALE_D에서 직접 집계
+    // MTD + YTD 동시 조회 쿼리
     const query = `
-      WITH current_mtd AS (
+      WITH store_sales AS (
         SELECT
           LOCAL_SHOP_CD AS shop_cd,
-          SUM(ACT_SALE_AMT) AS mtd_act
+          
+          /* MTD ACT */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', ?) AND ?
+              THEN ACT_SALE_AMT ELSE 0
+            END
+          ) AS mtd_act,
+          
+          /* MTD ACT PY */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', ?)) AND DATEADD(YEAR, -1, ?)
+              THEN ACT_SALE_AMT ELSE 0
+            END
+          ) AS mtd_act_py,
+          
+          /* YTD ACT */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', ?) AND ?
+              THEN ACT_SALE_AMT ELSE 0
+            END
+          ) AS ytd_act,
+          
+          /* YTD ACT PY */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', ?)) AND DATEADD(YEAR, -1, ?)
+              THEN ACT_SALE_AMT ELSE 0
+            END
+          ) AS ytd_act_py
+          
         FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE SALE_DT BETWEEN ? AND ?
+        WHERE
+          (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodes})
-          AND BRD_CD IN ('M', 'I', 'X')
-        GROUP BY LOCAL_SHOP_CD
-      ),
-      prev_year_mtd AS (
-        SELECT
-          LOCAL_SHOP_CD AS shop_cd,
-          SUM(ACT_SALE_AMT) AS mtd_act_py
-        FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE SALE_DT BETWEEN ? AND ?
-          AND LOCAL_SHOP_CD IN (${storeCodes})
-          AND BRD_CD IN ('M', 'I', 'X')
+          AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', ?)) AND ?
         GROUP BY LOCAL_SHOP_CD
       )
       SELECT
-        COALESCE(c.shop_cd, p.shop_cd) AS shop_cd,
-        COALESCE(c.mtd_act, 0) AS mtd_act,
-        COALESCE(p.mtd_act_py, 0) AS mtd_act_py
-      FROM current_mtd c
-      FULL OUTER JOIN prev_year_mtd p ON c.shop_cd = p.shop_cd
+        shop_cd,
+        mtd_act,
+        mtd_act_py,
+        CASE
+          WHEN mtd_act_py > 0
+          THEN ((mtd_act - mtd_act_py) / mtd_act_py) * 100
+          ELSE 0
+        END AS yoy,
+        ytd_act,
+        ytd_act_py,
+        CASE
+          WHEN ytd_act_py > 0
+          THEN ((ytd_act - ytd_act_py) / ytd_act_py) * 100
+          ELSE 0
+        END AS yoy_ytd
+      FROM store_sales
       ORDER BY shop_cd
     `;
 
     const rows = await executeSnowflakeQuery(query, [
-      monthStart, date,      // current MTD
-      pyMonthStart, pyAsofDate  // previous year MTD
+      date, date,           // MTD current
+      date, date,           // MTD PY
+      date, date,           // YTD current
+      date, date,           // YTD PY
+      brand,                // brand filter
+      date, date            // date range filter
     ]);
 
     console.log('📊 Section1 Query Result:', {
       region,
       brand,
       date,
-      monthStart,
-      pyMonthStart,
-      pyAsofDate,
       targetStoresCount: targetStores.length,
       rowsCount: rows.length,
       sampleRow: rows[0],
-      allRows: rows.slice(0, 5), // 처음 5개 행 표시
       totalMtdAct: rows.reduce((sum, r) => sum + parseFloat(r.MTD_ACT || 0), 0),
       totalMtdActPy: rows.reduce((sum, r) => sum + parseFloat(r.MTD_ACT_PY || 0), 0),
+      totalYtdAct: rows.reduce((sum, r) => sum + parseFloat(r.YTD_ACT || 0), 0),
+      totalYtdActPy: rows.reduce((sum, r) => sum + parseFloat(r.YTD_ACT_PY || 0), 0),
     });
 
     // Store master 맵 생성
@@ -140,37 +206,57 @@ export async function GET(request: NextRequest) {
     const mc_online: any[] = [];
 
     rows.forEach((row: any) => {
-      const storeInfo = storeMap.get(row.SHOP_CD); // 대문자로 변경
-      if (!storeInfo) return; // 매장 정보 없으면 스킵
+      const storeInfo = storeMap.get(row.SHOP_CD);
+      if (!storeInfo) return;
 
-      const mtd_act = parseFloat(row.MTD_ACT || 0); // 대문자로 변경
-      const mtd_act_py = parseFloat(row.MTD_ACT_PY || 0); // 대문자로 변경
-      const yoy = mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0; // 비율로 변경
+      // MTD 데이터
+      const mtd_act = parseFloat(row.MTD_ACT || 0);
+      const mtd_act_py = parseFloat(row.MTD_ACT_PY || 0);
+      const yoy = parseFloat(row.YOY || 0);
       
-      // 목표값 가져오기
+      // YTD 데이터
+      const ytd_act = parseFloat(row.YTD_ACT || 0);
+      const ytd_act_py = parseFloat(row.YTD_ACT_PY || 0);
+      const yoy_ytd = parseFloat(row.YOY_YTD || 0);
+      
+      // MTD 목표값 가져오기
       const targetInfo = targetsByStore[row.SHOP_CD];
       const target_mth = targetInfo ? targetInfo.target_mth : 0;
       const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
 
-      // 월말환산 계산
+      // YTD 목표 계산
+      const ytd_target = calculateYtdTarget(year, month, asofDate.getDate(), targetData);
+      const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
+
+      // 월말환산 계산 (MTD 기준)
       const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
       
-      // 환산 YoY 계산
+      // 환산 YoY 계산 (MTD 기준)
       const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
 
       const record = {
-        shop_cd: row.SHOP_CD, // 대문자로 변경
-        shop_name: storeInfo.store_name || row.SHOP_CD, // 매장명 사용
+        shop_cd: row.SHOP_CD,
+        shop_name: storeInfo.store_name || row.SHOP_CD,
         country: storeInfo.country,
         channel: storeInfo.channel,
-        target_mth, // 목표값 적용
+        
+        // MTD 데이터
+        target_mth,
         mtd_act,
-        progress, // 목표 대비 달성률
+        progress,
         mtd_act_py,
         yoy,
-        monthEndProjection, // 월말환산
-        projectedYoY, // 환산 YoY
-        forecast: null, // TODO: 예측값
+        monthEndProjection,
+        projectedYoY,
+        
+        // YTD 데이터
+        ytd_target,
+        ytd_act,
+        progress_ytd,
+        ytd_act_py,
+        yoy_ytd,
+        
+        forecast: null,
       };
 
       if (storeInfo.country === 'HK') {
@@ -202,10 +288,20 @@ export async function GET(request: NextRequest) {
     // 채널별 합계 계산 함수
     const calculateSubtotal = (stores: any[], name: string, country: string, channel: string) => {
       if (stores.length === 0) return null;
+      
+      // MTD 합계
       const target_mth = stores.reduce((sum, s) => sum + s.target_mth, 0);
       const mtd_act = stores.reduce((sum, s) => sum + s.mtd_act, 0);
       const mtd_act_py = stores.reduce((sum, s) => sum + s.mtd_act_py, 0);
       const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
+      const yoy = mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0;
+      
+      // YTD 합계
+      const ytd_target = stores.reduce((sum, s) => sum + s.ytd_target, 0);
+      const ytd_act = stores.reduce((sum, s) => sum + s.ytd_act, 0);
+      const ytd_act_py = stores.reduce((sum, s) => sum + s.ytd_act_py, 0);
+      const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
+      const yoy_ytd = ytd_act_py > 0 ? (ytd_act / ytd_act_py) * 100 : 0;
       
       // 합계의 월말환산 계산
       const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
@@ -218,13 +314,23 @@ export async function GET(request: NextRequest) {
         shop_name: name,
         country,
         channel: '합계',
+        
+        // MTD
         target_mth,
         mtd_act,
         progress,
         mtd_act_py,
-        yoy: mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0,
+        yoy,
         monthEndProjection,
         projectedYoY,
+        
+        // YTD
+        ytd_target,
+        ytd_act,
+        progress_ytd,
+        ytd_act_py,
+        yoy_ytd,
+        
         forecast: null,
       };
     };
