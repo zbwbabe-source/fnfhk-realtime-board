@@ -185,10 +185,16 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
         }
         
         const json = await res.json();
+        console.log('✅ Section1Table - Received data:', { 
+          hasData: !!json, 
+          hasTotal: !!json.total_subtotal,
+          totalSubtotal: json.total_subtotal 
+        });
         setData(json);
         
         // 부모 컴포넌트에 데이터 전달
         if (onDataChange) {
+          console.log('📤 Section1Table - Sending data to parent');
           onDataChange(json);
         }
       } catch (err: any) {

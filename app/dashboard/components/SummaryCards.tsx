@@ -49,10 +49,12 @@ export default function SummaryCards({
 
     const total = section1Data.total_subtotal;
     
+    console.log('📋 Total subtotal object:', total);
+    
     // MTD/YTD 데이터 확인
     if (isYtdMode) {
       // YTD 모드일 때 ytd_act가 있는지 확인
-      if (typeof total.ytd_act === 'undefined') {
+      if (typeof total.ytd_act === 'undefined' || total.ytd_act === null) {
         console.log('⚠️ YTD data not available in total_subtotal');
         return {
           k1: { label: '누적실적', value: 'N/A' },
@@ -62,8 +64,13 @@ export default function SummaryCards({
       }
     } else {
       // MTD 모드일 때 mtd_act가 있는지 확인
-      if (typeof total.mtd_act === 'undefined') {
-        console.log('⚠️ MTD data not available in total_subtotal');
+      if (typeof total.mtd_act === 'undefined' || total.mtd_act === null) {
+        console.log('⚠️ MTD data not available in total_subtotal', { 
+          hasData: !!section1Data, 
+          hasTotal: !!total,
+          totalKeys: Object.keys(total),
+          mtd_act: total.mtd_act 
+        });
         return {
           k1: { label: '당월실적', value: 'N/A' },
           k2: { label: 'YoY', value: 'N/A' },
