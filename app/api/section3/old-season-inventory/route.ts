@@ -76,29 +76,34 @@ PARAM AS (
     -- 기초재고일 산정
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
-        -- FW: YYYY-09-01 (임시: 8월31일 데이터 미입력)
+        -- FW: YYYY-09-30 (임시: 9월20일부터 데이터 있음)
         CASE
           WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
+            CAST(YEAR(CAST(? AS DATE)) || '-09-30' AS DATE)
           ELSE
-            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-30' AS DATE)
         END
       ELSE
-        -- SS: YYYY-03-01 (임시: 2월말 데이터 미입력)
-        CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
+        -- SS: YYYY-02-28 or 02-29 (윤년) [원래 로직 유지]
+        CASE
+          WHEN MOD(YEAR(CAST(? AS DATE)), 4) = 0 AND (MOD(YEAR(CAST(? AS DATE)), 100) != 0 OR MOD(YEAR(CAST(? AS DATE)), 400) = 0) THEN
+            CAST(YEAR(CAST(? AS DATE)) || '-02-29' AS DATE)
+          ELSE
+            CAST(YEAR(CAST(? AS DATE)) || '-02-28' AS DATE)
+        END
     END AS BASE_STOCK_DT,
     -- 판매기간 시작일
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
-        -- FW: YYYY-09-01
+        -- FW: YYYY-10-01 (임시: 소진/할인/재고일수 모두 10월1일부터)
         CASE
           WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
+            CAST(YEAR(CAST(? AS DATE)) || '-10-01' AS DATE)
           ELSE
-            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-10-01' AS DATE)
         END
       ELSE
-        -- SS: YYYY-03-01
+        -- SS: YYYY-03-01 [원래 로직 유지]
         CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
     END AS PERIOD_START_DT,
     -- 판매기간 일수
@@ -107,9 +112,9 @@ PARAM AS (
         WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
           CASE
             WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-              CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
+              CAST(YEAR(CAST(? AS DATE)) || '-10-01' AS DATE)
             ELSE
-              CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
+              CAST((YEAR(CAST(? AS DATE)) - 1) || '-10-01' AS DATE)
           END
         ELSE
           CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
@@ -262,6 +267,24 @@ PERIOD_SALES AS (
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
+-- 최근 1개월 판매 (정체재고 판단용)
+MONTHLY_SALES AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    S.SESN,
+    S.PRDT_CD,
+    SUBSTR(S.PRDT_CD, 7, 2) AS CAT2,
+    SUM(S.TAG_SALE_AMT) AS MONTHLY_TAG_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON S.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND MONTH(S.SALE_DT) = MONTH(PA.ASOF_DATE)
+    AND YEAR(S.SALE_DT) = YEAR(PA.ASOF_DATE)
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
+),
+
 -- SKU 레벨 (제품 단위)
 SKU_LEVEL AS (
   SELECT
@@ -273,6 +296,13 @@ SKU_LEVEL AS (
     COALESCE(BS.PRDT_CD, CS.PRDT_CD, PS.PRDT_CD) AS PRDT_CD,
     COALESCE(BS.BASE_STOCK_AMT, 0) AS BASE_STOCK_AMT,
     COALESCE(CS.CURR_STOCK_AMT, 0) AS CURR_STOCK_AMT,
+    -- 정체재고 계산: 최근 1개월 판매 < 현재재고 × 0.1%
+    CASE
+      WHEN COALESCE(CS.CURR_STOCK_AMT, 0) > 0
+        AND COALESCE(MS.MONTHLY_TAG_SALES, 0) < (COALESCE(CS.CURR_STOCK_AMT, 0) * 0.001)
+      THEN COALESCE(CS.CURR_STOCK_AMT, 0)
+      ELSE 0
+    END AS STAGNANT_STOCK_AMT,
     COALESCE(PS.PERIOD_TAG_SALES, 0) AS DEPLETED_STOCK_AMT,  -- 소진재고액 = 판매금액
     COALESCE(PS.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
     COALESCE(PS.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES,
@@ -290,6 +320,10 @@ SKU_LEVEL AS (
     ON COALESCE(BS.YEAR_BUCKET, CS.YEAR_BUCKET) = PS.YEAR_BUCKET
     AND COALESCE(BS.SESN, CS.SESN) = PS.SESN
     AND COALESCE(BS.PRDT_CD, CS.PRDT_CD) = PS.PRDT_CD
+  LEFT JOIN MONTHLY_SALES MS
+    ON COALESCE(BS.YEAR_BUCKET, CS.YEAR_BUCKET) = MS.YEAR_BUCKET
+    AND COALESCE(BS.SESN, CS.SESN) = MS.SESN
+    AND COALESCE(BS.PRDT_CD, CS.PRDT_CD) = MS.PRDT_CD
   CROSS JOIN PARAM PA
 ),
 
@@ -304,6 +338,7 @@ CAT_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(STAGNANT_STOCK_AMT) AS STAGNANT_STOCK_AMT,  -- 정체재고 집계
     SUM(PERIOD_TAG_SALES) AS DEPLETED_STOCK_AMT,  -- 소진재고액 = 판매금액 합계
     SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -352,6 +387,7 @@ YEAR_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(STAGNANT_STOCK_AMT) AS STAGNANT_STOCK_AMT,  -- 정체재고 집계
     SUM(PERIOD_TAG_SALES) AS DEPLETED_STOCK_AMT,  -- 소진재고액 = 판매금액 합계
     SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -395,6 +431,7 @@ HEADER_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(STAGNANT_STOCK_AMT) AS STAGNANT_STOCK_AMT,  -- 정체재고 집계
     SUM(PERIOD_TAG_SALES) AS DEPLETED_STOCK_AMT,  -- 소진재고액 = 판매금액 합계
     SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -424,7 +461,7 @@ HEADER_LEVEL AS (
 
 SELECT
   SORT_LEVEL, ROW_LEVEL, YEAR_BUCKET, SESN, CAT2, PRDT_CD,
-  BASE_STOCK_AMT, CURR_STOCK_AMT, DEPLETED_STOCK_AMT,
+  BASE_STOCK_AMT, CURR_STOCK_AMT, STAGNANT_STOCK_AMT, DEPLETED_STOCK_AMT,
   PERIOD_TAG_SALES, PERIOD_ACT_SALES,
   DISCOUNT_RATE, INV_DAYS_RAW, INV_DAYS, IS_OVER_1Y, PERIOD_DAYS
 FROM (
@@ -449,8 +486,8 @@ ORDER BY
   PRDT_CD NULLS FIRST
 `;
 
-    // 파라미터 바인딩 (date를 여러 번 반복)
-    const params = Array(24).fill(date);
+    // 파라미터 바인딩 (date를 여러 번 반복) - 윤년 계산 포함 28개
+    const params = Array(28).fill(date);
 
     console.log('🔍 API Section3 - Executing query with params:', params.slice(0, 3));
 
@@ -487,13 +524,14 @@ ORDER BY
     let periodStartDate: string;
     
     if (month >= 9 || month <= 2) {
-      // FW (임시: 9월1일 사용)
+      // FW (임시: 9월30일 기초, 10월1일 판매시작)
       const fwYear = month >= 9 ? year : year - 1;
-      baseStockDate = `${fwYear}-09-01`;
-      periodStartDate = `${fwYear}-09-01`;
+      baseStockDate = `${fwYear}-09-30`;
+      periodStartDate = `${fwYear}-10-01`;
     } else {
-      // SS (임시: 3월1일 사용)
-      baseStockDate = `${year}-03-01`;
+      // SS (원래 로직: 2월말 기초, 3월1일 판매시작)
+      const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      baseStockDate = `${year}-02-${isLeap ? '29' : '28'}`;
       periodStartDate = `${year}-03-01`;
     }
 
@@ -507,6 +545,7 @@ ORDER BY
         year_bucket: header.YEAR_BUCKET,
         base_stock_amt: parseFloat(header.BASE_STOCK_AMT || 0),
         curr_stock_amt: parseFloat(header.CURR_STOCK_AMT || 0),
+        stagnant_stock_amt: parseFloat(header.STAGNANT_STOCK_AMT || 0),
         depleted_stock_amt: parseFloat(header.DEPLETED_STOCK_AMT || 0),
         discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
         inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
@@ -517,6 +556,7 @@ ORDER BY
         sesn: row.SESN,
         base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
         curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
         depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
         discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
         inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
@@ -528,6 +568,7 @@ ORDER BY
         cat2: row.CAT2,
         base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
         curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
         depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
         discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
         inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
@@ -541,6 +582,7 @@ ORDER BY
         prdt_cd: row.PRDT_CD,
         base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
         curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
         depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
         period_tag_sales: parseFloat(row.PERIOD_TAG_SALES || 0),
         period_act_sales: parseFloat(row.PERIOD_ACT_SALES || 0),

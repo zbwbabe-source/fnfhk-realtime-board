@@ -115,6 +115,7 @@ export default function DashboardPage() {
           region={region} 
           brand={brand} 
           date={date}
+          onDataChange={setSection3Data}
         />
       </div>
     </div>
