@@ -81,12 +81,20 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
   }, [region, brand, date, onDataChange]);
 
   const formatNumber = (num: number) => {
-    // 천 HKD 단위로 변환
+    // 천 HKD 단위로 변환 (금액용)
     const thousands = num / 1000;
     return new Intl.NumberFormat('en-US', { 
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
     }).format(thousands);
+  };
+
+  const formatQty = (num: number) => {
+    // 수량은 그대로 표시
+    return new Intl.NumberFormat('en-US', { 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 0 
+    }).format(num);
   };
 
   const formatPercent = (num: number) => {
@@ -206,10 +214,10 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
       <td className="px-4 py-2 border-b border-gray-200">{row.category}</td>
       <td className="px-4 py-2 border-b border-gray-200">{row.prdt_cd}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.inbound_qty)}
+        {formatQty(row.inbound_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.sales_qty)}
+        {formatQty(row.sales_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.inbound_tag)}
@@ -231,10 +239,10 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
     >
       <td className="px-4 py-2 border-b border-gray-200 font-medium">{row.category}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.inbound_qty)}
+        {formatQty(row.inbound_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
-        {formatNumber(row.sales_qty)}
+        {formatQty(row.sales_qty)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.inbound_tag)}
@@ -413,10 +421,10 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                           <tr className="bg-gray-100 font-bold">
                             <td className="px-4 py-2 border-t-2 border-gray-300">{data.category_total.category}</td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
-                              {formatNumber(data.category_total.inbound_qty)}
+                              {formatQty(data.category_total.inbound_qty)}
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
-                              {formatNumber(data.category_total.sales_qty)}
+                              {formatQty(data.category_total.sales_qty)}
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
                               {formatNumber(data.category_total.inbound_tag)}
