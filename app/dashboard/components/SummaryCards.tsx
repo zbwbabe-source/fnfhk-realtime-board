@@ -152,13 +152,51 @@ export default function SummaryCards({
     };
   };
 
-  // Section3 KPI 계산 (임시 - 실제 데이터 구조에 맞게 수정 필요)
+  // Section3 KPI 계산
   const calculateSection3KPIs = (): CardKPIs => {
-    // TODO: section3Data 구조 확인 후 수정
+    if (!section3Data?.header) {
+      console.log('⚠️ Section3 data not loaded yet');
+      return {
+        k1: { label: '과시즌 재고', value: 'N/A' },
+        k2: { label: '소진율', value: 'N/A' },
+        k3: { label: '전주대비', value: 'N/A' },
+      };
+    }
+
+    const header = section3Data.header;
+    const baseStock = header.base_stock_amt || 0;
+    const currentStock = header.curr_stock_amt || 0;
+    
+    // 시즌 소진율
+    const sellThroughRate = baseStock > 0 ? ((baseStock - currentStock) / baseStock) * 100 : 0;
+    
+    // 장기재고(3년차 이상) 비중
+    const year3Plus = section3Data.years?.find((y: any) => y.year_bucket === '3년차 이상');
+    const year3PlusCurrent = year3Plus?.curr_stock_amt || 0;
+    const currentAgedRatio = currentStock > 0 ? (year3PlusCurrent / currentStock) * 100 : 0;
+
+    console.log('🎯 Section3 KPI Calculation:', {
+      header,
+      baseStock,
+      currentStock,
+      sellThroughRate,
+      year3PlusCurrent,
+      currentAgedRatio,
+    });
+
     return {
-      k1: { label: '과시즌 재고', value: 'N/A' },
-      k2: { label: '소진율', value: 'N/A' },
-      k3: { label: '전주대비', value: 'N/A' },
+      k1: {
+        label: '과시즌 재고',
+        value: formatCurrency(currentStock),
+      },
+      k2: {
+        label: '소진율',
+        value: `${sellThroughRate.toFixed(1)}%`,
+      },
+      k3: {
+        label: '장기재고',
+        value: `${currentAgedRatio.toFixed(1)}%`,
+      },
     };
   };
 
