@@ -289,6 +289,24 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
     );
   }
 
+  // 핵심 지표 계산
+  const baseStock = data.header.base_stock_amt;
+  const currentStock = data.header.curr_stock_amt;
+  const stockChange = currentStock - baseStock;
+  const stockChangePercent = baseStock > 0 ? (stockChange / baseStock) * 100 : 0;
+  
+  // 시즌 소진율
+  const sellThroughRate = baseStock > 0 ? ((baseStock - currentStock) / baseStock) * 100 : 0;
+  const depletedAmount = baseStock - currentStock;
+  
+  // 장기재고(3년차 이상) 비중
+  const year3Plus = data.years.find(y => y.year_bucket === '3년차 이상');
+  const year3PlusCurrent = year3Plus?.curr_stock_amt || 0;
+  const year3PlusBase = year3Plus?.base_stock_amt || 0;
+  const currentAgedRatio = currentStock > 0 ? (year3PlusCurrent / currentStock) * 100 : 0;
+  const baseAgedRatio = baseStock > 0 ? (year3PlusBase / baseStock) * 100 : 0;
+  const agedRatioChange = currentAgedRatio - baseAgedRatio;
+
   // 연차 정렬 순서
   const yearOrder = ['1년차', '2년차', '3년차 이상'];
   const sortedYears = [...data.years].sort((a, b) => {
@@ -335,6 +353,65 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
+
+      {/* 핵심 지표 카드 */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {/* 1. 과시즌 재고 */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200 shadow-sm">
+          <div className="text-sm font-medium text-gray-600 mb-1">과시즌 재고</div>
+          <div className="text-xs text-gray-500 mb-2">Old-season Stock</div>
+          <div className="text-2xl font-bold text-gray-900 mb-2">
+            {formatNumber(currentStock / 1000)}
+            <span className="text-base font-normal text-gray-600 ml-1">천 HKD</span>
+          </div>
+          <div className={`text-sm font-semibold ${stockChange < 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {stockChange < 0 ? '▼' : '▲'} {formatNumber(Math.abs(stockChange) / 1000)} 
+            <span className="text-xs ml-1">({stockChangePercent >= 0 ? '+' : ''}{stockChangePercent.toFixed(1)}%)</span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            9/30 기초재고 대비
+          </div>
+        </div>
+
+        {/* 2. 시즌 소진율 */}
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200 shadow-sm">
+          <div className="text-sm font-medium text-gray-600 mb-1">시즌 소진율</div>
+          <div className="text-xs text-gray-500 mb-2">Sell-through Rate</div>
+          <div className={`text-2xl font-bold mb-2 ${
+            sellThroughRate >= 20 ? 'text-green-600' : 
+            sellThroughRate >= 10 ? 'text-yellow-600' : 'text-red-600'
+          }`}>
+            {sellThroughRate.toFixed(1)}%
+          </div>
+          <div className="text-sm text-gray-700">
+            {formatNumber(depletedAmount / 1000)} / {formatNumber(baseStock / 1000)}
+            <span className="text-xs text-gray-500 ml-1">천 HKD</span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            9/30 기초재고 기준
+          </div>
+        </div>
+
+        {/* 3. 장기재고 비중 */}
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200 shadow-sm">
+          <div className="text-sm font-medium text-gray-600 mb-1">장기재고(3년+) 비중</div>
+          <div className="text-xs text-gray-500 mb-2">Aged Stock Ratio</div>
+          <div className={`text-2xl font-bold mb-2 ${
+            currentAgedRatio < 15 ? 'text-green-600' : 
+            currentAgedRatio < 20 ? 'text-yellow-600' : 'text-red-600'
+          }`}>
+            {currentAgedRatio.toFixed(1)}%
+            {agedRatioChange > 1 && <span className="text-base ml-1">⚠️</span>}
+          </div>
+          <div className="text-sm text-gray-700">
+            {formatNumber(year3PlusCurrent / 1000)} / {formatNumber(currentStock / 1000)}
+            <span className="text-xs text-gray-500 ml-1">천 HKD</span>
+          </div>
+          <div className={`text-xs mt-1 ${agedRatioChange >= 0 ? 'text-red-600' : 'text-green-600'} font-semibold`}>
+            {agedRatioChange >= 0 ? '▲' : '▼'} {Math.abs(agedRatioChange).toFixed(1)}%p (9/30: {baseAgedRatio.toFixed(1)}%)
+          </div>
+        </div>
+      </div>
 
       {/* 섹션1: 연차별 집계 */}
       <div className="mb-8">
