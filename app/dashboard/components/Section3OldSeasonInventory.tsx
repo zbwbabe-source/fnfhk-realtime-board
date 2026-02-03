@@ -349,9 +349,9 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
 
       {/* 섹션1: 연차별 집계 (전체 합계 포함) */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-3 bg-blue-50 px-4 py-2 rounded-lg">1. 연차별 집계</h3>
+        <h3 className="text-lg font-semibold mb-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">1. 연차별 집계</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-          <table className="w-full text-sm bg-white">
+          <table className="text-sm bg-white">
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" rowSpan={2}>연차</th>
