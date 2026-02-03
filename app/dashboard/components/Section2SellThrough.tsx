@@ -254,7 +254,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
         {formatPercent(row.sellthrough)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-600">
-        {formatNumber(row.product_count)}
+        {formatQty(row.product_count)}
       </td>
     </tr>
   );
@@ -436,7 +436,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                               {formatPercent(data.category_total.sellthrough)}
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
-                              {formatNumber(data.category_total.product_count)}
+                              {formatQty(data.category_total.product_count)}
                             </td>
                           </tr>
                         )}
