@@ -118,8 +118,8 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         
         // 초기 TOP5 자동 펼침
         if (json.categories && json.categories.length > 0) {
-          const yearBuckets = [...new Set(json.categories.map((c: CategoryRow) => c.year_bucket))];
-          yearBuckets.forEach(yb => {
+          const yearBuckets = [...new Set(json.categories.map((c: CategoryRow) => c.year_bucket))] as string[];
+          yearBuckets.forEach((yb: string) => {
             setExpandedYears(prev => new Set([...prev, yb]));
           });
         }
