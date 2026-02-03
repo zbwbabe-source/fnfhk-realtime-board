@@ -274,7 +274,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
           className="flex items-center gap-2 hover:text-gray-700 transition-colors"
         >
           <h2 className="text-lg font-semibold text-gray-900">
-            섹션 2: 당시즌 판매율 (TAG 기준)
+            섹션 2: 당시즌 판매율 <span className="text-sm text-gray-600 font-normal">(단위: 천 HKD)</span>
           </h2>
           <svg
             className={`w-5 h-5 text-gray-600 transition-transform ${
@@ -391,16 +391,14 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('inbound_tag')}
                           >
-                            누적입고(TAG)<br/>
-                            <span className="text-xs text-blue-600">(천 HKD)</span>
+                            누적입고(TAG)
                             {getCategorySortIcon('inbound_tag')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('sales_tag')}
                           >
-                            누적판매(TAG)<br/>
-                            <span className="text-xs text-blue-600">(천 HKD)</span>
+                            누적판매(TAG)
                             {getCategorySortIcon('sales_tag')}
                           </th>
                           <th 
@@ -503,16 +501,14 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('inbound_tag')}
                         >
-                          누적입고(TAG)<br/>
-                          <span className="text-xs text-blue-600">(천 HKD)</span>
+                          누적입고(TAG)
                           {getProductSortIcon('inbound_tag')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('sales_tag')}
                         >
-                          누적판매(TAG)<br/>
-                          <span className="text-xs text-blue-600">(천 HKD)</span>
+                          누적판매(TAG)
                           {getProductSortIcon('sales_tag')}
                         </th>
                         <th 

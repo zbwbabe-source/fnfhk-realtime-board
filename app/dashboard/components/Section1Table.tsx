@@ -418,7 +418,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
+            섹션 1: 매장별 매출 <span className="text-sm text-gray-600 font-normal">(단위: 천 HKD)</span>
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -474,8 +474,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('target')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '목표(누적)' : '목표(월)'}<br/>
-                  <span className="text-xs text-blue-600">(천 HKD)</span>
+                  {isYtdMode ? '목표(누적)' : '목표(월)'}
                   {getSortIcon('target')}
                 </div>
               </th>
@@ -484,8 +483,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '누적실적' : '당월실적'}<br/>
-                  <span className="text-xs text-blue-600">(천 HKD)</span>
+                  {isYtdMode ? '누적실적' : '당월실적'}
                   {getSortIcon('actual')}
                 </div>
               </th>
@@ -503,8 +501,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual_py')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '전년누적' : '전년동월'}<br/>
-                  <span className="text-xs text-blue-600">(천 HKD)</span>
+                  {isYtdMode ? '전년누적' : '전년동월'}
                   {getSortIcon('actual_py')}
                 </div>
               </th>
@@ -530,8 +527,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                     onClick={() => handleSort('monthEndProjection')}
                   >
                     <div className="flex items-center justify-end">
-                      월말환산<br/>
-                      <span className="text-xs text-blue-600">(천 HKD)</span>
+                      월말환산
                       {getSortIcon('monthEndProjection')}
                       <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
                     </div>
