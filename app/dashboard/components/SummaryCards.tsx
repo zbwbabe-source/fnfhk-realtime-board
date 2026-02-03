@@ -137,6 +137,10 @@ export default function SummaryCards({
     });
 
     return {
+      k1: {
+        label: '판매율',
+        value: `${sellthrough.toFixed(1)}%`,
+      },
       k2: {
         label: '누적판매 (천 HKD)',
         value: formatCurrency(totalSales),
