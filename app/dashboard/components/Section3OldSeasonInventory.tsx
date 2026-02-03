@@ -346,20 +346,23 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">연차</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   기초재고(TAG)<br/>
-                  <span className="text-xs text-gray-500">({data.base_stock_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.base_stock_date})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   현재재고(TAG)<br/>
-                  <span className="text-xs text-gray-500">({data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.asof_date})</span>
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">소진재고액(TAG)</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  소진재고액(TAG)<br/>
+                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
+                </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   할인율(기간)<br/>
-                  <span className="text-xs text-gray-500">({data.period_start_date} ~ {data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
                   재고일수(기간)<br/>
-                  <span className="text-xs text-gray-500">({data.period_start_date} ~ {data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
                 </th>
               </tr>
             </thead>
@@ -444,19 +447,29 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                           카테고리 {getSortIcon('cat2', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('base_stock_amt')}>
-                          기초재고(TAG) {getSortIcon('base_stock_amt', catSortConfig)}
+                          기초재고(TAG)<br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({data.base_stock_date})</span><br/>
+                          {getSortIcon('base_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_amt')}>
-                          현재재고(TAG) {getSortIcon('curr_stock_amt', catSortConfig)}
+                          현재재고(TAG)<br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({data.asof_date})</span><br/>
+                          {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
-                          소진재고액(TAG) {getSortIcon('depleted_stock_amt', catSortConfig)}
+                          소진재고액(TAG)<br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          {getSortIcon('depleted_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('discount_rate')}>
-                          할인율(기간) {getSortIcon('discount_rate', catSortConfig)}
+                          할인율(기간)<br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          {getSortIcon('discount_rate', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
-                          재고일수(기간) {getSortIcon('inv_days', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
+                          재고일수(기간)<br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          {getSortIcon('inv_days', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700">상세</th>
                       </tr>
