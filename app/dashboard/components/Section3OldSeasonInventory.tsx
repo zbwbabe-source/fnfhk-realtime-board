@@ -375,6 +375,10 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                   <span className="text-xs font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span><br/>
                   <span className="text-xs text-blue-600">(천 HKD)</span>
                 </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="현재재고 대비 정체재고 비율">
+                  정체재고비중<br/>
+                  <span className="text-xs font-semibold text-orange-600">(정체재고 / 현재재고)</span>
+                </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   소진재고액(TAG)<br/>
                   <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
@@ -392,43 +396,66 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
             </thead>
             <tbody className="divide-y divide-gray-100">
               {/* 연차별 행들 */}
-              {sortedYears.map((year) => (
-                <tr key={year.year_bucket} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-3 py-2 font-medium border-r border-gray-100">
-                    {year.year_bucket}
-                    {year.sesn && <span className="ml-1 text-xs text-gray-500">({year.sesn})</span>}
-                  </td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.base_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.curr_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">
-                    <span className={year.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
-                      {formatNumber(year.stagnant_stock_amt)}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.depleted_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.discount_rate)}</td>
-                  <td className={`px-2 py-2 text-right ${getInvDaysColor(year.inv_days_raw, year.inv_days, year.is_over_1y)}`}>
-                    {formatInvDays(year.inv_days_raw, year.inv_days)}
-                  </td>
-                </tr>
-              ))}
+              {sortedYears.map((year) => {
+                // 정체재고비중 계산
+                const stagnantRatio = year.curr_stock_amt > 0 
+                  ? (year.stagnant_stock_amt / year.curr_stock_amt) * 100 
+                  : 0;
+                
+                return (
+                  <tr key={year.year_bucket} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-3 py-2 font-medium border-r border-gray-100">
+                      {year.year_bucket}
+                      {year.sesn && <span className="ml-1 text-xs text-gray-500">({year.sesn})</span>}
+                    </td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.base_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.curr_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">
+                      <span className={year.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {formatNumber(year.stagnant_stock_amt)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">
+                      <span className={stagnantRatio > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {stagnantRatio.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.depleted_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.discount_rate)}</td>
+                    <td className={`px-2 py-2 text-right ${getInvDaysColor(year.inv_days_raw, year.inv_days, year.is_over_1y)}`}>
+                      {formatInvDays(year.inv_days_raw, year.inv_days)}
+                    </td>
+                  </tr>
+                );
+              })}
               
               {/* 전체 합계 행 */}
-              {data.header && (
-                <tr className="font-semibold hover:bg-blue-100 transition-colors border-t-2 border-blue-300">
-                  <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">전체</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.base_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.curr_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
-                    <span className={data.header.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
-                      {formatNumber(data.header.stagnant_stock_amt)}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.depleted_stock_amt)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.discount_rate)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100">{formatInvDays(data.header.inv_days_raw, data.header.inv_days)}</td>
-                </tr>
-              )}
+              {data.header && (() => {
+                const headerStagnantRatio = data.header.curr_stock_amt > 0 
+                  ? (data.header.stagnant_stock_amt / data.header.curr_stock_amt) * 100 
+                  : 0;
+                
+                return (
+                  <tr className="font-semibold hover:bg-blue-100 transition-colors border-t-2 border-blue-300">
+                    <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">전체</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.base_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.curr_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
+                      <span className={data.header.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {formatNumber(data.header.stagnant_stock_amt)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
+                      <span className={headerStagnantRatio > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {headerStagnantRatio.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.depleted_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.discount_rate)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100">{formatInvDays(data.header.inv_days_raw, data.header.inv_days)}</td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
@@ -498,6 +525,10 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                           <span className="text-[10px] text-blue-600">(천 HKD)</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
                         </th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100" title="현재재고 대비 정체재고 비율">
+                          정체재고비중<br/>
+                          <span className="text-[10px] font-semibold text-orange-600">(정체재고 / 현재재고)</span>
+                        </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
                           소진재고액(TAG)<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
@@ -523,6 +554,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                         const catKey = `${year.year_bucket}_${cat.cat2}`;
                         const isCatExpanded = expandedCategories.has(catKey);
                         const skus = getSKUsForCategory(year.year_bucket, cat.cat2);
+                        
+                        // 카테고리별 정체재고비중 계산
+                        const catStagnantRatio = cat.curr_stock_amt > 0 
+                          ? (cat.stagnant_stock_amt / cat.curr_stock_amt) * 100 
+                          : 0;
 
                         return (
                           <React.Fragment key={catKey}>
@@ -533,6 +569,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                               <td className="px-2 py-2 text-right border-r border-gray-100">
                                 <span className={cat.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                                   {formatNumber(cat.stagnant_stock_amt)}
+                                </span>
+                              </td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">
+                                <span className={catStagnantRatio > 0 ? 'text-orange-600 font-semibold' : ''}>
+                                  {catStagnantRatio.toFixed(1)}%
                                 </span>
                               </td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.depleted_stock_amt)}</td>
@@ -550,6 +591,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                               // SKU는 할인율과 재고일수를 계산해서 표시
                               const skuDiscRate = sku.period_tag_sales > 0 ? 1 - (sku.period_act_sales / sku.period_tag_sales) : 0;
                               
+                              // SKU별 정체재고비중
+                              const skuStagnantRatio = sku.curr_stock_amt > 0 
+                                ? (sku.stagnant_stock_amt / sku.curr_stock_amt) * 100 
+                                : 0;
+                              
                               return (
                                 <tr key={`${sku.prdt_cd}_${idx}`} className="bg-white text-xs hover:bg-gray-50 transition-colors">
                                   <td className="px-3 py-1 pl-8 border-r border-gray-100">{sku.prdt_cd}</td>
@@ -558,6 +604,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                                   <td className="px-2 py-1 text-right border-r border-gray-100">
                                     <span className={sku.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                                       {formatNumber(sku.stagnant_stock_amt)}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">
+                                    <span className={skuStagnantRatio > 0 ? 'text-orange-600' : ''}>
+                                      {skuStagnantRatio.toFixed(1)}%
                                     </span>
                                   </td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.depleted_stock_amt)}</td>
