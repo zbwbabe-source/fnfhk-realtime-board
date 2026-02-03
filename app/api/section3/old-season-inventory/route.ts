@@ -31,10 +31,30 @@ export async function GET(request: NextRequest) {
     const normalizedBrand = normalizeBrand(brand);
     
     // 브랜드별 조건
-    const brandFilter = normalizedBrand === 'M' ? "BRD_CD IN ('M','I')" : "BRD_CD = 'X'";
+    const brandFilter = normalizedBrand === 'M' 
+      ? "(CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = 'M'" 
+      : "BRD_CD = 'X'";
+    
+    // 홍콩/마카오 매장 리스트 (HKMC 지역만 해당)
+    const shopListCTE = region === 'HKMC' ? `
+hk_mc_shop AS (
+  SELECT column1 AS local_shop_cd
+  FROM VALUES
+    ('HE1'),('HE2'),
+    ('M01'),('M02'),('M03'),('M05'),('M06'),('M07'),('M08'),('M09'),
+    ('M10'),('M11'),('M12'),('M13'),('M14'),('M15'),('M16'),('M17'),
+    ('M18'),('M19'),('M20'),('M21'),('M22'),
+    ('MC1'),('MC2'),('MC3'),('MC3DGM'),('MC4'),
+    ('WHM'),('WMM'),
+    ('X01'),('XE1'),('XHM')
+),
+` : '';
+    
+    const shopFilter = region === 'HKMC' ? 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM hk_mc_shop)' : '';
     
     const query = `
 WITH
+${shopListCTE}
 PARAM AS (
   SELECT
     ? AS ASOF_DATE,
@@ -72,6 +92,7 @@ SALE_BASE AS (
   CROSS JOIN PARAM PA
   WHERE ${brandFilter}
     AND RIGHT(SESN, 1) = PA.CUR_TYP
+    ${shopFilter}
 ),
 
 STOCK_BASE AS (
@@ -87,6 +108,7 @@ STOCK_BASE AS (
   CROSS JOIN PARAM PA
   WHERE ${brandFilter}
     AND RIGHT(SESN, 1) = PA.CUR_TYP
+    ${shopFilter}
 ),
 
 SALE_4Q AS (
