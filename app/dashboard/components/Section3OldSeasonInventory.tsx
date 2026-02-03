@@ -350,15 +350,15 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
       {/* 섹션1: 연차별 집계 (전체 합계 포함) */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-3 bg-blue-50 px-4 py-2 rounded-lg">1. 연차별 집계</h3>
-        <div className="overflow-x-auto rounded-lg shadow-sm">
-          <table className="w-full text-sm bg-white border-collapse">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm bg-white rounded-lg shadow-sm border-collapse overflow-hidden">
             <thead>
               <tr className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <th className="px-3 py-3 text-center font-medium text-gray-700 border-r border-gray-200" rowSpan={2}>연차</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 border-r border-gray-200" colSpan={4}>4Q (2025년 10-12월)</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700" colSpan={4}>선택일자 기준 ({data.asof_date})</th>
               </tr>
-              <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-b-2 border-blue-200">
+              <tr className="bg-gradient-to-r from-blue-50 to-blue-100 border-b border-gray-200">
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 border-r border-gray-200">4Q말 재고(TAG)</th>
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 border-r border-gray-200">4Q 판매(TAG)</th>
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 border-r border-gray-200">할인율</th>
@@ -369,10 +369,10 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                 <th className="px-2 py-2 text-center text-xs font-medium text-gray-600" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">재고일수</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100">
               {/* 연차별 행들 */}
               {sortedYears.map((year) => (
-                <tr key={year.year_bucket} className="hover:bg-blue-50 transition-colors">
+                <tr key={year.year_bucket} className="bg-white hover:bg-blue-50 transition-colors">
                   <td className="px-3 py-2 font-medium border-r border-gray-100">
                     {year.year_bucket}
                     {year.sesn && <span className="ml-1 text-xs text-gray-500">({year.sesn})</span>}
@@ -394,7 +394,7 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
               
               {/* 전체 합계 행 */}
               {data.header && (
-                <tr className="bg-gradient-to-r from-blue-100 to-blue-200 font-semibold hover:from-blue-200 hover:to-blue-300 transition-colors border-t-2 border-blue-400">
+                <tr className="bg-blue-100 font-semibold hover:bg-blue-200 transition-colors border-t-2 border-blue-300">
                   <td className="px-3 py-2 border-r border-gray-100">전체</td>
                   <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(data.header.tag_stock_4q_end)}</td>
                   <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(data.header.tag_sales_4q)}</td>
