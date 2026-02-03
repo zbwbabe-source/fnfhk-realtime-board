@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic';
  * - region: 'HKMC' or 'TW'
  * - brand: 'M' or 'X'
  * - date: 'YYYY-MM-DD' (asof_date)
+ * 
+ * 변경사항: 4Q 블록 제거, 시즌 기초재고 대비 현재 현황 중심으로 재구성
  */
 export async function GET(request: NextRequest) {
   try {
@@ -52,243 +54,211 @@ hk_mc_shop AS (
     
     const shopFilter = region === 'HKMC' ? 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM hk_mc_shop)' : '';
     
+    /*
+     * 예시:
+     * ASOF=2026-02-02 → FW: 기초=2025-08-31, 판매기간=2025-09-01~2026-02-02
+     * ASOF=2026-03-15 → SS: 기초=2026-02-28, 판매기간=2026-03-01~2026-03-15
+     */
     const query = `
 WITH
 ${shopListCTE}
 PARAM AS (
   SELECT
-    ? AS ASOF_DATE,
+    CAST(? AS DATE) AS ASOF_DATE,
+    -- 현재 시즌 타입 판단 (9~2월=FW, 3~8월=SS)
     CASE WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN 'F' ELSE 'S' END AS CUR_TYP,
+    -- 현재 시즌 연도(YY)
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN MOD(YEAR(CAST(? AS DATE)), 100)
       WHEN MONTH(CAST(? AS DATE)) IN (1,2) THEN MOD(YEAR(CAST(? AS DATE)) - 1, 100)
       ELSE MOD(YEAR(CAST(? AS DATE)), 100)
     END AS CUR_YY,
-    (DATEDIFF(day,
-      DATEADD(day, 1, DATEADD(month, -3, CAST(? AS DATE))),
+    -- 기초재고일 산정
+    CASE
+      WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
+        -- FW: YYYY-08-31
+        CASE
+          WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
+            CAST(YEAR(CAST(? AS DATE)) || '-08-31' AS DATE)
+          ELSE
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-08-31' AS DATE)
+        END
+      ELSE
+        -- SS: YYYY-02-28 or 02-29 (윤년)
+        CASE
+          WHEN MOD(YEAR(CAST(? AS DATE)), 4) = 0 AND (MOD(YEAR(CAST(? AS DATE)), 100) != 0 OR MOD(YEAR(CAST(? AS DATE)), 400) = 0) THEN
+            CAST(YEAR(CAST(? AS DATE)) || '-02-29' AS DATE)
+          ELSE
+            CAST(YEAR(CAST(? AS DATE)) || '-02-28' AS DATE)
+        END
+    END AS BASE_STOCK_DT,
+    -- 판매기간 시작일
+    CASE
+      WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
+        -- FW: YYYY-09-01
+        CASE
+          WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
+            CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
+          ELSE
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
+        END
+      ELSE
+        -- SS: YYYY-03-01
+        CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
+    END AS PERIOD_START_DT,
+    -- 판매기간 일수
+    DATEDIFF(day,
+      CASE
+        WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
+          CASE
+            WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
+              CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
+            ELSE
+              CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
+          END
+        ELSE
+          CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
+      END,
       CAST(? AS DATE)
-    ) + 1) AS DAYS_3M_ASOF,
-    (SELECT MAX(STOCK_DT)
-     FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-     WHERE STOCK_DT <= DATEADD(day, 1, CAST(? AS DATE))
-    ) AS EFFECTIVE_STOCK_DT,
-    (SELECT MAX(STOCK_DT)
-     FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-     WHERE STOCK_DT <= DATE '2026-01-01'
-    ) AS STOCK_4Q_DT
+    ) + 1 AS PERIOD_DAYS
 ),
 
-SALE_BASE AS (
-  SELECT
-    SALE_DT,
-    PRDT_CD,
-    SESN,
-    RIGHT(SESN, 1) AS SESN_TYP,
-    TO_NUMBER(LEFT(SESN, 2)) AS SESN_YY,
-    SUBSTR(PRDT_CD, 7, 2) AS CAT2,
-    TAG_SALE_AMT,
-    ACT_SALE_AMT
-  FROM SAP_FNF.DW_HMD_SALE_D
-  CROSS JOIN PARAM PA
-  WHERE ${brandFilter}
-    AND RIGHT(SESN, 1) = PA.CUR_TYP
-    ${shopFilter}
-),
-
-STOCK_BASE AS (
-  SELECT
-    STOCK_DT,
-    PRDT_CD,
-    SESN,
-    RIGHT(SESN, 1) AS SESN_TYP,
-    TO_NUMBER(LEFT(SESN, 2)) AS SESN_YY,
-    SUBSTR(PRDT_CD, 7, 2) AS CAT2,
-    TAG_STOCK_AMT
-  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-  CROSS JOIN PARAM PA
-  WHERE ${brandFilter}
-    AND RIGHT(SESN, 1) = PA.CUR_TYP
-    ${shopFilter}
-),
-
-SALE_4Q AS (
-  SELECT
-    SESN, SESN_TYP, SESN_YY, CAT2, PRDT_CD,
-    SUM(TAG_SALE_AMT) AS TAG_SALES_4Q,
-    SUM(ACT_SALE_AMT) AS ACT_SALES_4Q
-  FROM SALE_BASE
-  WHERE SALE_DT BETWEEN DATE '2025-10-01' AND DATE '2025-12-31'
-  GROUP BY 1,2,3,4,5
-),
-
-STOCK_4Q_END AS (
-  SELECT
-    S.SESN, S.SESN_TYP, S.SESN_YY, S.CAT2, S.PRDT_CD,
-    SUM(S.TAG_STOCK_AMT) AS TAG_STOCK_4Q_END
-  FROM STOCK_BASE S
-  CROSS JOIN PARAM P
-  WHERE S.STOCK_DT = P.STOCK_4Q_DT
-  GROUP BY 1,2,3,4,5
-),
-
-STOCK_ASOF AS (
-  SELECT
-    S.SESN, S.SESN_TYP, S.SESN_YY, S.CAT2, S.PRDT_CD,
-    SUM(S.TAG_STOCK_AMT) AS TAG_STOCK_ASOF
-  FROM STOCK_BASE S
-  CROSS JOIN PARAM P
-  WHERE S.STOCK_DT = P.EFFECTIVE_STOCK_DT
-  GROUP BY 1,2,3,4,5
-),
-
-SALE_CUM AS (
-  SELECT
-    S.SESN, S.SESN_TYP, S.SESN_YY, S.CAT2, S.PRDT_CD,
-    SUM(S.TAG_SALE_AMT) AS TAG_SALES_CUM,
-    SUM(S.ACT_SALE_AMT) AS ACT_SALES_CUM
-  FROM SALE_BASE S
-  CROSS JOIN PARAM P
-  WHERE S.SALE_DT BETWEEN DATE '2026-01-01' AND P.ASOF_DATE
-  GROUP BY 1,2,3,4,5
-),
-
-SALE_3M_4Q AS (
-  SELECT
-    SESN, SESN_TYP, SESN_YY, CAT2, PRDT_CD,
-    SUM(TAG_SALE_AMT) AS TAG_SALES_3M_4Q
-  FROM SALE_BASE
-  WHERE SALE_DT BETWEEN DATE '2025-10-01' AND DATE '2025-12-31'
-  GROUP BY 1,2,3,4,5
-),
-
-SALE_3M_ASOF AS (
-  SELECT
-    S.SESN, S.SESN_TYP, S.SESN_YY, S.CAT2, S.PRDT_CD,
-    SUM(S.TAG_SALE_AMT) AS TAG_SALES_3M_ASOF
-  FROM SALE_BASE S
-  CROSS JOIN PARAM P
-  WHERE S.SALE_DT BETWEEN DATEADD(day, 1, DATEADD(month, -3, P.ASOF_DATE)) AND P.ASOF_DATE
-  GROUP BY 1,2,3,4,5
-),
-
-PRDT_FACT AS (
-  SELECT
-    COALESCE(a.SESN, b.SESN, c.SESN, d.SESN) AS SESN,
-    COALESCE(a.SESN_TYP, b.SESN_TYP, c.SESN_TYP, d.SESN_TYP) AS SESN_TYP,
-    COALESCE(a.SESN_YY, b.SESN_YY, c.SESN_YY, d.SESN_YY) AS SESN_YY,
-    COALESCE(a.CAT2, b.CAT2, c.CAT2, d.CAT2) AS CAT2,
-    COALESCE(a.PRDT_CD, b.PRDT_CD, c.PRDT_CD, d.PRDT_CD) AS PRDT_CD,
-
-    COALESCE(b.TAG_STOCK_4Q_END, 0) AS TAG_STOCK_4Q_END,
-    COALESCE(a.TAG_SALES_4Q, 0) AS TAG_SALES_4Q,
-    COALESCE(a.ACT_SALES_4Q, 0) AS ACT_SALES_4Q,
-    COALESCE(f.TAG_SALES_3M_4Q, 0) AS TAG_SALES_3M_4Q,
-
-    COALESCE(c.TAG_STOCK_ASOF, 0) AS TAG_STOCK_ASOF,
-    COALESCE(d.TAG_SALES_CUM, 0) AS TAG_SALES_CUM,
-    COALESCE(d.ACT_SALES_CUM, 0) AS ACT_SALES_CUM,
-    COALESCE(e.TAG_SALES_3M_ASOF, 0) AS TAG_SALES_3M_ASOF
-  FROM SALE_4Q a
-  FULL OUTER JOIN STOCK_4Q_END b
-    ON a.SESN=b.SESN AND a.PRDT_CD=b.PRDT_CD
-  FULL OUTER JOIN STOCK_ASOF c
-    ON COALESCE(a.SESN,b.SESN)=c.SESN
-   AND COALESCE(a.PRDT_CD,b.PRDT_CD)=c.PRDT_CD
-  FULL OUTER JOIN SALE_CUM d
-    ON COALESCE(a.SESN,b.SESN,c.SESN)=d.SESN
-   AND COALESCE(a.PRDT_CD,b.PRDT_CD,c.PRDT_CD)=d.PRDT_CD
-  LEFT JOIN SALE_3M_4Q f
-    ON COALESCE(a.SESN,b.SESN,c.SESN,d.SESN)=f.SESN
-   AND COALESCE(a.PRDT_CD,b.PRDT_CD,c.PRDT_CD,d.PRDT_CD)=f.PRDT_CD
-  LEFT JOIN SALE_3M_ASOF e
-    ON COALESCE(a.SESN,b.SESN,c.SESN,d.SESN)=e.SESN
-   AND COALESCE(a.PRDT_CD,b.PRDT_CD,c.PRDT_CD,d.PRDT_CD)=e.PRDT_CD
-),
-
-PRDT_WITH_YEAR_BUCKET AS (
-  SELECT
-    P.*,
+-- 과시즌 버킷 정의 (기존 로직 유지)
+SEASON_BUCKETS AS (
+  SELECT DISTINCT
+    s.SESN,
+    CAST(LEFT(s.SESN, 2) AS INTEGER) AS SESN_YY,
+    RIGHT(s.SESN, 1) AS SESN_TYP,
     PA.CUR_TYP,
     PA.CUR_YY,
-    PA.DAYS_3M_ASOF,
     CASE
       -- FW 시즌 중: F 시즌만 연차별로 표시
-      WHEN PA.CUR_TYP='F' AND P.SESN_TYP='F' THEN
+      WHEN PA.CUR_TYP='F' AND RIGHT(s.SESN, 1)='F' THEN
         CASE
-          WHEN P.SESN_YY = PA.CUR_YY-1 THEN '1년차'
-          WHEN P.SESN_YY = PA.CUR_YY-2 THEN '2년차'
-          WHEN P.SESN_YY <= PA.CUR_YY-3 THEN '3년차 이상'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) = PA.CUR_YY-1 THEN '1년차'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) = PA.CUR_YY-2 THEN '2년차'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) <= PA.CUR_YY-3 THEN '3년차 이상'
           ELSE NULL
         END
       -- SS 시즌 중: S 시즌만 연차별로 표시
-      WHEN PA.CUR_TYP='S' AND P.SESN_TYP='S' THEN
+      WHEN PA.CUR_TYP='S' AND RIGHT(s.SESN, 1)='S' THEN
         CASE
-          WHEN P.SESN_YY = PA.CUR_YY-1 THEN '1년차'
-          WHEN P.SESN_YY = PA.CUR_YY-2 THEN '2년차'
-          WHEN P.SESN_YY <= PA.CUR_YY-3 THEN '3년차 이상'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) = PA.CUR_YY-1 THEN '1년차'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) = PA.CUR_YY-2 THEN '2년차'
+          WHEN CAST(LEFT(s.SESN, 2) AS INTEGER) <= PA.CUR_YY-3 THEN '3년차 이상'
           ELSE NULL
         END
       ELSE NULL
     END AS YEAR_BUCKET
-  FROM PRDT_FACT P
+  FROM (
+    SELECT DISTINCT SESN
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE ${brandFilter}
+      AND RIGHT(SESN, 1) IN ('F', 'S')
+      ${shopFilter}
+    UNION
+    SELECT DISTINCT SESN
+    FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+    WHERE ${brandFilter}
+      AND RIGHT(SESN, 1) IN ('F', 'S')
+      ${shopFilter}
+  ) s
   CROSS JOIN PARAM PA
   WHERE YEAR_BUCKET IS NOT NULL
 ),
 
+-- 기초재고 스냅샷 (fallback 적용)
+BASE_STOCK_SNAP AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    SB.SESN,
+    ST.PRDT_CD,
+    SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
+    SUM(ST.TAG_STOCK_AMT) AS BASE_STOCK_AMT
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON ST.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND ST.STOCK_DT = (
+      SELECT COALESCE(
+        MAX(STOCK_DT) FILTER (WHERE STOCK_DT = DATEADD(day, 1, PA.BASE_STOCK_DT)),
+        MAX(STOCK_DT) FILTER (WHERE STOCK_DT <= DATEADD(day, 1, PA.BASE_STOCK_DT))
+      )
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+    )
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, SB.SESN, ST.PRDT_CD
+),
+
+-- 현재재고 스냅샷 (fallback 적용)
+CURR_STOCK_SNAP AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    SB.SESN,
+    ST.PRDT_CD,
+    SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
+    SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON ST.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND ST.STOCK_DT = (
+      SELECT COALESCE(
+        MAX(STOCK_DT) FILTER (WHERE STOCK_DT = DATEADD(day, 1, PA.ASOF_DATE)),
+        MAX(STOCK_DT) FILTER (WHERE STOCK_DT <= DATEADD(day, 1, PA.ASOF_DATE))
+      )
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+    )
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, SB.SESN, ST.PRDT_CD
+),
+
+-- 기간 판매 (판매기간 시작~ASOF)
+PERIOD_SALES AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    S.SESN,
+    S.PRDT_CD,
+    SUBSTR(S.PRDT_CD, 7, 2) AS CAT2,
+    SUM(S.TAG_SALE_AMT) AS PERIOD_TAG_SALES,
+    SUM(S.ACT_SALE_AMT) AS PERIOD_ACT_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON S.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND S.SALE_DT BETWEEN PA.PERIOD_START_DT AND PA.ASOF_DATE
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
+),
+
+-- SKU 레벨 (제품 단위)
 SKU_LEVEL AS (
   SELECT
     3 AS SORT_LEVEL,
     'SKU' AS ROW_LEVEL,
-    YEAR_BUCKET,
-    SESN,
-    CAT2,
-    PRDT_CD,
-    TAG_STOCK_4Q_END,
-    TAG_SALES_4Q,
-    CASE
-      WHEN TAG_SALES_4Q > 0 THEN 1 - (ACT_SALES_4Q / NULLIF(TAG_SALES_4Q, 0))
-      ELSE 0
-    END AS DISC_RATE_4Q,
-    -- 4Q 재고일수 (RAW)
-    CASE
-      WHEN TAG_SALES_3M_4Q > 0 THEN ROUND(TAG_STOCK_4Q_END * 92 / NULLIF(TAG_SALES_3M_4Q, 0))
-      ELSE NULL
-    END AS INV_DAYS_4Q_RAW,
-    -- 4Q 재고일수 (상한 적용)
-    CASE
-      WHEN TAG_SALES_3M_4Q > 0 THEN
-        CASE
-          WHEN ROUND(TAG_STOCK_4Q_END * 92 / NULLIF(TAG_SALES_3M_4Q, 0)) > 999 THEN 999
-          ELSE ROUND(TAG_STOCK_4Q_END * 92 / NULLIF(TAG_SALES_3M_4Q, 0))
-        END
-      ELSE NULL
-    END AS INV_DAYS_4Q,
-    0 AS IS_OVER_1Y_4Q,
-    TAG_STOCK_ASOF,
-    TAG_SALES_CUM,
-    CASE
-      WHEN TAG_SALES_CUM > 0 THEN 1 - (ACT_SALES_CUM / NULLIF(TAG_SALES_CUM, 0))
-      ELSE 0
-    END AS DISC_RATE_CUM,
-    -- 선택일자 재고일수 (RAW)
-    CASE
-      WHEN TAG_SALES_3M_ASOF > 0 AND DAYS_3M_ASOF > 0
-      THEN ROUND(TAG_STOCK_ASOF * DAYS_3M_ASOF / NULLIF(TAG_SALES_3M_ASOF, 0))
-      ELSE NULL
-    END AS INV_DAYS_ASOF_RAW,
-    -- 선택일자 재고일수 (상한 적용)
-    CASE
-      WHEN TAG_SALES_3M_ASOF > 0 AND DAYS_3M_ASOF > 0 THEN
-        CASE
-          WHEN ROUND(TAG_STOCK_ASOF * DAYS_3M_ASOF / NULLIF(TAG_SALES_3M_ASOF, 0)) > 999 THEN 999
-          ELSE ROUND(TAG_STOCK_ASOF * DAYS_3M_ASOF / NULLIF(TAG_SALES_3M_ASOF, 0))
-        END
-      ELSE NULL
-    END AS INV_DAYS_ASOF,
-    0 AS IS_OVER_1Y_ASOF
-  FROM PRDT_WITH_YEAR_BUCKET
+    COALESCE(BS.YEAR_BUCKET, CS.YEAR_BUCKET, PS.YEAR_BUCKET) AS YEAR_BUCKET,
+    COALESCE(BS.SESN, CS.SESN, PS.SESN) AS SESN,
+    COALESCE(BS.CAT2, CS.CAT2, PS.CAT2) AS CAT2,
+    COALESCE(BS.PRDT_CD, CS.PRDT_CD, PS.PRDT_CD) AS PRDT_CD,
+    COALESCE(BS.BASE_STOCK_AMT, 0) AS BASE_STOCK_AMT,
+    COALESCE(CS.CURR_STOCK_AMT, 0) AS CURR_STOCK_AMT,
+    COALESCE(BS.BASE_STOCK_AMT, 0) - COALESCE(CS.CURR_STOCK_AMT, 0) AS DEPLETED_STOCK_AMT,
+    COALESCE(PS.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
+    COALESCE(PS.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES,
+    PA.PERIOD_DAYS
+  FROM BASE_STOCK_SNAP BS
+  FULL OUTER JOIN CURR_STOCK_SNAP CS
+    ON BS.YEAR_BUCKET = CS.YEAR_BUCKET
+    AND BS.SESN = CS.SESN
+    AND BS.PRDT_CD = CS.PRDT_CD
+  FULL OUTER JOIN PERIOD_SALES PS
+    ON COALESCE(BS.YEAR_BUCKET, CS.YEAR_BUCKET) = PS.YEAR_BUCKET
+    AND COALESCE(BS.SESN, CS.SESN) = PS.SESN
+    AND COALESCE(BS.PRDT_CD, CS.PRDT_CD) = PS.PRDT_CD
+  CROSS JOIN PARAM PA
 ),
 
+-- CAT 레벨 (카테고리 단위)
 CAT_LEVEL AS (
   SELECT
     2 AS SORT_LEVEL,
@@ -297,131 +267,89 @@ CAT_LEVEL AS (
     NULL AS SESN,
     CAT2,
     NULL AS PRDT_CD,
-    SUM(TAG_STOCK_4Q_END) AS TAG_STOCK_4Q_END,
-    SUM(TAG_SALES_4Q) AS TAG_SALES_4Q,
+    SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
+    SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
+    SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
+    SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
+    -- 할인율 계산
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN 1 - (SUM(TAG_SALES_4Q * (1 - DISC_RATE_4Q)) / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN 1 - (SUM(PERIOD_ACT_SALES) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE 0
-    END AS DISC_RATE_4Q,
-    -- 4Q 재고일수 (RAW)
+    END AS DISCOUNT_RATE,
+    -- 재고일수 계산 (RAW)
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE NULL
-    END AS INV_DAYS_4Q_RAW,
-    -- 4Q 재고일수 (상한 적용)
+    END AS INV_DAYS_RAW,
+    -- 재고일수 (상한 적용)
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0 THEN
+      WHEN SUM(PERIOD_TAG_SALES) = 0 THEN -1  -- 판매없음 플래그
+      WHEN SUM(PERIOD_TAG_SALES) > 0 THEN
         CASE
-          WHEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+          WHEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0)) > 999 THEN 999
+          ELSE ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
         END
       ELSE NULL
-    END AS INV_DAYS_4Q,
-    -- 365일 초과 여부 (색상 플래그)
+    END AS INV_DAYS,
+    -- 365일 초과 여부 (판매없음도 빨간색)
     CASE
-      WHEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0)) > 365 THEN 1
+      WHEN SUM(PERIOD_TAG_SALES) = 0 THEN 1  -- 판매없음 = 빨간색
+      WHEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0)) > 365 THEN 1
       ELSE 0
-    END AS IS_OVER_1Y_4Q,
-    SUM(TAG_STOCK_ASOF) AS TAG_STOCK_ASOF,
-    SUM(TAG_SALES_CUM) AS TAG_SALES_CUM,
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN 1 - (SUM(TAG_SALES_CUM * (1 - DISC_RATE_CUM)) / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE 0
-    END AS DISC_RATE_CUM,
-    -- 선택일자 재고일수 (RAW)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE NULL
-    END AS INV_DAYS_ASOF_RAW,
-    -- 선택일자 재고일수 (상한 적용)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0 THEN
-        CASE
-          WHEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-        END
-      ELSE NULL
-    END AS INV_DAYS_ASOF,
-    -- 365일 초과 여부 (색상 플래그)
-    CASE
-      WHEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0)) > 365 THEN 1
-      ELSE 0
-    END AS IS_OVER_1Y_ASOF
+    END AS IS_OVER_1Y,
+    MAX(PERIOD_DAYS) AS PERIOD_DAYS
   FROM SKU_LEVEL
   WHERE CAT2 IS NOT NULL
   GROUP BY YEAR_BUCKET, CAT2
 ),
 
+-- YEAR 레벨 (연차 단위)
 YEAR_LEVEL AS (
   SELECT
     1 AS SORT_LEVEL,
     'YEAR' AS ROW_LEVEL,
     YEAR_BUCKET,
-    MAX(SESN) AS SESN,  -- 대표 시즌 (가장 최근)
+    MAX(SESN) AS SESN,
     NULL AS CAT2,
     NULL AS PRDT_CD,
-    SUM(TAG_STOCK_4Q_END) AS TAG_STOCK_4Q_END,
-    SUM(TAG_SALES_4Q) AS TAG_SALES_4Q,
+    SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
+    SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
+    SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
+    SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN 1 - (SUM(TAG_SALES_4Q * (1 - DISC_RATE_4Q)) / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN 1 - (SUM(PERIOD_ACT_SALES) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE 0
-    END AS DISC_RATE_4Q,
-    -- 4Q 재고일수 (RAW)
+    END AS DISCOUNT_RATE,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE NULL
-    END AS INV_DAYS_4Q_RAW,
-    -- 4Q 재고일수 (상한 적용)
+    END AS INV_DAYS_RAW,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0 THEN
+      WHEN SUM(PERIOD_TAG_SALES) = 0 THEN -1
+      WHEN SUM(PERIOD_TAG_SALES) > 0 THEN
         CASE
-          WHEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+          WHEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0)) > 999 THEN 999
+          ELSE ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
         END
       ELSE NULL
-    END AS INV_DAYS_4Q,
-    -- 365일 초과 여부 (색상 플래그)
+    END AS INV_DAYS,
     CASE
-      WHEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0)) > 365 THEN 1
+      WHEN SUM(PERIOD_TAG_SALES) = 0 THEN 1
+      WHEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0)) > 365 THEN 1
       ELSE 0
-    END AS IS_OVER_1Y_4Q,
-    SUM(TAG_STOCK_ASOF) AS TAG_STOCK_ASOF,
-    SUM(TAG_SALES_CUM) AS TAG_SALES_CUM,
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN 1 - (SUM(TAG_SALES_CUM * (1 - DISC_RATE_CUM)) / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE 0
-    END AS DISC_RATE_CUM,
-    -- 선택일자 재고일수 (RAW)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE NULL
-    END AS INV_DAYS_ASOF_RAW,
-    -- 선택일자 재고일수 (상한 적용)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0 THEN
-        CASE
-          WHEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-        END
-      ELSE NULL
-    END AS INV_DAYS_ASOF,
-    -- 365일 초과 여부 (색상 플래그)
-    CASE
-      WHEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0)) > 365 THEN 1
-      ELSE 0
-    END AS IS_OVER_1Y_ASOF
+    END AS IS_OVER_1Y,
+    MAX(PERIOD_DAYS) AS PERIOD_DAYS
   FROM SKU_LEVEL
   GROUP BY YEAR_BUCKET
 ),
 
+-- HEADER 레벨 (전체 합계)
 HEADER_LEVEL AS (
   SELECT
     0 AS SORT_LEVEL,
@@ -430,62 +358,49 @@ HEADER_LEVEL AS (
     NULL AS SESN,
     NULL AS CAT2,
     NULL AS PRDT_CD,
-    SUM(TAG_STOCK_4Q_END) AS TAG_STOCK_4Q_END,
-    SUM(TAG_SALES_4Q) AS TAG_SALES_4Q,
+    SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
+    SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
+    SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
+    SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN 1 - (SUM(TAG_SALES_4Q * (1 - DISC_RATE_4Q)) / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN 1 - (SUM(PERIOD_ACT_SALES) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE 0
-    END AS DISC_RATE_4Q,
-    -- 4Q 재고일수 (RAW)
+    END AS DISCOUNT_RATE,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0
-      THEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+      WHEN SUM(PERIOD_TAG_SALES) > 0
+      THEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
       ELSE NULL
-    END AS INV_DAYS_4Q_RAW,
-    -- 4Q 재고일수 (상한 적용)
+    END AS INV_DAYS_RAW,
     CASE
-      WHEN SUM(TAG_SALES_4Q) > 0 THEN
+      WHEN SUM(PERIOD_TAG_SALES) = 0 THEN -1
+      WHEN SUM(PERIOD_TAG_SALES) > 0 THEN
         CASE
-          WHEN ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_4Q_END) * 92 / NULLIF(SUM(TAG_SALES_4Q), 0))
+          WHEN ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0)) > 999 THEN 999
+          ELSE ROUND(SUM(CURR_STOCK_AMT) * MAX(PERIOD_DAYS) / NULLIF(SUM(PERIOD_TAG_SALES), 0))
         END
       ELSE NULL
-    END AS INV_DAYS_4Q,
-    0 AS IS_OVER_1Y_4Q,
-    SUM(TAG_STOCK_ASOF) AS TAG_STOCK_ASOF,
-    SUM(TAG_SALES_CUM) AS TAG_SALES_CUM,
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN 1 - (SUM(TAG_SALES_CUM * (1 - DISC_RATE_CUM)) / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE 0
-    END AS DISC_RATE_CUM,
-    -- 선택일자 재고일수 (RAW)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0
-      THEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-      ELSE NULL
-    END AS INV_DAYS_ASOF_RAW,
-    -- 선택일자 재고일수 (상한 적용)
-    CASE
-      WHEN SUM(TAG_SALES_CUM) > 0 THEN
-        CASE
-          WHEN ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0)) > 999 THEN 999
-          ELSE ROUND(SUM(TAG_STOCK_ASOF) * 90 / NULLIF(SUM(TAG_SALES_CUM), 0))
-        END
-      ELSE NULL
-    END AS INV_DAYS_ASOF,
-    0 AS IS_OVER_1Y_ASOF
+    END AS INV_DAYS,
+    0 AS IS_OVER_1Y,
+    MAX(PERIOD_DAYS) AS PERIOD_DAYS
   FROM SKU_LEVEL
 )
 
-SELECT * FROM HEADER_LEVEL
-UNION ALL
-SELECT * FROM YEAR_LEVEL
-UNION ALL
-SELECT * FROM CAT_LEVEL
-UNION ALL
-SELECT * FROM SKU_LEVEL
+SELECT
+  SORT_LEVEL, ROW_LEVEL, YEAR_BUCKET, SESN, CAT2, PRDT_CD,
+  BASE_STOCK_AMT, CURR_STOCK_AMT, DEPLETED_STOCK_AMT,
+  PERIOD_TAG_SALES, PERIOD_ACT_SALES,
+  DISCOUNT_RATE, INV_DAYS_RAW, INV_DAYS, IS_OVER_1Y, PERIOD_DAYS
+FROM (
+  SELECT *, NULL AS DISCOUNT_RATE FROM SKU_LEVEL
+  UNION ALL
+  SELECT * FROM CAT_LEVEL
+  UNION ALL
+  SELECT * FROM YEAR_LEVEL
+  UNION ALL
+  SELECT * FROM HEADER_LEVEL
+)
 ORDER BY
   SORT_LEVEL,
   CASE YEAR_BUCKET
@@ -493,25 +408,20 @@ ORDER BY
     WHEN '1년차' THEN 1
     WHEN '2년차' THEN 2
     WHEN '3년차 이상' THEN 3
-    WHEN 'SS 과시즌' THEN 4
     ELSE 99
   END,
   CAT2 NULLS FIRST,
-  TAG_STOCK_ASOF DESC,
   PRDT_CD NULLS FIRST
-    `;
+`;
 
-    // 파라미터: date를 10번 반복
-    const params = Array(10).fill(date);
+    // 파라미터 바인딩 (date를 여러 번 반복)
+    const params = Array(32).fill(date);
 
-    console.log('🔍 Executing Section3 query with params:', { date, paramsCount: params.length });
+    console.log('🔍 API Section3 - Executing query with params:', params.slice(0, 3));
 
     const rows = await executeSnowflakeQuery(query, params);
 
-    console.log('📊 Section3 Query Result:', {
-      region,
-      brand,
-      date,
+    console.log('✅ API Section3 - Query result:', {
       rowsCount: rows.length,
       levels: {
         header: rows.filter((r: any) => r.ROW_LEVEL === 'HEADER').length,
@@ -522,10 +432,8 @@ ORDER BY
       sampleRows: rows.slice(0, 5).map((r: any) => ({
         level: r.ROW_LEVEL,
         year_bucket: r.YEAR_BUCKET,
-        cat2: r.CAT2,
-        prdt_cd: r.PRDT_CD,
-        stock_4q: r.TAG_STOCK_4Q_END,
-        stock_asof: r.TAG_STOCK_ASOF,
+        base_stock: r.BASE_STOCK_AMT,
+        curr_stock: r.CURR_STOCK_AMT,
       }))
     });
 
@@ -535,79 +443,87 @@ ORDER BY
     const catRows = rows.filter((r: any) => r.ROW_LEVEL === 'CAT');
     const skuRows = rows.filter((r: any) => r.ROW_LEVEL === 'SKU');
 
+    // 기초재고일과 판매기간 계산 (프론트 표시용)
+    const asofDate = new Date(date);
+    const month = asofDate.getMonth() + 1;
+    const year = asofDate.getFullYear();
+    
+    let baseStockDate: string;
+    let periodStartDate: string;
+    
+    if (month >= 9 || month <= 2) {
+      // FW
+      const fwYear = month >= 9 ? year : year - 1;
+      baseStockDate = `${fwYear}-08-31`;
+      periodStartDate = `${fwYear}-09-01`;
+    } else {
+      // SS
+      const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      baseStockDate = `${year}-02-${isLeap ? '29' : '28'}`;
+      periodStartDate = `${year}-03-01`;
+    }
+
     const response = {
       asof_date: date,
+      base_stock_date: baseStockDate,
+      period_start_date: periodStartDate,
       region,
       brand,
       header: header ? {
         year_bucket: header.YEAR_BUCKET,
-        tag_stock_4q_end: parseFloat(header.TAG_STOCK_4Q_END || 0),
-        tag_sales_4q: parseFloat(header.TAG_SALES_4Q || 0),
-        disc_rate_4q: parseFloat(header.DISC_RATE_4Q || 0),
-        inv_days_4q: header.INV_DAYS_4Q ? parseFloat(header.INV_DAYS_4Q) : null,
-        tag_stock_asof: parseFloat(header.TAG_STOCK_ASOF || 0),
-        tag_sales_cum: parseFloat(header.TAG_SALES_CUM || 0),
-        disc_rate_cum: parseFloat(header.DISC_RATE_CUM || 0),
-        inv_days_asof: header.INV_DAYS_ASOF ? parseFloat(header.INV_DAYS_ASOF) : null,
+        base_stock_amt: parseFloat(header.BASE_STOCK_AMT || 0),
+        curr_stock_amt: parseFloat(header.CURR_STOCK_AMT || 0),
+        depleted_stock_amt: parseFloat(header.DEPLETED_STOCK_AMT || 0),
+        discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
+        inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
+        inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
       } : null,
       years: yearRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
-        sesn: row.SESN,  // 대표 시즌 추가
-        tag_stock_4q_end: parseFloat(row.TAG_STOCK_4Q_END || 0),
-        tag_sales_4q: parseFloat(row.TAG_SALES_4Q || 0),
-        disc_rate_4q: parseFloat(row.DISC_RATE_4Q || 0),
-        inv_days_4q_raw: row.INV_DAYS_4Q_RAW ? parseFloat(row.INV_DAYS_4Q_RAW) : null,
-        inv_days_4q: row.INV_DAYS_4Q ? parseFloat(row.INV_DAYS_4Q) : null,
-        is_over_1y_4q: row.IS_OVER_1Y_4Q === 1,
-        tag_stock_asof: parseFloat(row.TAG_STOCK_ASOF || 0),
-        tag_sales_cum: parseFloat(row.TAG_SALES_CUM || 0),
-        disc_rate_cum: parseFloat(row.DISC_RATE_CUM || 0),
-        inv_days_asof_raw: row.INV_DAYS_ASOF_RAW ? parseFloat(row.INV_DAYS_ASOF_RAW) : null,
-        inv_days_asof: row.INV_DAYS_ASOF ? parseFloat(row.INV_DAYS_ASOF) : null,
-        is_over_1y_asof: row.IS_OVER_1Y_ASOF === 1,
+        sesn: row.SESN,
+        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
+        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
+        discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
+        inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
+        inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
+        is_over_1y: row.IS_OVER_1Y === 1,
       })),
       categories: catRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
         cat2: row.CAT2,
-        tag_stock_4q_end: parseFloat(row.TAG_STOCK_4Q_END || 0),
-        tag_sales_4q: parseFloat(row.TAG_SALES_4Q || 0),
-        disc_rate_4q: parseFloat(row.DISC_RATE_4Q || 0),
-        inv_days_4q_raw: row.INV_DAYS_4Q_RAW ? parseFloat(row.INV_DAYS_4Q_RAW) : null,
-        inv_days_4q: row.INV_DAYS_4Q ? parseFloat(row.INV_DAYS_4Q) : null,
-        is_over_1y_4q: row.IS_OVER_1Y_4Q === 1,
-        tag_stock_asof: parseFloat(row.TAG_STOCK_ASOF || 0),
-        tag_sales_cum: parseFloat(row.TAG_SALES_CUM || 0),
-        disc_rate_cum: parseFloat(row.DISC_RATE_CUM || 0),
-        inv_days_asof_raw: row.INV_DAYS_ASOF_RAW ? parseFloat(row.INV_DAYS_ASOF_RAW) : null,
-        inv_days_asof: row.INV_DAYS_ASOF ? parseFloat(row.INV_DAYS_ASOF) : null,
-        is_over_1y_asof: row.IS_OVER_1Y_ASOF === 1,
+        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
+        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
+        discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
+        inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
+        inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
+        is_over_1y: row.IS_OVER_1Y === 1,
       })),
       skus: skuRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
         sesn: row.SESN,
         cat2: row.CAT2,
         prdt_cd: row.PRDT_CD,
-        tag_stock_4q_end: parseFloat(row.TAG_STOCK_4Q_END || 0),
-        tag_sales_4q: parseFloat(row.TAG_SALES_4Q || 0),
-        disc_rate_4q: parseFloat(row.DISC_RATE_4Q || 0),
-        inv_days_4q_raw: row.INV_DAYS_4Q_RAW ? parseFloat(row.INV_DAYS_4Q_RAW) : null,
-        inv_days_4q: row.INV_DAYS_4Q ? parseFloat(row.INV_DAYS_4Q) : null,
-        tag_stock_asof: parseFloat(row.TAG_STOCK_ASOF || 0),
-        tag_sales_cum: parseFloat(row.TAG_SALES_CUM || 0),
-        disc_rate_cum: parseFloat(row.DISC_RATE_CUM || 0),
-        inv_days_asof_raw: row.INV_DAYS_ASOF_RAW ? parseFloat(row.INV_DAYS_ASOF_RAW) : null,
-        inv_days_asof: row.INV_DAYS_ASOF ? parseFloat(row.INV_DAYS_ASOF) : null,
+        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
+        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
+        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
+        period_tag_sales: parseFloat(row.PERIOD_TAG_SALES || 0),
+        period_act_sales: parseFloat(row.PERIOD_ACT_SALES || 0),
       })),
     };
 
+    console.log('✅ API Section3 - Response prepared');
     return NextResponse.json(response);
 
   } catch (error: any) {
-    console.error('❌ Error in /api/section3/old-season-inventory:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('❌ API Section3 - Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch old season inventory data', message: error.message, stack: error.stack },
+      {
+        error: 'Failed to fetch old season inventory data',
+        message: error.message,
+        stack: error.stack,
+      },
       { status: 500 }
     );
   }

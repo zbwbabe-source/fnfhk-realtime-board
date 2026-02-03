@@ -13,54 +13,41 @@ interface SKURow {
   sesn: string;
   cat2: string | null;
   prdt_cd: string;
-  tag_stock_4q_end: number;
-  tag_sales_4q: number;
-  disc_rate_4q: number;
-  inv_days_4q_raw: number | null;
-  inv_days_4q: number | null;
-  tag_stock_asof: number;
-  tag_sales_cum: number;
-  disc_rate_cum: number;
-  inv_days_asof_raw: number | null;
-  inv_days_asof: number | null;
+  base_stock_amt: number;
+  curr_stock_amt: number;
+  depleted_stock_amt: number;
+  period_tag_sales: number;
+  period_act_sales: number;
 }
 
 interface CategoryRow {
   year_bucket: string;
   cat2: string;
-  tag_stock_4q_end: number;
-  tag_sales_4q: number;
-  disc_rate_4q: number;
-  inv_days_4q_raw: number | null;
-  inv_days_4q: number | null;
-  is_over_1y_4q: boolean;
-  tag_stock_asof: number;
-  tag_sales_cum: number;
-  disc_rate_cum: number;
-  inv_days_asof_raw: number | null;
-  inv_days_asof: number | null;
-  is_over_1y_asof: boolean;
+  base_stock_amt: number;
+  curr_stock_amt: number;
+  depleted_stock_amt: number;
+  discount_rate: number;
+  inv_days_raw: number | null;
+  inv_days: number | null;
+  is_over_1y: boolean;
 }
 
 interface YearRow {
   year_bucket: string;
-  sesn?: string;  // 대표 시즌 추가
-  tag_stock_4q_end: number;
-  tag_sales_4q: number;
-  disc_rate_4q: number;
-  inv_days_4q_raw: number | null;
-  inv_days_4q: number | null;
-  is_over_1y_4q: boolean;
-  tag_stock_asof: number;
-  tag_sales_cum: number;
-  disc_rate_cum: number;
-  inv_days_asof_raw: number | null;
-  inv_days_asof: number | null;
-  is_over_1y_asof: boolean;
+  sesn?: string;
+  base_stock_amt: number;
+  curr_stock_amt: number;
+  depleted_stock_amt: number;
+  discount_rate: number;
+  inv_days_raw: number | null;
+  inv_days: number | null;
+  is_over_1y: boolean;
 }
 
 interface Section3Data {
   asof_date: string;
+  base_stock_date: string;
+  period_start_date: string;
   region: string;
   brand: string;
   header: YearRow;
@@ -153,15 +140,17 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
     return (num * 100).toFixed(1) + '%';
   };
 
-  // 재고일수 표시 (상한 999+일 적용)
+  // 재고일수 표시 (상한 999+일 적용, 판매없음 처리)
   const formatInvDays = (invDaysRaw: number | null, invDays: number | null): string => {
+    if (invDays === -1) return '판매없음';  // 판매없음 플래그
     if (invDaysRaw === null || invDays === null) return '-';
     if (invDaysRaw > 999) return '999+일';
     return `${Math.round(invDays)}일`;
   };
 
-  // 재고일수 색상 (365일 초과 시 빨간색)
-  const getInvDaysColor = (invDaysRaw: number | null, isOverFlag?: boolean): string => {
+  // 재고일수 색상 (365일 초과 시 빨간색, 판매없음도 빨간색)
+  const getInvDaysColor = (invDaysRaw: number | null, invDays: number | null, isOverFlag?: boolean): string => {
+    if (invDays === -1) return 'text-red-600';  // 판매없음 빨간색
     if (invDaysRaw === null) return '';
     if (isOverFlag || invDaysRaw > 365) return 'text-red-600';
     return '';
@@ -319,8 +308,8 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
         return catSortConfig.direction === 'desc' ? bVal - aVal : aVal - bVal;
       });
     } else {
-      // 기본: 누적판매(TAG) 내림차순
-      cats = [...cats].sort((a, b) => b.tag_sales_cum - a.tag_sales_cum);
+      // 기본: 소진재고액(TAG) 내림차순
+      cats = [...cats].sort((a, b) => b.depleted_stock_amt - a.depleted_stock_amt);
     }
     
     return cats;
@@ -347,26 +336,31 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
 
-      {/* 섹션1: 연차별 집계 (전체 합계 포함) */}
+      {/* 섹션1: 연차별 집계 */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">1. 연차별 집계</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
           <table className="w-full text-sm bg-white">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" rowSpan={2}>연차</th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" colSpan={4}>4Q (2025년 10-12월)</th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" colSpan={4}>선택일자 기준 ({data.asof_date})</th>
-              </tr>
-              <tr className="border-b border-gray-200">
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">4Q말 재고(TAG)</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">4Q 판매(TAG)</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">할인율</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">재고일수</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">당일 재고(TAG)</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">누적 판매(TAG)</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50 border-r border-gray-200">할인율</th>
-                <th className="px-2 py-2 text-center text-xs font-medium text-gray-600 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">재고일수</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">연차</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  기초재고(TAG)<br/>
+                  <span className="text-xs text-gray-500">({data.base_stock_date})</span>
+                </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  현재재고(TAG)<br/>
+                  <span className="text-xs text-gray-500">({data.asof_date})</span>
+                </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">소진재고액(TAG)</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  할인율(기간)<br/>
+                  <span className="text-xs text-gray-500">({data.period_start_date} ~ {data.asof_date})</span>
+                </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
+                  재고일수(기간)<br/>
+                  <span className="text-xs text-gray-500">({data.period_start_date} ~ {data.asof_date})</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -377,17 +371,12 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                     {year.year_bucket}
                     {year.sesn && <span className="ml-1 text-xs text-gray-500">({year.sesn})</span>}
                   </td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.tag_stock_4q_end)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.tag_sales_4q)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.disc_rate_4q)}</td>
-                  <td className={`px-2 py-2 text-right border-r border-gray-100 ${getInvDaysColor(year.inv_days_4q_raw, year.is_over_1y_4q)}`}>
-                    {formatInvDays(year.inv_days_4q_raw, year.inv_days_4q)}
-                  </td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.tag_stock_asof)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.tag_sales_cum)}</td>
-                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.disc_rate_cum)}</td>
-                  <td className={`px-2 py-2 text-right ${getInvDaysColor(year.inv_days_asof_raw, year.is_over_1y_asof)}`}>
-                    {formatInvDays(year.inv_days_asof_raw, year.inv_days_asof)}
+                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.base_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.curr_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.depleted_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.discount_rate)}</td>
+                  <td className={`px-2 py-2 text-right ${getInvDaysColor(year.inv_days_raw, year.inv_days, year.is_over_1y)}`}>
+                    {formatInvDays(year.inv_days_raw, year.inv_days)}
                   </td>
                 </tr>
               ))}
@@ -396,14 +385,11 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
               {data.header && (
                 <tr className="font-semibold hover:bg-blue-100 transition-colors border-t-2 border-blue-300">
                   <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">전체</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.tag_stock_4q_end)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.tag_sales_4q)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.disc_rate_4q)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatInvDays(data.header.inv_days_4q_raw, data.header.inv_days_4q)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.tag_stock_asof)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.tag_sales_cum)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.disc_rate_cum)}</td>
-                  <td className="px-2 py-2 text-right bg-blue-100">{formatInvDays(data.header.inv_days_asof_raw, data.header.inv_days_asof)}</td>
+                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.base_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.curr_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.depleted_stock_amt)}</td>
+                  <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.discount_rate)}</td>
+                  <td className="px-2 py-2 text-right bg-blue-100">{formatInvDays(data.header.inv_days_raw, data.header.inv_days)}</td>
                 </tr>
               )}
             </tbody>
@@ -457,29 +443,20 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('cat2')}>
                           카테고리 {getSortIcon('cat2', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('tag_stock_4q_end')}>
-                          4Q말 재고 {getSortIcon('tag_stock_4q_end', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('base_stock_amt')}>
+                          기초재고(TAG) {getSortIcon('base_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('tag_sales_4q')}>
-                          4Q 판매 {getSortIcon('tag_sales_4q', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_amt')}>
+                          현재재고(TAG) {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('disc_rate_4q')}>
-                          할인율 {getSortIcon('disc_rate_4q', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
+                          소진재고액(TAG) {getSortIcon('depleted_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days_4q')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
-                          재고일수 {getSortIcon('inv_days_4q', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('discount_rate')}>
+                          할인율(기간) {getSortIcon('discount_rate', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('tag_stock_asof')}>
-                          당일 재고 {getSortIcon('tag_stock_asof', catSortConfig)}
-                        </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('tag_sales_cum')}>
-                          누적 판매 {getSortIcon('tag_sales_cum', catSortConfig)}
-                        </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('disc_rate_cum')}>
-                          할인율 {getSortIcon('disc_rate_cum', catSortConfig)}
-                        </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days_asof')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
-                          재고일수 {getSortIcon('inv_days_asof', catSortConfig)}
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
+                          재고일수(기간) {getSortIcon('inv_days', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700">상세</th>
                       </tr>
@@ -495,17 +472,12 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                           <React.Fragment key={catKey}>
                             <tr className="bg-green-50 hover:bg-green-100 cursor-pointer transition-colors" onClick={() => toggleCategory(year.year_bucket, cat.cat2)}>
                               <td className="px-3 py-2 font-medium border-r border-gray-100">{cat.cat2}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.tag_stock_4q_end)}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.tag_sales_4q)}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(cat.disc_rate_4q)}</td>
-                              <td className={`px-2 py-2 text-right border-r border-gray-100 ${getInvDaysColor(cat.inv_days_4q_raw, cat.is_over_1y_4q)}`}>
-                                {formatInvDays(cat.inv_days_4q_raw, cat.inv_days_4q)}
-                              </td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.tag_stock_asof)}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.tag_sales_cum)}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(cat.disc_rate_cum)}</td>
-                              <td className={`px-2 py-2 text-right border-r border-gray-100 ${getInvDaysColor(cat.inv_days_asof_raw, cat.is_over_1y_asof)}`}>
-                                {formatInvDays(cat.inv_days_asof_raw, cat.inv_days_asof)}
+                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.base_stock_amt)}</td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.curr_stock_amt)}</td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.depleted_stock_amt)}</td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(cat.discount_rate)}</td>
+                              <td className={`px-2 py-2 text-right border-r border-gray-100 ${getInvDaysColor(cat.inv_days_raw, cat.inv_days, cat.is_over_1y)}`}>
+                                {formatInvDays(cat.inv_days_raw, cat.inv_days)}
                               </td>
                               <td className="px-2 py-2 text-center">
                                 <span className="text-blue-600 text-xs">{isCatExpanded ? '▼' : '▶'}</span>
@@ -513,20 +485,22 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                             </tr>
 
                             {/* SKU 상세 */}
-                            {isCatExpanded && skus.map((sku, idx) => (
-                              <tr key={`${sku.prdt_cd}_${idx}`} className="bg-white text-xs hover:bg-gray-50 transition-colors">
-                                <td className="px-3 py-1 pl-8 border-r border-gray-100">{sku.prdt_cd}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.tag_stock_4q_end)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.tag_sales_4q)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatPercent(sku.disc_rate_4q)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatInvDays(sku.inv_days_4q_raw, sku.inv_days_4q)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.tag_stock_asof)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.tag_sales_cum)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatPercent(sku.disc_rate_cum)}</td>
-                                <td className="px-2 py-1 text-right border-r border-gray-100">{formatInvDays(sku.inv_days_asof_raw, sku.inv_days_asof)}</td>
-                                <td className="px-2 py-1 text-center text-gray-400">-</td>
-                              </tr>
-                            ))}
+                            {isCatExpanded && skus.map((sku, idx) => {
+                              // SKU는 할인율과 재고일수를 계산해서 표시
+                              const skuDiscRate = sku.period_tag_sales > 0 ? 1 - (sku.period_act_sales / sku.period_tag_sales) : 0;
+                              
+                              return (
+                                <tr key={`${sku.prdt_cd}_${idx}`} className="bg-white text-xs hover:bg-gray-50 transition-colors">
+                                  <td className="px-3 py-1 pl-8 border-r border-gray-100">{sku.prdt_cd}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.base_stock_amt)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.curr_stock_amt)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.depleted_stock_amt)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatPercent(skuDiscRate)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">-</td>
+                                  <td className="px-2 py-1 text-center text-gray-400">-</td>
+                                </tr>
+                              );
+                            })}
                           </React.Fragment>
                         );
                       })}
@@ -534,7 +508,7 @@ export default function Section3OldSeasonInventory({ region, brand, date }: Sect
                       {/* 기타 카테고리 버튼 (TOP5만 표시 중일 때) */}
                       {!showAllCats && others.length > 0 && (
                         <tr className="bg-gray-50 border-t border-gray-200">
-                          <td colSpan={10} className="px-3 py-3 text-center text-sm">
+                          <td colSpan={7} className="px-3 py-3 text-center text-sm">
                             <button
                               onClick={() => {
                                 setShowAllCategoriesInYear(prev => new Set([...prev, year.year_bucket]));
