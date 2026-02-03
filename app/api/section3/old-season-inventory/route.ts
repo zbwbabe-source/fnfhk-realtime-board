@@ -76,21 +76,16 @@ PARAM AS (
     -- 기초재고일 산정
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
-        -- FW: YYYY-08-31
+        -- FW: YYYY-09-01 (임시: 8월31일 데이터 미입력)
         CASE
           WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-08-31' AS DATE)
+            CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
           ELSE
-            CAST((YEAR(CAST(? AS DATE)) - 1) || '-08-31' AS DATE)
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
         END
       ELSE
-        -- SS: YYYY-02-28 or 02-29 (윤년)
-        CASE
-          WHEN MOD(YEAR(CAST(? AS DATE)), 4) = 0 AND (MOD(YEAR(CAST(? AS DATE)), 100) != 0 OR MOD(YEAR(CAST(? AS DATE)), 400) = 0) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-02-29' AS DATE)
-          ELSE
-            CAST(YEAR(CAST(? AS DATE)) || '-02-28' AS DATE)
-        END
+        -- SS: YYYY-03-01 (임시: 2월말 데이터 미입력)
+        CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
     END AS BASE_STOCK_DT,
     -- 판매기간 시작일
     CASE
@@ -167,6 +162,28 @@ SEASON_BUCKETS AS (
   WHERE YEAR_BUCKET IS NOT NULL
 ),
 
+-- 기초재고 날짜 결정 (fallback) - 이미 +1일 적용된 날짜 사용
+BASE_STOCK_DT_RESOLVED AS (
+  SELECT 
+    PA.BASE_STOCK_DT,
+    COALESCE(
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT = PA.BASE_STOCK_DT),
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT <= PA.BASE_STOCK_DT)
+    ) AS EFFECTIVE_BASE_STOCK_DT
+  FROM PARAM PA
+),
+
+-- 현재재고 날짜 결정 (fallback)
+CURR_STOCK_DT_RESOLVED AS (
+  SELECT 
+    PA.ASOF_DATE,
+    COALESCE(
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT = DATEADD(day, 1, PA.ASOF_DATE)),
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT <= DATEADD(day, 1, PA.ASOF_DATE))
+    ) AS EFFECTIVE_CURR_STOCK_DT
+  FROM PARAM PA
+),
+
 -- 기초재고 스냅샷 (fallback 적용) - 모든 F/S 시즌 먼저 수집
 BASE_STOCK_SNAP_RAW AS (
   SELECT
@@ -176,15 +193,11 @@ BASE_STOCK_SNAP_RAW AS (
     SUM(ST.TAG_STOCK_AMT) AS BASE_STOCK_AMT
   FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
   CROSS JOIN PARAM PA
+  CROSS JOIN BASE_STOCK_DT_RESOLVED BSD
   WHERE ${brandFilter}
     AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
     ${shopFilter}
-    AND ST.STOCK_DT = (
-      SELECT COALESCE(
-        (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT = DATEADD(day, 1, PA.BASE_STOCK_DT)),
-        (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT <= DATEADD(day, 1, PA.BASE_STOCK_DT))
-      )
-    )
+    AND ST.STOCK_DT = BSD.EFFECTIVE_BASE_STOCK_DT
   GROUP BY ST.SESN, ST.PRDT_CD
 ),
 
@@ -210,15 +223,11 @@ CURR_STOCK_SNAP_RAW AS (
     SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT
   FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
   CROSS JOIN PARAM PA
+  CROSS JOIN CURR_STOCK_DT_RESOLVED CSD
   WHERE ${brandFilter}
     AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
     ${shopFilter}
-    AND ST.STOCK_DT = (
-      SELECT COALESCE(
-        (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT = DATEADD(day, 1, PA.ASOF_DATE)),
-        (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT <= DATEADD(day, 1, PA.ASOF_DATE))
-      )
-    )
+    AND ST.STOCK_DT = CSD.EFFECTIVE_CURR_STOCK_DT
   GROUP BY ST.SESN, ST.PRDT_CD
 ),
 
@@ -441,7 +450,7 @@ ORDER BY
 `;
 
     // 파라미터 바인딩 (date를 여러 번 반복)
-    const params = Array(32).fill(date);
+    const params = Array(24).fill(date);
 
     console.log('🔍 API Section3 - Executing query with params:', params.slice(0, 3));
 
@@ -469,7 +478,7 @@ ORDER BY
     const catRows = rows.filter((r: any) => r.ROW_LEVEL === 'CAT');
     const skuRows = rows.filter((r: any) => r.ROW_LEVEL === 'SKU');
 
-    // 기초재고일과 판매기간 계산 (프론트 표시용)
+    // 기초재고일과 판매기간 계산 (프론트 표시용, SQL 로직과 동일)
     const asofDate = new Date(date);
     const month = asofDate.getMonth() + 1;
     const year = asofDate.getFullYear();
@@ -478,14 +487,13 @@ ORDER BY
     let periodStartDate: string;
     
     if (month >= 9 || month <= 2) {
-      // FW
+      // FW (임시: 9월1일 사용)
       const fwYear = month >= 9 ? year : year - 1;
-      baseStockDate = `${fwYear}-08-31`;
+      baseStockDate = `${fwYear}-09-01`;
       periodStartDate = `${fwYear}-09-01`;
     } else {
-      // SS
-      const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-      baseStockDate = `${year}-02-${isLeap ? '29' : '28'}`;
+      // SS (임시: 3월1일 사용)
+      baseStockDate = `${year}-03-01`;
       periodStartDate = `${year}-03-01`;
     }
 
