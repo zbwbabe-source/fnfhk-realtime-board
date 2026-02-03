@@ -366,9 +366,9 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                   현재재고(TAG)<br/>
                   <span className="text-xs font-semibold text-blue-600">({data.asof_date})</span>
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="최근 1개월 판매가 재고의 0.1% 미만인 재고">
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="최근 1개월 판매가 없거나 재고의 0.1% 미만인 재고">
                   정체재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-orange-600">(월 판매 &lt; 0.1%)</span>
+                  <span className="text-xs font-semibold text-orange-600">(판매없음 or &lt; 0.1%)</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   소진재고액(TAG)<br/>
@@ -484,9 +484,9 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                           <span className="text-[10px] font-semibold text-blue-600">({data.asof_date})</span><br/>
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 1개월 판매가 재고의 0.1% 미만인 재고">
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 1개월 판매가 없거나 재고의 0.1% 미만인 재고">
                           정체재고(TAG)<br/>
-                          <span className="text-[10px] font-semibold text-orange-600">(월 판매 &lt; 0.1%)</span><br/>
+                          <span className="text-[10px] font-semibold text-orange-600">(판매없음 or &lt; 0.1%)</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
