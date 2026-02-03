@@ -242,10 +242,12 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
   if (!data) return null;
 
   const formatNumber = (num: number) => {
+    // 천 HKD 단위로 변환
+    const thousands = num / 1000;
     return new Intl.NumberFormat('en-US', { 
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
-    }).format(num);
+    }).format(thousands);
   };
 
   const formatPercent = (num: number) => {
@@ -472,7 +474,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('target')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '목표(누적)' : '목표(월)'}
+                  {isYtdMode ? '목표(누적)' : '목표(월)'}<br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                   {getSortIcon('target')}
                 </div>
               </th>
@@ -481,7 +484,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '누적실적' : '당월실적'}
+                  {isYtdMode ? '누적실적' : '당월실적'}<br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                   {getSortIcon('actual')}
                 </div>
               </th>
@@ -499,7 +503,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual_py')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '전년누적' : '전년동월'}
+                  {isYtdMode ? '전년누적' : '전년동월'}<br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                   {getSortIcon('actual_py')}
                 </div>
               </th>
@@ -525,7 +530,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                     onClick={() => handleSort('monthEndProjection')}
                   >
                     <div className="flex items-center justify-end">
-                      월말환산
+                      월말환산<br/>
+                      <span className="text-xs text-blue-600">(천 HKD)</span>
                       {getSortIcon('monthEndProjection')}
                       <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
                     </div>

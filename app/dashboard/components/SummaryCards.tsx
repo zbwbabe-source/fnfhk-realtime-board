@@ -99,7 +99,7 @@ export default function SummaryCards({
 
     return {
       k1: {
-        label: isYtdMode ? '누적실적' : '당월실적',
+        label: isYtdMode ? '누적실적 (천 HKD)' : '당월실적 (천 HKD)',
         value: formatCurrency(actual),
       },
       k2: {
@@ -137,16 +137,12 @@ export default function SummaryCards({
     });
 
     return {
-      k1: {
-        label: '판매율',
-        value: `${sellthrough.toFixed(1)}%`,
-      },
       k2: {
-        label: '누적판매',
+        label: '누적판매 (천 HKD)',
         value: formatCurrency(totalSales),
       },
       k3: {
-        label: '누적입고',
+        label: '누적입고 (천 HKD)',
         value: formatCurrency(totalInbound),
       },
     };
@@ -186,7 +182,7 @@ export default function SummaryCards({
 
     return {
       k1: {
-        label: '과시즌 재고',
+        label: '과시즌 재고 (천 HKD)',
         value: formatCurrency(currentStock),
       },
       k2: {
@@ -194,7 +190,7 @@ export default function SummaryCards({
         value: `${sellThroughRate.toFixed(1)}%`,
       },
       k3: {
-        label: '장기재고',
+        label: '장기재고 비중',
         value: `${currentAgedRatio.toFixed(1)}%`,
       },
     };
@@ -350,10 +346,10 @@ export default function SummaryCards({
 }
 
 function formatCurrency(value: number): string {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K`;
+  // 항상 천 HKD 단위로 표시
+  const thousands = value / 1000;
+  if (thousands >= 1000) {
+    return `${(thousands / 1000).toFixed(1)}M`;
   }
-  return value.toFixed(0);
+  return `${thousands.toFixed(0)}K`;
 }

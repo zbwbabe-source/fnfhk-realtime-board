@@ -143,7 +143,9 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
   // 유틸 함수들
   const formatNumber = (num: number | null | undefined, decimals = 0): string => {
     if (num == null) return '-';
-    return num.toLocaleString('en-US', {
+    // 천 HKD 단위로 변환
+    const thousands = num / 1000;
+    return thousands.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
@@ -360,19 +362,23 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">연차</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   기초재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.base_stock_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.base_stock_date})</span><br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   현재재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.asof_date})</span><br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
                   정체재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span>
+                  <span className="text-xs font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span><br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   소진재고액(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                  <span className="text-xs text-blue-600">(천 HKD)</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   할인율(기간)<br/>
@@ -477,21 +483,25 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('base_stock_amt')}>
                           기초재고(TAG)<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({data.base_stock_date})</span><br/>
+                          <span className="text-[10px] text-blue-600">(천 HKD)</span><br/>
                           {getSortIcon('base_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_amt')}>
                           현재재고(TAG)<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({data.asof_date})</span><br/>
+                          <span className="text-[10px] text-blue-600">(천 HKD)</span><br/>
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
                           정체재고(TAG)<br/>
                           <span className="text-[10px] font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span><br/>
+                          <span className="text-[10px] text-blue-600">(천 HKD)</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
                           소진재고액(TAG)<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          <span className="text-[10px] text-blue-600">(천 HKD)</span><br/>
                           {getSortIcon('depleted_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('discount_rate')}>
