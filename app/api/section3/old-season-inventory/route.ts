@@ -361,7 +361,7 @@ YEAR_LEVEL AS (
     1 AS SORT_LEVEL,
     'YEAR' AS ROW_LEVEL,
     YEAR_BUCKET,
-    NULL AS SESN,
+    MAX(SESN) AS SESN,  -- 대표 시즌 (가장 최근)
     NULL AS CAT2,
     NULL AS PRDT_CD,
     SUM(TAG_STOCK_4Q_END) AS TAG_STOCK_4Q_END,
@@ -552,6 +552,7 @@ ORDER BY
       } : null,
       years: yearRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
+        sesn: row.SESN,  // 대표 시즌 추가
         tag_stock_4q_end: parseFloat(row.TAG_STOCK_4Q_END || 0),
         tag_sales_4q: parseFloat(row.TAG_SALES_4Q || 0),
         disc_rate_4q: parseFloat(row.DISC_RATE_4Q || 0),
