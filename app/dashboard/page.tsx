@@ -94,29 +94,35 @@ export default function DashboardPage() {
         />
 
         {/* Section 1: Store Sales */}
-        <Section1Table 
-          region={region} 
-          brand={brand} 
-          date={date}
-          onDataChange={setSection1Data}
-          onYtdModeChange={setIsYtdMode}
-        />
+        <div id="section1">
+          <Section1Table 
+            region={region} 
+            brand={brand} 
+            date={date}
+            onDataChange={setSection1Data}
+            onYtdModeChange={setIsYtdMode}
+          />
+        </div>
 
         {/* Section 2: Sell-through */}
-        <Section2SellThrough 
-          region={region} 
-          brand={brand} 
-          date={date}
-          onDataChange={setSection2Data}
-        />
+        <div id="section2">
+          <Section2SellThrough 
+            region={region} 
+            brand={brand} 
+            date={date}
+            onDataChange={setSection2Data}
+          />
+        </div>
 
         {/* Section 3: Old Season Inventory */}
-        <Section3OldSeasonInventory 
-          region={region} 
-          brand={brand} 
-          date={date}
-          onDataChange={setSection3Data}
-        />
+        <div id="section3">
+          <Section3OldSeasonInventory 
+            region={region} 
+            brand={brand} 
+            date={date}
+            onDataChange={setSection3Data}
+          />
+        </div>
       </div>
     </div>
   );

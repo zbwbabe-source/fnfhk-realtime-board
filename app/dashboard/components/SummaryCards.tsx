@@ -159,29 +159,28 @@ export default function SummaryCards({
       return {
         k1: { label: '과시즌 재고', value: 'N/A' },
         k2: { label: '소진율', value: 'N/A' },
-        k3: { label: '전주대비', value: 'N/A' },
+        k3: { label: '정체재고 비중', value: 'N/A' },
       };
     }
 
     const header = section3Data.header;
     const baseStock = header.base_stock_amt || 0;
     const currentStock = header.curr_stock_amt || 0;
+    const stagnantStock = header.stagnant_stock_amt || 0;
     
-    // 시즌 소진율
+    // 시즌 소진율 (10/1 기초재고 대비)
     const sellThroughRate = baseStock > 0 ? ((baseStock - currentStock) / baseStock) * 100 : 0;
     
-    // 장기재고(3년차 이상) 비중
-    const year3Plus = section3Data.years?.find((y: any) => y.year_bucket === '3년차 이상');
-    const year3PlusCurrent = year3Plus?.curr_stock_amt || 0;
-    const currentAgedRatio = currentStock > 0 ? (year3PlusCurrent / currentStock) * 100 : 0;
+    // 정체재고 비중 (현재재고 대비)
+    const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;
 
     console.log('🎯 Section3 KPI Calculation:', {
       header,
       baseStock,
       currentStock,
+      stagnantStock,
       sellThroughRate,
-      year3PlusCurrent,
-      currentAgedRatio,
+      stagnantRatio,
     });
 
     return {
@@ -190,12 +189,12 @@ export default function SummaryCards({
         value: formatCurrency(currentStock),
       },
       k2: {
-        label: '소진율',
+        label: '소진율 (10/1 대비)',
         value: `${sellThroughRate.toFixed(1)}%`,
       },
       k3: {
-        label: '장기재고 비중',
-        value: `${currentAgedRatio.toFixed(1)}%`,
+        label: '정체재고 비중',
+        value: `${stagnantRatio.toFixed(1)}%`,
       },
     };
   };
