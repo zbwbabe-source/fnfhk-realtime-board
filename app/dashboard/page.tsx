@@ -6,6 +6,7 @@ import BrandSelect from './components/BrandSelect';
 import DateSelect from './components/DateSelect';
 import Section1Table from './components/Section1Table';
 import Section2SellThrough from './components/Section2SellThrough';
+import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryCards from './components/SummaryCards';
 
 export default function DashboardPage() {
@@ -109,15 +110,12 @@ export default function DashboardPage() {
           onDataChange={setSection2Data}
         />
 
-        {/* Section 3: Placeholder */}
-        <div id="section3" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">
-            섹션 3 (예정)
-          </h2>
-          <p className="text-gray-600">
-            추가 분석 섹션이 여기에 표시됩니다.
-          </p>
-        </div>
+        {/* Section 3: Old Season Inventory */}
+        <Section3OldSeasonInventory 
+          region={region} 
+          brand={brand} 
+          date={date}
+        />
       </div>
     </div>
   );
