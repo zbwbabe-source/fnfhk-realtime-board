@@ -175,10 +175,8 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       return;
     }
 
-    // CSV 헤더
-    const headers = language === 'ko' 
-      ? ['연차', '시즌', '카테고리', '품번', '기초재고(HKD)', '현재재고(HKD)', '정체재고(HKD)', '소진재고(HKD)', '기간판매(TAG)', '기간판매(ACT)']
-      : ['Year', 'Season', 'Category', 'SKU', 'Base Stock (HKD)', 'Current Stock (HKD)', 'Stagnant Stock (HKD)', 'Depleted Stock (HKD)', 'Period Sales (TAG)', 'Period Sales (ACT)'];
+    // CSV 헤더 (영문 고정)
+    const headers = ['Year', 'Season', 'Category', 'SKU', 'Base Stock (HKD)', 'Current Stock (HKD)', 'Stagnant Stock (HKD)', 'Depleted Stock (HKD)', 'Period Sales (TAG)', 'Period Sales (ACT)'];
 
     // CSV 데이터 생성
     const csvRows = [headers];
