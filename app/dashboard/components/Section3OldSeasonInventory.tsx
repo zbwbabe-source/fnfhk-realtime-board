@@ -163,6 +163,65 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     return dateStr;
   };
 
+  // 정체재고 CSV 다운로드 함수
+  const downloadStagnantStockCSV = () => {
+    if (!data || !data.skus) return;
+
+    // 정체재고가 있는 SKU만 필터링
+    const stagnantSKUs = data.skus.filter(sku => sku.stagnant_stock_amt > 0);
+
+    if (stagnantSKUs.length === 0) {
+      alert(language === 'ko' ? '정체재고 내역이 없습니다.' : 'No stagnant stock data available.');
+      return;
+    }
+
+    // CSV 헤더
+    const headers = language === 'ko' 
+      ? ['연차', '시즌', '카테고리', '품번', '기초재고(HKD)', '현재재고(HKD)', '정체재고(HKD)', '소진재고(HKD)', '기간판매(TAG)', '기간판매(ACT)']
+      : ['Year', 'Season', 'Category', 'SKU', 'Base Stock (HKD)', 'Current Stock (HKD)', 'Stagnant Stock (HKD)', 'Depleted Stock (HKD)', 'Period Sales (TAG)', 'Period Sales (ACT)'];
+
+    // CSV 데이터 생성
+    const csvRows = [headers];
+    
+    stagnantSKUs.forEach(sku => {
+      csvRows.push([
+        sku.year_bucket || '',
+        sku.sesn || '',
+        sku.cat2 || '',
+        sku.prdt_cd || '',
+        sku.base_stock_amt.toFixed(0),
+        sku.curr_stock_amt.toFixed(0),
+        sku.stagnant_stock_amt.toFixed(0),
+        sku.depleted_stock_amt.toFixed(0),
+        sku.period_tag_sales.toFixed(0),
+        sku.period_act_sales.toFixed(0),
+      ]);
+    });
+
+    // CSV 문자열 생성
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+    
+    // BOM 추가 (Excel에서 한글 깨짐 방지)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // 파일명 생성
+    const fileName = `stagnant_stock_${region}_${brand}_${data.asof_date}.csv`;
+    
+    // 다운로드 트리거
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   // 재고일수 표시 (상한 999+일 적용, 판매없음 처리)
   const formatInvDays = (invDaysRaw: number | null, invDays: number | null): string => {
     if (invDays === -1) return t(language, 'noSales');  // 판매없음 플래그
@@ -354,6 +413,19 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
           <span className="font-bold text-base">ⓘ</span>
           <span>{t(language, 'stagnantStockInfo')}</span>
         </div>
+        {/* 정체재고 다운로드 버튼 */}
+        {data && (
+          <button
+            onClick={downloadStagnantStockCSV}
+            className="ml-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm"
+            title={language === 'ko' ? '정체재고 내역 다운로드' : 'Download Stagnant Stock Details'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>{language === 'ko' ? '정체재고 다운로드' : 'Download Stagnant Stock'}</span>
+          </button>
+        )}
       </div>
 
       {/* 섹션1: 연차별 집계 */}
