@@ -260,9 +260,9 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
                 type="monotone"
                 dataKey="yoy"
                 stroke="#ea580c"
-                strokeWidth={3}
-                dot={{ r: 4, fill: '#ea580c' }}
-                activeDot={{ r: 6 }}
+                strokeWidth={2}
+                dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: '#ea580c', stroke: '#fff', strokeWidth: 2 }}
                 name="YoY"
                 connectNulls={false}
               />
