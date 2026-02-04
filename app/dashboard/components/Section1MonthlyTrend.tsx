@@ -149,7 +149,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
       {/* 헤더와 토글 버튼 */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">
-          {language === 'ko' ? '월별 추이 (최근 6개월)' : 'Monthly Trend (Last 6 Months)'}
+          {language === 'ko' ? '월별 추이 (최근 12개월)' : 'Monthly Trend (Last 12 Months)'}
         </h3>
         
         {/* 실판매출/YoY 전환 버튼 */}

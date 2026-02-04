@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
     const month = asofDate.getMonth() + 1; // 1-12
     const day = asofDate.getDate();
 
-    // 지난 6개월 시작 월 계산 (과거 5개월 + 당월)
-    const startDate = new Date(year, month - 6, 1);
+    // 지난 12개월 시작 월 계산 (과거 11개월 + 당월)
+    const startDate = new Date(year, month - 12, 1);
     const startYear = startDate.getFullYear();
     const startMonth = startDate.getMonth() + 1;
 
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     // Snowflake SQL
     const query = `
       WITH
-      -- 당년도 월별 실적 (지난 6개월)
+      -- 당년도 월별 실적 (지난 12개월)
       ty_monthly AS (
         SELECT
           TO_CHAR(SALE_DT, 'YYYY-MM') AS month,
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodesStr})
-          AND SALE_DT >= DATEADD(MONTH, -5, DATE_TRUNC('MONTH', ?::DATE))
+          AND SALE_DT >= DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE))
           AND SALE_DT <= ?::DATE
         GROUP BY TO_CHAR(SALE_DT, 'YYYY-MM')
       ),
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodesStr})
-          AND SALE_DT >= DATEADD(YEAR, -1, DATEADD(MONTH, -5, DATE_TRUNC('MONTH', ?::DATE)))
+          AND SALE_DT >= DATEADD(YEAR, -1, DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE)))
           AND SALE_DT <= DATEADD(YEAR, -1, ?::DATE)
         GROUP BY TO_CHAR(DATEADD(YEAR, 1, SALE_DT), 'YYYY-MM')
       )
