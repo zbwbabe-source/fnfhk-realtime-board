@@ -97,9 +97,12 @@ export default function Section3Card({ section3Data, language }: Section3CardPro
         if (response.ok) {
           const data = await response.json();
           setInsight(data);
+        } else {
+          setInsight(null);
         }
       } catch (error) {
         console.error('Failed to fetch Section3 insight:', error);
+        setInsight(null);
       } finally {
         setLoadingInsight(false);
       }

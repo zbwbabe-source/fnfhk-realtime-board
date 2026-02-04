@@ -106,9 +106,14 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
         if (response.ok) {
           const data = await response.json();
           setInsight(data);
+        } else {
+          // 에러 시 인사이트를 표시하지 않음
+          setInsight(null);
         }
       } catch (error) {
         console.error('Failed to fetch Section1 insight:', error);
+        // 에러 시 인사이트를 표시하지 않음
+        setInsight(null);
       } finally {
         setLoadingInsight(false);
       }
