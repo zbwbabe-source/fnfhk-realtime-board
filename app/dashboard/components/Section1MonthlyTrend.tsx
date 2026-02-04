@@ -13,7 +13,11 @@ interface MonthlyTrendProps {
 
 interface MonthlyRow {
   month: string;
-  sales_amt: number;
+  hk_normal: number;
+  hk_outlet: number;
+  hk_online: number;
+  mc_total: number;
+  total_sales: number;
   yoy: number | null;
 }
 
@@ -75,25 +79,55 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
       <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3">
         <p className="text-sm font-semibold text-gray-900 mb-2">{data.month}</p>
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-            <span className="text-xs text-gray-600">
-              {language === 'ko' ? '매출' : 'Sales'}:
-            </span>
-            <span className="text-sm font-semibold text-blue-600">
-              {formatSales(data.sales_amt)} HKD
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-orange-600"></div>
-            <span className="text-xs text-gray-600">YoY:</span>
-            <span className={`text-sm font-semibold ${
-              data.yoy === null ? 'text-gray-400' : 
-              data.yoy >= 100 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {formatYoY(data.yoy)}
-            </span>
-          </div>
+          {showYoY ? (
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-orange-600"></div>
+              <span className="text-xs text-gray-600">YoY:</span>
+              <span className={`text-sm font-semibold ${
+                data.yoy === null ? 'text-gray-400' : 
+                data.yoy >= 100 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {formatYoY(data.yoy)}
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#93C5FD]"></div>
+                <span className="text-xs text-gray-600">HK 정상:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatSales(data.hk_normal)} HKD
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#FCA5A5]"></div>
+                <span className="text-xs text-gray-600">HK 아울렛:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatSales(data.hk_outlet)} HKD
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#86EFAC]"></div>
+                <span className="text-xs text-gray-600">MC 합계:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatSales(data.mc_total)} HKD
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#C4B5FD]"></div>
+                <span className="text-xs text-gray-600">HK 온라인:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatSales(data.hk_online)} HKD
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200">
+                <span className="text-xs text-gray-600 font-semibold">합계:</span>
+                <span className="text-sm font-bold text-blue-600">
+                  {formatSales(data.total_sales)} HKD
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -139,7 +173,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
   }
 
   // Y축 범위 계산
-  const maxSales = Math.max(...data.map(d => d.sales_amt));
+  const maxSales = Math.max(...data.map(d => d.total_sales));
   const yoyValues = data.filter(d => d.yoy !== null).map(d => d.yoy as number);
   const maxYoY = yoyValues.length > 0 ? Math.max(...yoyValues) : 100;
   const minYoY = yoyValues.length > 0 ? Math.min(...yoyValues) : -100;
@@ -223,10 +257,10 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
               />
             </>
           ) : (
-            // 실판매출 모드: 매출만 표시 (단일 축)
+            // 실판매출 모드: 채널별 스택형 막대그래프
             <>
               <YAxis
-                stroke="#2563eb"
+                stroke="#6b7280"
                 style={{ fontSize: '12px' }}
                 tickFormatter={(value) => formatSales(value)}
                 domain={[0, maxSales * 1.1]}
@@ -234,16 +268,44 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
                   value: language === 'ko' ? '매출 (HKD)' : 'Sales (HKD)',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fontSize: '12px', fill: '#2563eb' }
+                  style: { fontSize: '12px', fill: '#6b7280' }
                 }}
               />
               
               <Tooltip content={<CustomTooltip />} />
               
+              <Legend
+                wrapperStyle={{ fontSize: '12px' }}
+                iconType="rect"
+              />
+              
+              {/* 스택형 막대그래프 - 채널별 */}
               <Bar
-                dataKey="sales_amt"
-                fill="#2563eb"
-                name={language === 'ko' ? '매출' : 'Sales'}
+                dataKey="hk_normal"
+                stackId="stack"
+                fill="#93C5FD"
+                name="HK 정상"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="hk_outlet"
+                stackId="stack"
+                fill="#FCA5A5"
+                name="HK 아울렛"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="mc_total"
+                stackId="stack"
+                fill="#86EFAC"
+                name="MC 합계"
+                radius={[0, 0, 0, 0]}
+              />
+              <Bar
+                dataKey="hk_online"
+                stackId="stack"
+                fill="#C4B5FD"
+                name="HK 온라인"
                 radius={[4, 4, 0, 0]}
               />
             </>

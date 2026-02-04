@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
-import { getAllStoresByRegionBrand, normalizeBrand } from '@/lib/store-utils';
+import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,13 +55,24 @@ export async function GET(request: NextRequest) {
     // Brand 정규화
     const normalizedBrand = normalizeBrand(brand);
 
-    // 매장 코드 가져오기 (warehouse 제외)
-    const storeCodes = getAllStoresByRegionBrand(region, brand).filter(code => {
-      // warehouse는 제외 (보통 'W'로 시작)
-      return !code.startsWith('W');
+    // 채널별 매장 코드 분류
+    const stores = getStoreMaster();
+    const countries = region === 'HKMC' ? ['HK', 'MC'] : ['TW'];
+    
+    const filteredStores = stores.filter(s => {
+      if (!countries.includes(s.country)) return false;
+      const storeBrand = normalizeBrand(s.brand);
+      if (storeBrand !== normalizedBrand) return false;
+      if (s.channel === 'Warehouse') return false; // warehouse 제외
+      return true;
     });
 
-    if (storeCodes.length === 0) {
+    const hkNormalStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Normal').map(s => s.store_code);
+    const hkOutletStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Outlet').map(s => s.store_code);
+    const hkOnlineStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Online').map(s => s.store_code);
+    const mcAllStores = filteredStores.filter(s => s.country === 'MC').map(s => s.store_code); // MC 전체
+
+    if (filteredStores.length === 0) {
       return NextResponse.json({
         asof_date: date,
         region,
@@ -70,19 +81,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const storeCodesStr = storeCodes.map(s => `'${s}'`).join(',');
+    const hkNormalStr = hkNormalStores.length > 0 ? hkNormalStores.map(s => `'${s}'`).join(',') : "''";
+    const hkOutletStr = hkOutletStores.length > 0 ? hkOutletStores.map(s => `'${s}'`).join(',') : "''";
+    const hkOnlineStr = hkOnlineStores.length > 0 ? hkOnlineStores.map(s => `'${s}'`).join(',') : "''";
+    const mcAllStr = mcAllStores.length > 0 ? mcAllStores.map(s => `'${s}'`).join(',') : "''";
 
-    // Snowflake SQL
+    // Snowflake SQL - 채널별 집계
     const query = `
       WITH
-      -- 당년도 월별 실적 (지난 12개월)
+      -- 당년도 월별 채널별 실적 (지난 12개월)
       ty_monthly AS (
         SELECT
           TO_CHAR(SALE_DT, 'YYYY-MM') AS month,
-          SUM(ACT_SALE_AMT) AS sales_amt
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkNormalStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_normal,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOutletStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_outlet,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOnlineStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_online,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${mcAllStr}) THEN ACT_SALE_AMT ELSE 0 END) AS mc_total,
+          SUM(ACT_SALE_AMT) AS total_sales
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND LOCAL_SHOP_CD IN (${storeCodesStr})
+          AND LOCAL_SHOP_CD IN (${hkNormalStr},${hkOutletStr},${hkOnlineStr},${mcAllStr})
           AND SALE_DT >= DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE))
           AND SALE_DT <= ?::DATE
         GROUP BY TO_CHAR(SALE_DT, 'YYYY-MM')
@@ -91,20 +109,24 @@ export async function GET(request: NextRequest) {
       ly_monthly AS (
         SELECT
           TO_CHAR(DATEADD(YEAR, 1, SALE_DT), 'YYYY-MM') AS month,
-          SUM(ACT_SALE_AMT) AS sales_amt_ly
+          SUM(ACT_SALE_AMT) AS total_sales_ly
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND LOCAL_SHOP_CD IN (${storeCodesStr})
+          AND LOCAL_SHOP_CD IN (${hkNormalStr},${hkOutletStr},${hkOnlineStr},${mcAllStr})
           AND SALE_DT >= DATEADD(YEAR, -1, DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE)))
           AND SALE_DT <= DATEADD(YEAR, -1, ?::DATE)
         GROUP BY TO_CHAR(DATEADD(YEAR, 1, SALE_DT), 'YYYY-MM')
       )
       SELECT
         ty.month,
-        COALESCE(ty.sales_amt, 0) AS sales_amt,
+        COALESCE(ty.hk_normal, 0) AS hk_normal,
+        COALESCE(ty.hk_outlet, 0) AS hk_outlet,
+        COALESCE(ty.hk_online, 0) AS hk_online,
+        COALESCE(ty.mc_total, 0) AS mc_total,
+        COALESCE(ty.total_sales, 0) AS total_sales,
         CASE
-          WHEN ly.sales_amt_ly > 0
-          THEN (ty.sales_amt / ly.sales_amt_ly) * 100
+          WHEN ly.total_sales_ly > 0
+          THEN (ty.total_sales / ly.total_sales_ly) * 100
           ELSE NULL
         END AS yoy
       FROM ty_monthly ty
@@ -124,7 +146,11 @@ export async function GET(request: NextRequest) {
     // 결과 변환
     const result = rows.map((row: any) => ({
       month: row.MONTH,
-      sales_amt: parseFloat(row.SALES_AMT || 0),
+      hk_normal: parseFloat(row.HK_NORMAL || 0),
+      hk_outlet: parseFloat(row.HK_OUTLET || 0),
+      hk_online: parseFloat(row.HK_ONLINE || 0),
+      mc_total: parseFloat(row.MC_TOTAL || 0),
+      total_sales: parseFloat(row.TOTAL_SALES || 0),
       yoy: row.YOY !== null ? parseFloat(row.YOY) : null,
     }));
 
