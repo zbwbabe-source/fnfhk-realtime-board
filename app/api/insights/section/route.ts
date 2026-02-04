@@ -50,16 +50,16 @@ export async function POST(request: NextRequest) {
     const body: InsightRequest = await request.json();
     const { section, data, language } = body;
 
-    // API 키가 없으면 기본 응답 반환 (에러 없이 처리)
+    // API 키가 없으면 조용히 실패 (아무것도 표시하지 않음)
     const openai = createOpenAIClient();
     if (!openai) {
-      console.log('⚠️ OpenAI API key not configured, returning default insight');
-      return NextResponse.json({
-        status: 'yellow',
-        insight: language === 'ko' 
-          ? 'AI 인사이트를 사용하려면 OpenAI API 키를 설정하세요.' 
-          : 'Configure OpenAI API key to enable AI insights.',
-      });
+      console.log('⚠️ OpenAI API key not configured, skipping insights');
+      // 약간의 지연 후 빈 응답 (로딩 느낌 주기)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return NextResponse.json(
+        { error: 'API key not configured' },
+        { status: 400 }
+      );
     }
 
     let prompt = '';
