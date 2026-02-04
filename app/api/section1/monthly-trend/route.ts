@@ -81,10 +81,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const hkNormalStr = hkNormalStores.length > 0 ? hkNormalStores.map(s => `'${s}'`).join(',') : "''";
-    const hkOutletStr = hkOutletStores.length > 0 ? hkOutletStores.map(s => `'${s}'`).join(',') : "''";
-    const hkOnlineStr = hkOnlineStores.length > 0 ? hkOnlineStores.map(s => `'${s}'`).join(',') : "''";
-    const mcAllStr = mcAllStores.length > 0 ? mcAllStores.map(s => `'${s}'`).join(',') : "''";
+    const hkNormalStr = hkNormalStores.length > 0 ? hkNormalStores.map(s => `'${s}'`).join(',') : "NULL";
+    const hkOutletStr = hkOutletStores.length > 0 ? hkOutletStores.map(s => `'${s}'`).join(',') : "NULL";
+    const hkOnlineStr = hkOnlineStores.length > 0 ? hkOnlineStores.map(s => `'${s}'`).join(',') : "NULL";
+    const mcAllStr = mcAllStores.length > 0 ? mcAllStores.map(s => `'${s}'`).join(',') : "NULL";
+
+    // 전체 매장 코드 리스트 (중복 제거)
+    const allStoresStr = filteredStores.map(s => `'${s.store_code}'`).join(',');
 
     // Snowflake SQL - 채널별 집계
     const query = `
@@ -93,14 +96,14 @@ export async function GET(request: NextRequest) {
       ty_monthly AS (
         SELECT
           TO_CHAR(SALE_DT, 'YYYY-MM') AS month,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkNormalStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_normal,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOutletStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_outlet,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOnlineStr}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_online,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${mcAllStr}) THEN ACT_SALE_AMT ELSE 0 END) AS mc_total,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkNormalStr}) AND ${hkNormalStr} <> 'NULL' THEN ACT_SALE_AMT ELSE 0 END) AS hk_normal,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOutletStr}) AND ${hkOutletStr} <> 'NULL' THEN ACT_SALE_AMT ELSE 0 END) AS hk_outlet,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOnlineStr}) AND ${hkOnlineStr} <> 'NULL' THEN ACT_SALE_AMT ELSE 0 END) AS hk_online,
+          SUM(CASE WHEN LOCAL_SHOP_CD IN (${mcAllStr}) AND ${mcAllStr} <> 'NULL' THEN ACT_SALE_AMT ELSE 0 END) AS mc_total,
           SUM(ACT_SALE_AMT) AS total_sales
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND LOCAL_SHOP_CD IN (${hkNormalStr},${hkOutletStr},${hkOnlineStr},${mcAllStr})
+          AND LOCAL_SHOP_CD IN (${allStoresStr})
           AND SALE_DT >= DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE))
           AND SALE_DT <= ?::DATE
         GROUP BY TO_CHAR(SALE_DT, 'YYYY-MM')
@@ -112,7 +115,7 @@ export async function GET(request: NextRequest) {
           SUM(ACT_SALE_AMT) AS total_sales_ly
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND LOCAL_SHOP_CD IN (${hkNormalStr},${hkOutletStr},${hkOnlineStr},${mcAllStr})
+          AND LOCAL_SHOP_CD IN (${allStoresStr})
           AND SALE_DT >= DATEADD(YEAR, -1, DATEADD(MONTH, -11, DATE_TRUNC('MONTH', ?::DATE)))
           AND SALE_DT <= DATEADD(YEAR, -1, ?::DATE)
         GROUP BY TO_CHAR(DATEADD(YEAR, 1, SALE_DT), 'YYYY-MM')
