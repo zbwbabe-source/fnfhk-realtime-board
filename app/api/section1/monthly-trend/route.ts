@@ -67,9 +67,9 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
-    const hkNormalStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Normal').map(s => s.store_code);
-    const hkOutletStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Outlet').map(s => s.store_code);
-    const hkOnlineStores = filteredStores.filter(s => s.country === 'HK' && s.channel === 'Online').map(s => s.store_code);
+    const hkNormalStores = filteredStores.filter(s => s.country === 'HK' && s.channel === '정상').map(s => s.store_code);
+    const hkOutletStores = filteredStores.filter(s => s.country === 'HK' && s.channel === '아울렛').map(s => s.store_code);
+    const hkOnlineStores = filteredStores.filter(s => s.country === 'HK' && s.channel === '온라인').map(s => s.store_code);
     const mcAllStores = filteredStores.filter(s => s.country === 'MC').map(s => s.store_code); // MC 전체
 
     if (filteredStores.length === 0) {
