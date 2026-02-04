@@ -26,7 +26,7 @@ export const translations = {
     
     // Section 1
     section1Header: '섹션 1: 매장별 매출',
-    unit: '단위: 천 HKD',
+    unit: '단위: HKD',
     ytdToggle: '연누적',
     expandAll: '전체 펼치기',
     collapseAll: '전체 접기',
@@ -130,7 +130,7 @@ export const translations = {
     
     // Section 1
     section1Header: 'Section 1: Store Sales',
-    unit: 'Unit: K HKD',
+    unit: 'Unit: HKD',
     ytdToggle: 'YTD',
     expandAll: 'Expand All',
     collapseAll: 'Collapse All',

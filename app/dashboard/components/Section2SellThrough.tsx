@@ -282,7 +282,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
                 ({data.header.sesn})
               </span>
             )}
-            <span className="text-sm text-gray-600 font-normal ml-2">({t(language, 'unit')})</span>
+            <span className="text-sm text-gray-600 font-normal ml-2">({language === 'ko' ? '단위: HKD' : 'Unit: HKD'})</span>
           </h2>
           <svg
             className={`w-5 h-5 text-gray-600 transition-transform ${

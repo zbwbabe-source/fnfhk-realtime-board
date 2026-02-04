@@ -100,7 +100,7 @@ export default function SummaryCards({
       ytd_progress: total.progress_ytd,
     });
 
-    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+    const unitLabel = language === 'ko' ? ' (HKD)' : ' (HKD)';
 
     return {
       k1: {
@@ -141,7 +141,7 @@ export default function SummaryCards({
       totalInbound,
     });
 
-    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+    const unitLabel = language === 'ko' ? ' (HKD)' : ' (HKD)';
 
     return {
       k1: {
@@ -196,7 +196,7 @@ export default function SummaryCards({
       stagnantRatio,
     });
 
-    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+    const unitLabel = language === 'ko' ? ' (HKD)' : ' (HKD)';
     const depletionLabel = language === 'ko' ? '소진율 (10/1 대비)' : 'Depletion (vs 10/1)';
     const stagnantLabel = language === 'ko' ? '정체재고 비중' : 'Stagnant Ratio';
 
