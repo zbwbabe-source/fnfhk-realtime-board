@@ -1,8 +1,8 @@
 export const translations = {
   ko: {
     // Header
-    title: 'FNF HKMC Dashboard',
-    subtitle: 'Real-time Sales & Sell-through Dashboard',
+    title: 'FNF HKMCTW Dashboard',
+    subtitle: '실시간 매출·판매율·재고 현황',
     
     // Filters
     region: 'Region:',
@@ -105,8 +105,8 @@ export const translations = {
   
   en: {
     // Header
-    title: 'FNF HKMC Dashboard',
-    subtitle: 'Real-time Sales & Sell-through Dashboard',
+    title: 'FNF HKMCTW Dashboard',
+    subtitle: 'Real-time Sales, Sell-through & Inventory Dashboard',
     
     // Filters
     region: 'Region:',
