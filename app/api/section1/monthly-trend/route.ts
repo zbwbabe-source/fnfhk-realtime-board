@@ -91,9 +91,13 @@ export async function GET(request: NextRequest) {
 
     console.log('📊 Channel breakdown:', {
       hk_normal: hkNormalStores.length,
+      hk_normal_codes: hkNormalStores.slice(0, 3),
       hk_outlet: hkOutletStores.length,
+      hk_outlet_codes: hkOutletStores.slice(0, 3),
       hk_online: hkOnlineStores.length,
+      hk_online_codes: hkOnlineStores.slice(0, 3),
       mc_total: mcAllStores.length,
+      mc_codes: mcAllStores.slice(0, 3),
       total: filteredStores.length,
     });
 
@@ -167,7 +171,14 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Monthly Trend Result:', {
       rowCount: result.length,
-      sample: result.slice(0, 3),
+      sample: result.slice(0, 2).map(r => ({
+        month: r.month,
+        hk_normal: r.hk_normal,
+        hk_outlet: r.hk_outlet,
+        hk_online: r.hk_online,
+        mc_total: r.mc_total,
+        total: r.total_sales,
+      })),
     });
 
     return NextResponse.json({
