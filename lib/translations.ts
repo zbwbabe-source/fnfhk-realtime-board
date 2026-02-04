@@ -39,8 +39,8 @@ export const translations = {
     lastYearSame: '전년동월',
     lastYearYtd: '전년연누적',
     yoy: 'YoY',
-    monthEndForecast: '월말예측',
-    forecastYoy: '예측YoY',
+    monthEndForecast: '월말환산',
+    forecastYoy: '환산YoY',
     subtotal: '소계',
     
     // Section 2
