@@ -82,9 +82,17 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
 
   // AI 인사이트 가져오기 (데이터가 완전히 로드된 후에만)
   useEffect(() => {
+    console.log('📊 Section1Card - Data changed:', { 
+      hasData: !!section1Data?.total_subtotal,
+      ytd_act: section1Data?.total_subtotal?.ytd_act,
+      language 
+    });
+
     // 데이터가 없거나 유효하지 않으면 스킵
     if (!section1Data?.total_subtotal) {
+      console.log('⚠️ Section1Card - No data, skipping insight');
       setInsight(null);
+      setLoadingInsight(false);
       return;
     }
 
@@ -95,9 +103,13 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
         typeof total.ytd_target === 'undefined' || 
         typeof total.progress_ytd === 'undefined' ||
         typeof total.yoy_ytd === 'undefined') {
+      console.log('⚠️ Section1Card - Missing required fields, skipping insight');
       setInsight(null);
+      setLoadingInsight(false);
       return;
     }
+
+    console.log('✅ Section1Card - Data ready, fetching insight');
 
     const fetchInsight = async () => {
       setLoadingInsight(true);
@@ -117,16 +129,18 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
           }),
         });
 
+        console.log('📡 Section1Card - API response status:', response.status);
+
         if (response.ok) {
           const data = await response.json();
+          console.log('✅ Section1Card - Insight received:', data);
           setInsight(data);
         } else {
-          // 에러 시 인사이트를 표시하지 않음
+          console.log('❌ Section1Card - API error, hiding insight');
           setInsight(null);
         }
       } catch (error) {
-        console.error('Failed to fetch Section1 insight:', error);
-        // 에러 시 인사이트를 표시하지 않음
+        console.error('❌ Section1Card - Failed to fetch insight:', error);
         setInsight(null);
       } finally {
         setLoadingInsight(false);
