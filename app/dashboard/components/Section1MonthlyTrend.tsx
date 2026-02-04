@@ -27,26 +27,37 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
   const [error, setError] = useState('');
   const [showYoY, setShowYoY] = useState(false); // false = 실판매출, true = YoY
 
+  console.log('📈 Section1MonthlyTrend rendered with:', { region, brand, date, language });
+
   useEffect(() => {
-    if (!date) return;
+    console.log('📈 Section1MonthlyTrend useEffect triggered:', { date });
+    if (!date) {
+      console.log('⚠️ No date provided, skipping fetch');
+      return;
+    }
 
     async function fetchData() {
+      console.log('📈 Fetching monthly trend data...');
       setLoading(true);
       setError('');
 
       try {
-        const res = await fetch(
-          `/api/section1/monthly-trend?region=${region}&brand=${brand}&date=${date}`
-        );
+        const url = `/api/section1/monthly-trend?region=${region}&brand=${brand}&date=${date}`;
+        console.log('📈 Fetching from URL:', url);
+        
+        const res = await fetch(url);
 
+        console.log('📈 Response status:', res.status);
+        
         if (!res.ok) {
           throw new Error('Failed to fetch monthly trend');
         }
 
         const json = await res.json();
+        console.log('📈 Received data:', json);
         setData(json.rows || []);
       } catch (err: any) {
-        console.error('Monthly trend fetch error:', err);
+        console.error('❌ Monthly trend fetch error:', err);
         setError(err.message);
       } finally {
         setLoading(false);
