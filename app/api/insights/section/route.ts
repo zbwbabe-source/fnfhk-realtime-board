@@ -4,9 +4,15 @@ import OpenAI from 'openai';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI 클라이언트를 함수 내부에서 생성 (API 키 체크 후)
+function createOpenAIClient() {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 interface Section1Data {
   actual_sales_ytd: number;
@@ -45,7 +51,8 @@ export async function POST(request: NextRequest) {
     const { section, data, language } = body;
 
     // API 키가 없으면 기본 응답 반환 (에러 없이 처리)
-    if (!process.env.OPENAI_API_KEY) {
+    const openai = createOpenAIClient();
+    if (!openai) {
       console.log('⚠️ OpenAI API key not configured, returning default insight');
       return NextResponse.json({
         status: 'yellow',
