@@ -65,23 +65,36 @@ export default function Section2Card({ section2Data, language }: Section2CardPro
   const kpis = calculateKPIs();
   const season = getSection2Season();
 
-  // AI 인사이트 가져오기
+  // AI 인사이트 가져오기 (데이터가 완전히 로드된 후에만)
   useEffect(() => {
-    if (!section2Data?.header) return;
+    // 데이터가 없거나 유효하지 않으면 스킵
+    if (!section2Data?.header) {
+      setInsight(null);
+      return;
+    }
+
+    const header = section2Data.header;
+    
+    // 필수 데이터가 없으면 스킵
+    if (typeof header.overall_sellthrough === 'undefined' ||
+        typeof header.total_sales === 'undefined' ||
+        typeof header.total_inbound === 'undefined') {
+      setInsight(null);
+      return;
+    }
 
     const fetchInsight = async () => {
       setLoadingInsight(true);
       try {
-        const header = section2Data.header;
         const response = await fetch('/api/insights/section', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             section: '2',
             data: {
-              sellthrough_rate: header.overall_sellthrough || 0,
-              sales_amt: header.total_sales || 0,
-              inbound_amt: header.total_inbound || 0,
+              sellthrough_rate: header.overall_sellthrough,
+              sales_amt: header.total_sales,
+              inbound_amt: header.total_inbound,
               sales_yoy_pct: header.sales_yoy_pct || 100,
             },
             language,

@@ -80,24 +80,38 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
 
   const kpis = calculateKPIs();
 
-  // AI 인사이트 가져오기
+  // AI 인사이트 가져오기 (데이터가 완전히 로드된 후에만)
   useEffect(() => {
-    if (!section1Data?.total_subtotal) return;
+    // 데이터가 없거나 유효하지 않으면 스킵
+    if (!section1Data?.total_subtotal) {
+      setInsight(null);
+      return;
+    }
+
+    const total = section1Data.total_subtotal;
+    
+    // 필수 데이터가 없으면 스킵
+    if (typeof total.ytd_act === 'undefined' || 
+        typeof total.ytd_target === 'undefined' || 
+        typeof total.progress_ytd === 'undefined' ||
+        typeof total.yoy_ytd === 'undefined') {
+      setInsight(null);
+      return;
+    }
 
     const fetchInsight = async () => {
       setLoadingInsight(true);
       try {
-        const total = section1Data.total_subtotal;
         const response = await fetch('/api/insights/section', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             section: '1',
             data: {
-              actual_sales_ytd: total.ytd_act || 0,
-              target_ytd: total.ytd_target || 0,
-              achievement_rate: total.progress_ytd || 0,
-              yoy_ytd: total.yoy_ytd || 0,
+              actual_sales_ytd: total.ytd_act,
+              target_ytd: total.ytd_target,
+              achievement_rate: total.progress_ytd,
+              yoy_ytd: total.yoy_ytd,
             },
             language,
           }),

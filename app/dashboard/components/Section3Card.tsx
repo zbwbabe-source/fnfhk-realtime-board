@@ -67,16 +67,27 @@ export default function Section3Card({ section3Data, language }: Section3CardPro
   const kpis = calculateKPIs();
   const seasonType = getSection3SeasonType();
 
-  // AI 인사이트 가져오기
+  // AI 인사이트 가져오기 (데이터가 완전히 로드된 후에만)
   useEffect(() => {
-    if (!section3Data?.header) return;
+    // 데이터가 없거나 유효하지 않으면 스킵
+    if (!section3Data?.header) {
+      setInsight(null);
+      return;
+    }
+
+    const header = section3Data.header;
+    const baseStock = header.base_stock_amt;
+    const currentStock = header.curr_stock_amt;
+    
+    // 필수 데이터가 없으면 스킵
+    if (typeof baseStock === 'undefined' || typeof currentStock === 'undefined') {
+      setInsight(null);
+      return;
+    }
 
     const fetchInsight = async () => {
       setLoadingInsight(true);
       try {
-        const header = section3Data.header;
-        const baseStock = header.base_stock_amt || 0;
-        const currentStock = header.curr_stock_amt || 0;
         const depleted = baseStock - currentStock;
         const sellthroughRate = baseStock > 0 ? (depleted / baseStock) * 100 : 0;
 
