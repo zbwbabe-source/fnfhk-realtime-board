@@ -104,10 +104,10 @@ export async function GET(request: NextRequest) {
       ty_monthly AS (
         SELECT
           TO_CHAR(SALE_DT, 'YYYY-MM') AS month,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkNormalStr || 'NULL'}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_normal,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOutletStr || 'NULL'}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_outlet,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOnlineStr || 'NULL'}) THEN ACT_SALE_AMT ELSE 0 END) AS hk_online,
-          SUM(CASE WHEN LOCAL_SHOP_CD IN (${mcAllStr || 'NULL'}) THEN ACT_SALE_AMT ELSE 0 END) AS mc_total,
+          ${hkNormalStr ? `SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkNormalStr}) THEN ACT_SALE_AMT ELSE 0 END)` : '0'} AS hk_normal,
+          ${hkOutletStr ? `SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOutletStr}) THEN ACT_SALE_AMT ELSE 0 END)` : '0'} AS hk_outlet,
+          ${hkOnlineStr ? `SUM(CASE WHEN LOCAL_SHOP_CD IN (${hkOnlineStr}) THEN ACT_SALE_AMT ELSE 0 END)` : '0'} AS hk_online,
+          ${mcAllStr ? `SUM(CASE WHEN LOCAL_SHOP_CD IN (${mcAllStr}) THEN ACT_SALE_AMT ELSE 0 END)` : '0'} AS mc_total,
           SUM(ACT_SALE_AMT) AS total_sales
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
