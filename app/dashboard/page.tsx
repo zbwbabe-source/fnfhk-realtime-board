@@ -8,7 +8,6 @@ import Section1Table from './components/Section1Table';
 import Section2SellThrough from './components/Section2SellThrough';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryCards from './components/SummaryCards';
-import InsightBanner from './components/InsightBanner';
 import { t, type Language } from '@/lib/translations';
 
 export default function DashboardPage() {
@@ -233,17 +232,6 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
-        {/* AI Insight Banner - 섹션별 요약 위에 표시 */}
-        <InsightBanner
-          region={region}
-          brand={brand}
-          asofDate={date}
-          language={language}
-          section1Data={section1Data}
-          section2Data={section2Data}
-          section3Data={section3Data}
-        />
-
         {/* Summary Cards */}
         <SummaryCards
           region={region}
