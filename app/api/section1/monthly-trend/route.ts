@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       ty_monthly AS (
         SELECT
           TO_CHAR(SALE_DT, 'YYYY-MM') AS month,
-          SUM(TAG_SALE_AMT) AS sales_amt
+          SUM(ACT_SALE_AMT) AS sales_amt
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodesStr})
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
       ly_monthly AS (
         SELECT
           TO_CHAR(DATEADD(YEAR, 1, SALE_DT), 'YYYY-MM') AS month,
-          SUM(TAG_SALE_AMT) AS sales_amt_ly
+          SUM(ACT_SALE_AMT) AS sales_amt_ly
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
           AND LOCAL_SHOP_CD IN (${storeCodesStr})
