@@ -360,21 +360,26 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     return (
       <tr key={row.shop_cd} className={`${isSubtotal ? 'bg-blue-50 font-semibold' : ''} ${isClosed ? 'bg-gray-100 opacity-60' : ''}`}>
         <td className="px-4 py-2 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className={`text-sm ${isClosed ? 'text-gray-400' : 'text-gray-500'}`}>{row.shop_cd}</span>
-            {row.shop_name && row.shop_name !== row.shop_cd && (
-              <>
-                <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_name}</span>
-                {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
-              </>
-            )}
-            {(!row.shop_name || row.shop_name === row.shop_cd) && (
-              <>
-                <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_cd}</span>
-                {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
-              </>
-            )}
-          </div>
+          {isSubtotal ? (
+            // 합계 행일 때는 빈 칸으로
+            <div></div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${isClosed ? 'text-gray-400' : 'text-gray-500'}`}>{row.shop_cd}</span>
+              {row.shop_name && row.shop_name !== row.shop_cd && (
+                <>
+                  <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_name}</span>
+                  {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
+                </>
+              )}
+              {(!row.shop_name || row.shop_name === row.shop_cd) && (
+                <>
+                  <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_cd}</span>
+                  {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
+                </>
+              )}
+            </div>
+          )}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
           {formatNumber(targetValue)}
