@@ -152,6 +152,12 @@ export default function SummaryCards({
     };
   };
 
+  // Section2의 시즌 정보 가져오기
+  const getSection2Season = (): string => {
+    if (!section2Data?.header?.sesn) return '';
+    return section2Data.header.sesn;
+  };
+
   // Section3 KPI 계산
   const calculateSection3KPIs = (): CardKPIs => {
     if (!section3Data?.header) {
@@ -197,6 +203,12 @@ export default function SummaryCards({
         value: `${stagnantRatio.toFixed(1)}%`,
       },
     };
+  };
+
+  // Section3의 시즌 정보 가져오기
+  const getSection3Season = (): string => {
+    if (!section3Data?.season_type) return '';
+    return section3Data.season_type;
   };
 
   // Section1 KPI 계산 (useMemo로 캐싱)
@@ -272,6 +284,12 @@ export default function SummaryCards({
     }
   };
 
+  const season = getSection2Season();
+  const section2Title = season ? `섹션2: 당시즌 판매율 (${season})` : '섹션2: 당시즌 판매율';
+  
+  const season3 = getSection3Season();
+  const section3Title = season3 ? `섹션3: 과시즌 재고 소진 (${season3} 과시즌)` : '섹션3: 과시즌 재고 소진';
+  
   const cards = [
     {
       title: '섹션1: 매장별 매출',
@@ -283,7 +301,7 @@ export default function SummaryCards({
       sectionId: 'section1',
     },
     {
-      title: '섹션2: 당시즌 판매율',
+      title: section2Title,
       subtitle: 'In-season Sell-through',
       kpis: section2KPIs,
       insight: insights?.section2Line || '분석 중...',
@@ -292,7 +310,7 @@ export default function SummaryCards({
       sectionId: 'section2',
     },
     {
-      title: '섹션3: 과시즌 재고 소진',
+      title: section3Title,
       subtitle: 'Old-season Clearance',
       kpis: section3KPIs,
       insight: insights?.section3Line || '분석 중...',

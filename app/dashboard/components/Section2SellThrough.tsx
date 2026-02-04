@@ -274,7 +274,13 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
           className="flex items-center gap-2 hover:text-gray-700 transition-colors"
         >
           <h2 className="text-lg font-semibold text-gray-900">
-            섹션 2: 당시즌 판매율 <span className="text-sm text-gray-600 font-normal">(단위: 천 HKD)</span>
+            섹션 2: 당시즌 판매율 
+            {data?.header?.sesn && (
+              <span className="ml-2 text-base text-blue-600 font-semibold">
+                ({data.header.sesn})
+              </span>
+            )}
+            <span className="text-sm text-gray-600 font-normal ml-2">(단위: 천 HKD)</span>
           </h2>
           <svg
             className={`w-5 h-5 text-gray-600 transition-transform ${

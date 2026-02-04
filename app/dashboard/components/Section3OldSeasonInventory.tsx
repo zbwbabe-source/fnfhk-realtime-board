@@ -37,6 +37,7 @@ interface CategoryRow {
 
 interface YearRow {
   year_bucket: string;
+  season_code?: string; // 연차별 시즌 코드 (예: "24F", "23F", "~22F")
   sesn?: string;
   base_stock_amt: number;
   curr_stock_amt: number;
@@ -52,6 +53,7 @@ interface Section3Data {
   asof_date: string;
   base_stock_date: string;
   period_start_date: string;
+  season_type: string; // 'FW' 또는 'SS'
   region: string;
   brand: string;
   header: YearRow;
@@ -72,7 +74,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
 
   // 확장 상태 관리
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set());
   const [showAllCategoriesInYear, setShowAllCategoriesInYear] = useState<Set<string>>(new Set()); // 연차별 기타 카테고리 표시 여부
   const [isAllCategoriesExpanded, setIsAllCategoriesExpanded] = useState(false);
   const [isAllSKUsExpanded, setIsAllSKUsExpanded] = useState(false);
@@ -115,14 +116,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         if (onDataChange) {
           onDataChange(json);
         }
-        
-        // 초기 TOP5 자동 펼침
-        if (json.categories && json.categories.length > 0) {
-          const yearBuckets = [...new Set(json.categories.map((c: CategoryRow) => c.year_bucket))] as string[];
-          yearBuckets.forEach((yb: string) => {
-            setExpandedYears(prev => new Set([...prev, yb]));
-          });
-        }
       } catch (err: any) {
         console.error('❌ Section3: Failed to fetch data:', err);
         console.error('❌ Section3: Error details:', err.message, err.stack);
@@ -156,6 +149,18 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     return (num * 100).toFixed(1) + '%';
   };
 
+  // 날짜 포맷: YYYY-MM-DD -> YY-MM-DD
+  const formatDateShort = (dateStr: string): string => {
+    if (!dateStr) return '';
+    // 2025-09-30 -> 25-09-30
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const yy = parts[0].slice(-2); // 마지막 2자리만
+      return `${yy}-${parts[1]}-${parts[2]}`;
+    }
+    return dateStr;
+  };
+
   // 재고일수 표시 (상한 999+일 적용, 판매없음 처리)
   const formatInvDays = (invDaysRaw: number | null, invDays: number | null): string => {
     if (invDays === -1) return '판매없음';  // 판매없음 플래그
@@ -186,19 +191,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     });
   };
 
-  // 연차 섹션 토글
-  const toggleYear = (yearBucket: string) => {
-    setExpandedYears(prev => {
-      const next = new Set(prev);
-      if (next.has(yearBucket)) {
-        next.delete(yearBucket);
-      } else {
-        next.add(yearBucket);
-      }
-      return next;
-    });
-  };
-
   // 기타 카테고리 전체 펼치기/접기
   const toggleAllOtherCategories = () => {
     if (isAllCategoriesExpanded) {
@@ -211,7 +203,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       // 전체 펼치기 - 모든 연차의 기타 카테고리 표시
       if (data) {
         const allYears = new Set(data.years.map(y => y.year_bucket));
-        setExpandedYears(allYears); // 모든 연차 펼치기
         setShowAllCategoriesInYear(allYears); // 모든 연차에서 기타 카테고리 표시
         setIsAllCategoriesExpanded(true);
       }
@@ -227,9 +218,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     } else {
       // 전체 펼치기
       if (data) {
-        // 먼저 모든 연차를 펼침
-        const allYears = new Set(data.years.map(y => y.year_bucket));
-        setExpandedYears(allYears);
         setIsAllCategoriesExpanded(true);
         
         // 모든 카테고리를 펼침
@@ -350,7 +338,14 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-bold mb-2">섹션3. 과시즌 재고 소진현황</h2>
+      <h2 className="text-xl font-bold mb-2">
+        섹션3. 과시즌 재고 소진현황
+        {data?.season_type && (
+          <span className="ml-2 text-lg text-purple-600 font-semibold">
+            ({data.season_type} 과시즌)
+          </span>
+        )}
+      </h2>
       <p className="text-sm text-gray-600 mb-4">단위: 천 HKD</p>
 
       {/* 섹션1: 연차별 집계 */}
@@ -363,11 +358,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">연차</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   기초재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.base_stock_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.base_stock_date)})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   현재재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
                   정체재고(TAG)<br/>
@@ -379,15 +374,14 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
                   소진재고액(TAG)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
-                  할인율(기간)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
+                  할인율
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
                   재고일수(기간)<br/>
-                  <span className="text-xs font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span>
+                  <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span>
                 </th>
               </tr>
             </thead>
@@ -403,7 +397,11 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                   <tr key={year.year_bucket} className="hover:bg-gray-50 transition-colors">
                     <td className="px-3 py-2 font-medium border-r border-gray-100">
                       {year.year_bucket}
-                      {year.sesn && <span className="ml-1 text-xs text-gray-500">({year.sesn})</span>}
+                      {year.season_code && (
+                        <span className="ml-2 text-xs text-blue-600 font-semibold">
+                          ({year.season_code})
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.base_stock_amt)}</td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.curr_stock_amt)}</td>
@@ -480,7 +478,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         
         {sortedYears.map((year) => {
           const categories = getCategoriesForYear(year.year_bucket);
-          const isYearExpanded = expandedYears.has(year.year_bucket);
           const showAllCats = showAllCategoriesInYear.has(year.year_bucket);
           const top5 = categories.slice(0, 5);
           const others = categories.slice(5);
@@ -488,16 +485,18 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
 
           return (
             <div key={year.year_bucket} className="mb-6">
-              <div 
-                className="flex items-center justify-between bg-gradient-to-r from-gray-100 to-gray-50 px-4 py-3 cursor-pointer hover:from-gray-200 hover:to-gray-100 transition-all rounded-lg shadow-sm border border-gray-200"
-                onClick={() => toggleYear(year.year_bucket)}
-              >
-                <h4 className="font-semibold text-gray-800">{year.year_bucket}</h4>
-                <span className="text-blue-600 font-bold">{isYearExpanded ? '▼' : '▶'}</span>
+              <div className="mb-2">
+                <h4 className="inline-block font-semibold text-gray-800 bg-gradient-to-r from-gray-100 to-gray-50 px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+                  {year.year_bucket}
+                  {year.season_code && (
+                    <span className="ml-2 text-sm text-blue-600">
+                      ({year.season_code})
+                    </span>
+                  )}
+                </h4>
               </div>
 
-              {isYearExpanded && (
-                <div className="overflow-x-auto mt-2 rounded-lg border border-gray-200 shadow-sm">
+              <div className="overflow-x-auto mt-2 rounded-lg border border-gray-200 shadow-sm">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
@@ -506,12 +505,12 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('base_stock_amt')}>
                           기초재고(TAG)<br/>
-                          <span className="text-[10px] font-semibold text-blue-600">({data.base_stock_date})</span><br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.base_stock_date)})</span><br/>
                           {getSortIcon('base_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_amt')}>
                           현재재고(TAG)<br/>
-                          <span className="text-[10px] font-semibold text-blue-600">({data.asof_date})</span><br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
@@ -525,17 +524,16 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
                           소진재고액(TAG)<br/>
-                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('depleted_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('discount_rate')}>
-                          할인율(기간)<br/>
-                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          할인율<br/>
                           {getSortIcon('discount_rate', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
                           재고일수(기간)<br/>
-                          <span className="text-[10px] font-semibold text-blue-600">({data.period_start_date} ~ {data.asof_date})</span><br/>
+                          <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('inv_days', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700">상세</th>
@@ -618,7 +616,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                       {/* 기타 카테고리 버튼 (TOP5만 표시 중일 때) */}
                       {!showAllCats && others.length > 0 && (
                         <tr className="bg-gray-50 border-t border-gray-200">
-                          <td colSpan={7} className="px-3 py-3 text-center text-sm">
+                          <td colSpan={9} className="px-3 py-3 text-center text-sm">
                             <button
                               onClick={() => {
                                 setShowAllCategoriesInYear(prev => new Set([...prev, year.year_bucket]));
@@ -633,7 +631,6 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                     </tbody>
                   </table>
                 </div>
-              )}
             </div>
           );
         })}

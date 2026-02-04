@@ -327,6 +327,8 @@ SKU_LEVEL AS (
     AND COALESCE(BS.SESN, CS.SESN) = MS.SESN
     AND COALESCE(BS.PRDT_CD, CS.PRDT_CD) = MS.PRDT_CD
   CROSS JOIN PARAM PA
+  -- 기초재고가 0인 SKU 제외 (성능 최적화 - 시즌 시작부터 있던 재고만 관리 대상)
+  WHERE COALESCE(BS.BASE_STOCK_AMT, 0) > 0
 ),
 
 -- CAT 레벨 (카테고리 단위)
@@ -524,23 +526,48 @@ ORDER BY
     
     let baseStockDate: string;
     let periodStartDate: string;
+    let seasonType: string; // 'FW' 또는 'SS'
+    let currentYY: number; // 현재 시즌 연도(2자리)
     
     if (month >= 9 || month <= 2) {
       // FW (임시: 9월30일 기초, 10월1일 판매시작)
       const fwYear = month >= 9 ? year : year - 1;
       baseStockDate = `${fwYear}-09-30`;
       periodStartDate = `${fwYear}-10-01`;
+      seasonType = 'FW';
+      currentYY = month >= 9 ? year % 100 : (year - 1) % 100;
     } else {
       // SS (원래 로직: 2월말 기초, 3월1일 판매시작)
       const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
       baseStockDate = `${year}-02-${isLeap ? '29' : '28'}`;
       periodStartDate = `${year}-03-01`;
+      seasonType = 'SS';
+      currentYY = year % 100;
     }
+
+    // 연차별 시즌 계산 함수
+    const getYearBucketSeasonCode = (yearBucket: string): string => {
+      const seasonTypeLetter = seasonType === 'FW' ? 'F' : 'S';
+      
+      if (yearBucket === '1년차') {
+        const yy = currentYY - 1;
+        return `${yy.toString().padStart(2, '0')}${seasonTypeLetter}`;
+      } else if (yearBucket === '2년차') {
+        const yy = currentYY - 2;
+        return `${yy.toString().padStart(2, '0')}${seasonTypeLetter}`;
+      } else if (yearBucket === '3년차 이상') {
+        // 3년차는 범위이므로 "~" 표시
+        const yy = currentYY - 3;
+        return `~${yy.toString().padStart(2, '0')}${seasonTypeLetter}`;
+      }
+      return '';
+    };
 
     const response = {
       asof_date: date,
       base_stock_date: baseStockDate,
       period_start_date: periodStartDate,
+      season_type: seasonType, // 'FW' 또는 'SS'
       region,
       brand,
       header: header ? {
@@ -555,6 +582,7 @@ ORDER BY
       } : null,
       years: yearRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
+        season_code: getYearBucketSeasonCode(row.YEAR_BUCKET),
         sesn: row.SESN,
         base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
         curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
