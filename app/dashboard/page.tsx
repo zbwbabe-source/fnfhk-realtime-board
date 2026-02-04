@@ -5,6 +5,7 @@ import RegionToggle from './components/RegionToggle';
 import BrandSelect from './components/BrandSelect';
 import DateSelect from './components/DateSelect';
 import Section1Table from './components/Section1Table';
+import Section1MonthlyTrend from './components/Section1MonthlyTrend';
 import Section2SellThrough from './components/Section2SellThrough';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryCards from './components/SummaryCards';
@@ -245,7 +246,8 @@ export default function DashboardPage() {
         />
 
         {/* Section 1: Store Sales */}
-        <div id="section1">
+        <div id="section1" className="space-y-6">
+          {/* 테이블: 모든 화면에서 표시 */}
           <Section1Table 
             key={`section1-${refreshKey}`}
             region={region} 
@@ -253,6 +255,14 @@ export default function DashboardPage() {
             date={date}
             onDataChange={handleSection1Change}
             onYtdModeChange={setIsYtdMode}
+            language={language}
+          />
+          
+          {/* 그래프: 모바일에서는 테이블 바로 아래, 데스크탑에서는 그대로 */}
+          <Section1MonthlyTrend
+            region={region}
+            brand={brand}
+            date={date}
             language={language}
           />
         </div>
