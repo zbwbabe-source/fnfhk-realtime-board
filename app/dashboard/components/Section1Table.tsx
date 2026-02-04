@@ -491,9 +491,16 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
                 onClick={() => handleSort('actual')}
               >
-                <div className="flex items-center justify-end">
-                  {t(language, isYtdMode ? 'ytdActual' : 'monthlyActual')}
-                  {getSortIcon('actual')}
+                <div className="flex flex-col items-end">
+                  <div className="flex items-center">
+                    {t(language, isYtdMode ? 'ytdActual' : 'monthlyActual')}
+                    {getSortIcon('actual')}
+                  </div>
+                  {date && (
+                    <div className="text-xs font-normal text-blue-600 mt-0.5">
+                      ({date})
+                    </div>
+                  )}
                 </div>
               </th>
               <th 
