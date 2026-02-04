@@ -21,6 +21,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
   const [data, setData] = useState<MonthlyRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showYoY, setShowYoY] = useState(false); // false = 실판매출, true = YoY
 
   useEffect(() => {
     if (!date) return;
@@ -145,9 +146,36 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold mb-4 text-gray-900">
-        {language === 'ko' ? '월별 매출 & YoY 추이 (최근 12개월)' : 'Monthly Sales & YoY Trend (Last 12 Months)'}
-      </h3>
+      {/* 헤더와 토글 버튼 */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          {language === 'ko' ? '월별 추이 (최근 6개월)' : 'Monthly Trend (Last 6 Months)'}
+        </h3>
+        
+        {/* 실판매출/YoY 전환 버튼 */}
+        <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setShowYoY(false)}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              !showYoY
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {language === 'ko' ? '실판매출' : 'Sales'}
+          </button>
+          <button
+            onClick={() => setShowYoY(true)}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              showYoY
+                ? 'bg-white text-orange-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            YoY
+          </button>
+        </div>
+      </div>
       
       <ResponsiveContainer width="100%" height={350}>
         <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -165,67 +193,61 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
             }}
           />
           
-          {/* 왼쪽 Y축: 매출 */}
-          <YAxis
-            yAxisId="left"
-            stroke="#2563eb"
-            style={{ fontSize: '12px' }}
-            tickFormatter={(value) => formatSales(value)}
-            domain={[0, maxSales * 1.1]}
-            label={{
-              value: language === 'ko' ? '매출 (HKD)' : 'Sales (HKD)',
-              angle: -90,
-              position: 'insideLeft',
-              style: { fontSize: '12px', fill: '#2563eb' }
-            }}
-          />
-          
-          {/* 오른쪽 Y축: YoY */}
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            stroke="#ea580c"
-            style={{ fontSize: '12px' }}
-            tickFormatter={(value) => `${value}%`}
-            domain={[Math.min(minYoY * 0.8, 50), Math.max(maxYoY * 1.2, 150)]}
-            label={{
-              value: 'YoY (%)',
-              angle: 90,
-              position: 'insideRight',
-              style: { fontSize: '12px', fill: '#ea580c' }
-            }}
-          />
-          
-          {/* Tooltip */}
-          <Tooltip content={<CustomTooltip />} />
-          
-          {/* Legend */}
-          <Legend
-            wrapperStyle={{ fontSize: '12px' }}
-            iconType="rect"
-          />
-          
-          {/* 매출 막대그래프 */}
-          <Bar
-            yAxisId="left"
-            dataKey="sales_amt"
-            fill="#2563eb"
-            name={language === 'ko' ? '매출' : 'Sales'}
-            radius={[4, 4, 0, 0]}
-          />
-          
-          {/* YoY 라인 */}
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="yoy"
-            stroke="#ea580c"
-            strokeWidth={2}
-            dot={{ r: 3, fill: '#ea580c' }}
-            activeDot={{ r: 5 }}
-            name="YoY"
-            connectNulls={false}
-          />
+          {showYoY ? (
+            // YoY 모드: YoY만 표시 (단일 축)
+            <>
+              <YAxis
+                stroke="#ea580c"
+                style={{ fontSize: '12px' }}
+                tickFormatter={(value) => `${value}%`}
+                domain={[Math.min(minYoY * 0.8, 50), Math.max(maxYoY * 1.2, 150)]}
+                label={{
+                  value: 'YoY (%)',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: '12px', fill: '#ea580c' }
+                }}
+              />
+              
+              <Tooltip content={<CustomTooltip />} />
+              
+              <Line
+                type="monotone"
+                dataKey="yoy"
+                stroke="#ea580c"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#ea580c' }}
+                activeDot={{ r: 6 }}
+                name="YoY"
+                connectNulls={false}
+              />
+            </>
+          ) : (
+            // 실판매출 모드: 매출만 표시 (단일 축)
+            <>
+              <YAxis
+                stroke="#2563eb"
+                style={{ fontSize: '12px' }}
+                tickFormatter={(value) => formatSales(value)}
+                domain={[0, maxSales * 1.1]}
+                label={{
+                  value: language === 'ko' ? '매출 (HKD)' : 'Sales (HKD)',
+                  angle: -90,
+                  position: 'insideLeft',
+                  style: { fontSize: '12px', fill: '#2563eb' }
+                }}
+              />
+              
+              <Tooltip content={<CustomTooltip />} />
+              
+              <Bar
+                dataKey="sales_amt"
+                fill="#2563eb"
+                name={language === 'ko' ? '매출' : 'Sales'}
+                radius={[4, 4, 0, 0]}
+              />
+            </>
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
