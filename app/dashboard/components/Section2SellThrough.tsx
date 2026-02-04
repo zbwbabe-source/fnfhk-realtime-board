@@ -339,18 +339,43 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
                     <div className="text-2xl font-bold text-blue-600">
                       {data.header.overall_sellthrough.toFixed(1)}%
                     </div>
+                    {/* YoY percentage point difference */}
+                    {data.header.sellthrough_yoy_pp !== null && data.header.sellthrough_yoy_pp !== undefined && (
+                      <div className={`text-sm mt-1 font-semibold ${
+                        data.header.sellthrough_yoy_pp >= 0 ? 'text-blue-600' : 'text-red-600'
+                      }`}>
+                        ({data.header.sellthrough_yoy_pp >= 0 ? '+' : '▼'}
+                        {Math.abs(data.header.sellthrough_yoy_pp).toFixed(1)}%p)
+                      </div>
+                    )}
                   </div>
                   <div className="text-center border-l border-r border-blue-200">
                     <div className="text-xs text-gray-600 mb-1">{t(language, 'totalSales')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(data.header.total_sales)}
                     </div>
+                    {/* YoY percentage */}
+                    {data.header.sales_yoy_pct !== null && data.header.sales_yoy_pct !== undefined && (
+                      <div className={`text-sm mt-1 font-semibold ${
+                        data.header.sales_yoy_pct >= 100 ? 'text-blue-600' : 'text-red-600'
+                      }`}>
+                        (YoY {data.header.sales_yoy_pct.toFixed(1)}%)
+                      </div>
+                    )}
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-600 mb-1">{t(language, 'totalInbound')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(data.header.total_inbound)}
                     </div>
+                    {/* YoY percentage */}
+                    {data.header.inbound_yoy_pct !== null && data.header.inbound_yoy_pct !== undefined && (
+                      <div className={`text-sm mt-1 font-semibold ${
+                        data.header.inbound_yoy_pct >= 100 ? 'text-blue-600' : 'text-red-600'
+                      }`}>
+                        (YoY {data.header.inbound_yoy_pct.toFixed(1)}%)
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
