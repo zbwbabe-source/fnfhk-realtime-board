@@ -5,10 +5,12 @@ import RegionToggle from './components/RegionToggle';
 import BrandSelect from './components/BrandSelect';
 import DateSelect from './components/DateSelect';
 import Section1Table from './components/Section1Table';
+import Section1Card from './components/Section1Card';
 import Section1MonthlyTrend from './components/Section1MonthlyTrend';
+import Section2Card from './components/Section2Card';
 import Section2SellThrough from './components/Section2SellThrough';
+import Section3Card from './components/Section3Card';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
-import SummaryCards from './components/SummaryCards';
 import { t, type Language } from '@/lib/translations';
 
 export default function DashboardPage() {
@@ -233,21 +235,45 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
-        {/* Summary Cards */}
-        <SummaryCards
-          region={region}
-          brand={brand}
-          date={date}
-          isYtdMode={isYtdMode}
-          section1Data={section1Data}
-          section2Data={section2Data}
-          section3Data={section3Data}
-          language={language}
-        />
+        {/* 상단: 요약카드 + 그래프 그리드 (3열) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* 섹션1 열 */}
+          <div className="space-y-6">
+            <Section1Card
+              isYtdMode={isYtdMode}
+              section1Data={section1Data}
+              language={language}
+            />
+            <Section1MonthlyTrend
+              region={region}
+              brand={brand}
+              date={date}
+              language={language}
+            />
+          </div>
 
-        {/* Section 1: Store Sales */}
-        <div id="section1" className="space-y-6">
-          {/* 테이블: 모든 화면에서 표시 */}
+          {/* 섹션2 열 */}
+          <div className="space-y-6">
+            <Section2Card
+              section2Data={section2Data}
+              language={language}
+            />
+            {/* 섹션2 그래프 추후 추가 */}
+          </div>
+
+          {/* 섹션3 열 */}
+          <div className="space-y-6">
+            <Section3Card
+              section3Data={section3Data}
+              language={language}
+            />
+            {/* 섹션3 그래프 추후 추가 */}
+          </div>
+        </div>
+
+        {/* 하단: 테이블들 */}
+        {/* Section 1: Store Sales Table */}
+        <div id="section1">
           <Section1Table 
             key={`section1-${refreshKey}`}
             region={region} 
@@ -255,14 +281,6 @@ export default function DashboardPage() {
             date={date}
             onDataChange={handleSection1Change}
             onYtdModeChange={setIsYtdMode}
-            language={language}
-          />
-          
-          {/* 그래프: 모바일에서는 테이블 바로 아래, 데스크탑에서는 그대로 */}
-          <Section1MonthlyTrend
-            region={region}
-            brand={brand}
-            date={date}
             language={language}
           />
         </div>

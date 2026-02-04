@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
         COALESCE(ty.sales_amt, 0) AS sales_amt,
         CASE
           WHEN ly.sales_amt_ly > 0
-          THEN ((ty.sales_amt / ly.sales_amt_ly) - 1) * 100
+          THEN (ty.sales_amt / ly.sales_amt_ly) * 100
           ELSE NULL
         END AS yoy
       FROM ty_monthly ty

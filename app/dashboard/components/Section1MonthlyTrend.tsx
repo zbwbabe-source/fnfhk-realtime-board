@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 
 interface MonthlyTrendProps {
@@ -61,7 +61,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
 
   const formatYoY = (value: number | null) => {
     if (value === null) return 'N/A';
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+    return `${value.toFixed(1)}%`;
   };
 
   // Tooltip 커스텀
@@ -88,7 +88,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
             <span className="text-xs text-gray-600">YoY:</span>
             <span className={`text-sm font-semibold ${
               data.yoy === null ? 'text-gray-400' : 
-              data.yoy >= 0 ? 'text-green-600' : 'text-red-600'
+              data.yoy >= 100 ? 'text-green-600' : 'text-red-600'
             }`}>
               {formatYoY(data.yoy)}
             </span>
@@ -150,7 +150,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
       </h3>
       
       <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           
           {/* X축: 월 */}
@@ -187,7 +187,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
             stroke="#ea580c"
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `${value}%`}
-            domain={[Math.min(minYoY * 1.2, -20), Math.max(maxYoY * 1.2, 20)]}
+            domain={[Math.min(minYoY * 0.8, 50), Math.max(maxYoY * 1.2, 150)]}
             label={{
               value: 'YoY (%)',
               angle: 90,
@@ -202,20 +202,16 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
           {/* Legend */}
           <Legend
             wrapperStyle={{ fontSize: '12px' }}
-            iconType="line"
+            iconType="rect"
           />
           
-          {/* 매출 라인 */}
-          <Line
+          {/* 매출 막대그래프 */}
+          <Bar
             yAxisId="left"
-            type="monotone"
             dataKey="sales_amt"
-            stroke="#2563eb"
-            strokeWidth={2}
-            dot={{ r: 3, fill: '#2563eb' }}
-            activeDot={{ r: 5 }}
+            fill="#2563eb"
             name={language === 'ko' ? '매출' : 'Sales'}
-            connectNulls={false}
+            radius={[4, 4, 0, 0]}
           />
           
           {/* YoY 라인 */}
@@ -230,7 +226,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
             name="YoY"
             connectNulls={false}
           />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
