@@ -8,6 +8,7 @@ import Section1Table from './components/Section1Table';
 import Section2SellThrough from './components/Section2SellThrough';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryCards from './components/SummaryCards';
+import { t, type Language } from '@/lib/translations';
 
 export default function DashboardPage() {
   const [region, setRegion] = useState('HKMC');
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isYtdMode, setIsYtdMode] = useState(false);
+  const [language, setLanguage] = useState<'ko' | 'en'>('ko'); // 언어 상태 추가
   
   // 새로고침 키 (변경 시 모든 섹션이 리렌더링됨)
   const [refreshKey, setRefreshKey] = useState(0);
@@ -123,12 +125,40 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            FNF HKMC Dashboard
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Real-time Sales & Sell-through Dashboard
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {t(language, 'title')}
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                {t(language, 'subtitle')}
+              </p>
+            </div>
+            
+            {/* 언어 전환 버튼 */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setLanguage('ko')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  language === 'ko'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                한국어
+              </button>
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  language === 'en'
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                English
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -152,7 +182,7 @@ export default function DashboardPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>로딩 중...</span>
+                  <span>{t(language, 'loading')}</span>
                 </div>
               )}
               
@@ -161,7 +191,7 @@ export default function DashboardPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>완료</span>
+                  <span>{t(language, 'complete')}</span>
                 </div>
               )}
               
@@ -170,7 +200,7 @@ export default function DashboardPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  <span>오류</span>
+                  <span>{t(language, 'error')}</span>
                 </div>
               )}
               
@@ -178,7 +208,7 @@ export default function DashboardPage() {
               <button
                 onClick={handleRefresh}
                 className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="데이터 새로고침"
+                title={t(language, 'refreshData')}
                 disabled={anyDataLoading}
               >
                 <svg 
@@ -211,6 +241,7 @@ export default function DashboardPage() {
           section1Data={section1Data}
           section2Data={section2Data}
           section3Data={section3Data}
+          language={language}
         />
 
         {/* Section 1: Store Sales */}
@@ -222,6 +253,7 @@ export default function DashboardPage() {
             date={date}
             onDataChange={handleSection1Change}
             onYtdModeChange={setIsYtdMode}
+            language={language}
           />
         </div>
 
@@ -233,6 +265,7 @@ export default function DashboardPage() {
             brand={brand} 
             date={date}
             onDataChange={handleSection2Change}
+            language={language}
           />
         </div>
 
@@ -244,6 +277,7 @@ export default function DashboardPage() {
             brand={brand} 
             date={date}
             onDataChange={handleSection3Change}
+            language={language}
           />
         </div>
       </div>

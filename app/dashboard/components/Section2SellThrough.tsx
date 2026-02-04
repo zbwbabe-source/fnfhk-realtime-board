@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { t, type Language } from '@/lib/translations';
 
 interface Section2Props {
   region: string;
   brand: string;
   date: string;
   onDataChange?: (data: any) => void;
+  language: Language;
 }
 
 interface ProductRow {
@@ -35,7 +37,7 @@ interface NoInboundRow {
   sales_tag: number;
 }
 
-export default function Section2SellThrough({ region, brand, date, onDataChange }: Section2Props) {
+export default function Section2SellThrough({ region, brand, date, onDataChange, language }: Section2Props) {
   const [expanded, setExpanded] = useState(true); // 기본 펼침
   const [showAllCategories, setShowAllCategories] = useState(false); // 전체 카테고리 토글
   const [showAllProducts, setShowAllProducts] = useState(false); // 전체 품번 토글
@@ -274,13 +276,13 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
           className="flex items-center gap-2 hover:text-gray-700 transition-colors"
         >
           <h2 className="text-lg font-semibold text-gray-900">
-            섹션 2: 당시즌 판매율 
+            {t(language, 'section2Header')}
             {data?.header?.sesn && (
               <span className="ml-2 text-base text-blue-600 font-semibold">
                 ({data.header.sesn})
               </span>
             )}
-            <span className="text-sm text-gray-600 font-normal ml-2">(단위: 천 HKD)</span>
+            <span className="text-sm text-gray-600 font-normal ml-2">({t(language, 'unit')})</span>
           </h2>
           <svg
             className={`w-5 h-5 text-gray-600 transition-transform ${
@@ -304,12 +306,12 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
       {expanded && (
         <div className="px-6 pb-6">
           {loading && (
-            <div className="text-center py-8 text-gray-600">Loading...</div>
+            <div className="text-center py-8 text-gray-600">{t(language, 'loading')}</div>
           )}
 
           {error && (
             <div className="text-center py-8 text-red-600">
-              Error: {error}
+              {t(language, 'error')}: {error}
             </div>
           )}
 
@@ -320,12 +322,12 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                 {/* 시즌 정보 */}
                 <div className="flex items-center justify-between mb-4 pb-4 border-b border-blue-200">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">시즌:</span>
+                    <span className="text-sm text-gray-600">{t(language, 'season')}:</span>
                     <span className="text-xl font-bold text-gray-900">{data.header.sesn}</span>
                   </div>
                   {data.stock_dt_used && (
-                    <div className="text-xs text-gray-500" title={`재고는 적재일 기준으로 ${data.stock_dt_used} 스냅샷 사용`}>
-                      재고 기준일: {data.stock_dt_used}
+                    <div className="text-xs text-gray-500" title={language === 'ko' ? `재고는 적재일 기준으로 ${data.stock_dt_used} 스냅샷 사용` : `Stock snapshot as of ${data.stock_dt_used}`}>
+                      {t(language, 'stockDate')}: {data.stock_dt_used}
                     </div>
                   )}
                 </div>
@@ -333,19 +335,19 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                 {/* 주요 지표 - 3컬럼 */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">전체 판매율</div>
+                    <div className="text-xs text-gray-600 mb-1">{t(language, 'overallSellthrough')}</div>
                     <div className="text-2xl font-bold text-blue-600">
                       {data.header.overall_sellthrough.toFixed(1)}%
                     </div>
                   </div>
                   <div className="text-center border-l border-r border-blue-200">
-                    <div className="text-xs text-gray-600 mb-1">누적판매</div>
+                    <div className="text-xs text-gray-600 mb-1">{t(language, 'totalSales')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(data.header.total_sales)}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xs text-gray-600 mb-1">누적입고</div>
+                    <div className="text-xs text-gray-600 mb-1">{t(language, 'totalInbound')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(data.header.total_inbound)}
                     </div>
@@ -358,8 +360,8 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                 <div className="bg-white rounded-lg border border-gray-300">
                   <div className="px-4 py-3 bg-blue-50 border-b border-gray-300 flex items-center justify-between">
                     <div>
-                      <h3 className="text-md font-semibold text-gray-900">중분류(카테고리)별 집계</h3>
-                      <p className="text-xs text-gray-600 mt-1">카테고리를 클릭하면 아래 품번별 상세로 이동합니다</p>
+                      <h3 className="text-md font-semibold text-gray-900">{t(language, 'categoryAggregate')}</h3>
+                      <p className="text-xs text-gray-600 mt-1">{t(language, 'clickToViewDetail')}</p>
                     </div>
                     {/* TOP 5 토글 버튼 */}
                     {data.categories.length > 5 && (
@@ -367,7 +369,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                         onClick={() => setShowAllCategories(!showAllCategories)}
                         className="px-4 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-colors border border-blue-300"
                       >
-                        {showAllCategories ? 'TOP 5만 보기' : '전체 펼치기'}
+                        {showAllCategories ? t(language, 'topFiveOnly') : t(language, 'expandAllCategories')}
                       </button>
                     )}
                   </div>
@@ -379,42 +381,42 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                             className="px-4 py-2 text-left font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('category')}
                           >
-                            카테고리{getCategorySortIcon('category')}
+                            {t(language, 'category')}{getCategorySortIcon('category')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('inbound_qty')}
                           >
-                            입고수량{getCategorySortIcon('inbound_qty')}
+                            {t(language, 'inboundQty')}{getCategorySortIcon('inbound_qty')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('sales_qty')}
                           >
-                            판매수량{getCategorySortIcon('sales_qty')}
+                            {t(language, 'salesQty')}{getCategorySortIcon('sales_qty')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('inbound_tag')}
                           >
-                            누적입고(TAG)
+                            {t(language, 'inboundTag')}
                             {getCategorySortIcon('inbound_tag')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('sales_tag')}
                           >
-                            누적판매(TAG)
+                            {t(language, 'salesTag')}
                             {getCategorySortIcon('sales_tag')}
                           </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('sellthrough')}
                           >
-                            판매율{getCategorySortIcon('sellthrough')}
+                            {t(language, 'sellRate')}{getCategorySortIcon('sellthrough')}
                           </th>
                           <th className="px-4 py-2 text-right font-medium text-gray-700">
-                            품번수
+                            {t(language, 'productCount')}
                           </th>
                         </tr>
                       </thead>
@@ -454,11 +456,11 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
               <div id="product-detail-section" className="bg-white rounded-lg border border-gray-300 scroll-mt-4">
                 <div className="px-4 py-3 bg-green-50 border-b border-gray-300 flex items-center justify-between">
                   <div>
-                    <h3 className="text-md font-semibold text-gray-900">품번별 상세</h3>
+                    <h3 className="text-md font-semibold text-gray-900">{t(language, 'productDetail')}</h3>
                     <p className="text-xs text-gray-600 mt-1">
                       {selectedCategory 
-                        ? `필터: ${selectedCategory} 카테고리` 
-                        : '전체 품번'}
+                        ? `${t(language, 'filterCategory')}: ${selectedCategory} ${t(language, 'category')}` 
+                        : t(language, 'allProducts')}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -468,7 +470,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                       onChange={(e) => setSelectedCategory(e.target.value || null)}
                       className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">전체 카테고리</option>
+                      <option value="">{t(language, 'allCategories')}</option>
                       {getAvailableCategories().map((cat: string) => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
@@ -480,7 +482,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                         onClick={() => setShowAllProducts(!showAllProducts)}
                         className="px-4 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
                       >
-                        {showAllProducts ? 'TOP 5만 보기' : '전체 펼치기'}
+                        {showAllProducts ? t(language, 'topFiveOnly') : t(language, 'expandAllCategories')}
                       </button>
                     )}
                   </div>
@@ -489,39 +491,39 @@ export default function Section2SellThrough({ region, brand, date, onDataChange 
                   <table className="min-w-full text-sm">
                     <thead className="bg-green-50">
                       <tr>
-                        <th className="px-4 py-2 text-left font-medium text-gray-700">카테고리</th>
-                        <th className="px-4 py-2 text-left font-medium text-gray-700">품번</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-700">{t(language, 'category')}</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-700">{t(language, 'productCode')}</th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('inbound_qty')}
                         >
-                          입고수량{getProductSortIcon('inbound_qty')}
+                          {t(language, 'inboundQty')}{getProductSortIcon('inbound_qty')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('sales_qty')}
                         >
-                          판매수량{getProductSortIcon('sales_qty')}
+                          {t(language, 'salesQty')}{getProductSortIcon('sales_qty')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('inbound_tag')}
                         >
-                          누적입고(TAG)
+                          {t(language, 'inboundTag')}
                           {getProductSortIcon('inbound_tag')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('sales_tag')}
                         >
-                          누적판매(TAG)
+                          {t(language, 'salesTag')}
                           {getProductSortIcon('sales_tag')}
                         </th>
                         <th 
                           className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-green-100"
                           onClick={() => handleProductSort('sellthrough')}
                         >
-                          판매율{getProductSortIcon('sellthrough')}
+                          {t(language, 'sellRate')}{getProductSortIcon('sellthrough')}
                         </th>
                       </tr>
                     </thead>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { t, type Language } from '@/lib/translations';
 
 interface SummaryCardsProps {
   region: string;
@@ -10,6 +11,7 @@ interface SummaryCardsProps {
   section1Data: any;
   section2Data: any;
   section3Data: any;
+  language: Language;
 }
 
 interface CardKPIs {
@@ -32,6 +34,7 @@ export default function SummaryCards({
   section1Data,
   section2Data,
   section3Data,
+  language,
 }: SummaryCardsProps) {
   const [insights, setInsights] = useState<InsightData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,9 +44,9 @@ export default function SummaryCards({
     if (!section1Data?.total_subtotal) {
       console.log('⚠️ Section1 data not loaded yet');
       return {
-        k1: { label: isYtdMode ? '누적실적' : '당월실적', value: 'N/A' },
-        k2: { label: 'YoY', value: 'N/A' },
-        k3: { label: '목표대비', value: 'N/A' },
+        k1: { label: t(language, isYtdMode ? 'ytdActual' : 'monthlyActual'), value: 'N/A' },
+        k2: { label: t(language, 'yoy'), value: 'N/A' },
+        k3: { label: t(language, 'progress'), value: 'N/A' },
       };
     }
 
@@ -57,9 +60,9 @@ export default function SummaryCards({
       if (typeof total.ytd_act === 'undefined' || total.ytd_act === null) {
         console.log('⚠️ YTD data not available in total_subtotal');
         return {
-          k1: { label: '누적실적', value: 'N/A' },
-          k2: { label: 'YoY', value: 'N/A' },
-          k3: { label: '목표대비', value: 'N/A' },
+          k1: { label: t(language, 'ytdActual'), value: 'N/A' },
+          k2: { label: t(language, 'yoy'), value: 'N/A' },
+          k3: { label: t(language, 'progress'), value: 'N/A' },
         };
       }
     } else {
@@ -72,9 +75,9 @@ export default function SummaryCards({
           mtd_act: total.mtd_act 
         });
         return {
-          k1: { label: '당월실적', value: 'N/A' },
-          k2: { label: 'YoY', value: 'N/A' },
-          k3: { label: '목표대비', value: 'N/A' },
+          k1: { label: t(language, 'monthlyActual'), value: 'N/A' },
+          k2: { label: t(language, 'yoy'), value: 'N/A' },
+          k3: { label: t(language, 'progress'), value: 'N/A' },
         };
       }
     }
@@ -97,17 +100,19 @@ export default function SummaryCards({
       ytd_progress: total.progress_ytd,
     });
 
+    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+
     return {
       k1: {
-        label: isYtdMode ? '누적실적 (천 HKD)' : '당월실적 (천 HKD)',
+        label: t(language, isYtdMode ? 'ytdActual' : 'monthlyActual') + unitLabel,
         value: formatCurrency(actual),
       },
       k2: {
-        label: 'YoY',
+        label: t(language, 'yoy'),
         value: `${yoy.toFixed(1)}%`,
       },
       k3: {
-        label: '목표대비',
+        label: t(language, 'progress'),
         value: `${progress.toFixed(1)}%`,
       },
     };
@@ -118,9 +123,9 @@ export default function SummaryCards({
     if (!section2Data?.header) {
       console.log('⚠️ Section2 data not loaded yet');
       return {
-        k1: { label: '판매율', value: 'N/A' },
-        k2: { label: '누적판매', value: 'N/A' },
-        k3: { label: '누적입고', value: 'N/A' },
+        k1: { label: t(language, 'sellRate'), value: 'N/A' },
+        k2: { label: t(language, 'cumulativeSales'), value: 'N/A' },
+        k3: { label: t(language, 'cumulativeInbound'), value: 'N/A' },
       };
     }
 
@@ -136,17 +141,19 @@ export default function SummaryCards({
       totalInbound,
     });
 
+    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+
     return {
       k1: {
-        label: '판매율',
+        label: t(language, 'sellRate'),
         value: `${sellthrough.toFixed(1)}%`,
       },
       k2: {
-        label: '누적판매 (천 HKD)',
+        label: t(language, 'cumulativeSales') + unitLabel,
         value: formatCurrency(totalSales),
       },
       k3: {
-        label: '누적입고 (천 HKD)',
+        label: t(language, 'cumulativeInbound') + unitLabel,
         value: formatCurrency(totalInbound),
       },
     };
@@ -163,9 +170,9 @@ export default function SummaryCards({
     if (!section3Data?.header) {
       console.log('⚠️ Section3 data not loaded yet');
       return {
-        k1: { label: '과시즌 재고', value: 'N/A' },
-        k2: { label: '소진율', value: 'N/A' },
-        k3: { label: '정체재고 비중', value: 'N/A' },
+        k1: { label: language === 'ko' ? '과시즌 재고' : 'Old-season Stock', value: 'N/A' },
+        k2: { label: language === 'ko' ? '소진율' : 'Depletion Rate', value: 'N/A' },
+        k3: { label: language === 'ko' ? '정체재고 비중' : 'Stagnant Ratio', value: 'N/A' },
       };
     }
 
@@ -189,17 +196,21 @@ export default function SummaryCards({
       stagnantRatio,
     });
 
+    const unitLabel = language === 'ko' ? ' (천 HKD)' : ' (K HKD)';
+    const depletionLabel = language === 'ko' ? '소진율 (10/1 대비)' : 'Depletion (vs 10/1)';
+    const stagnantLabel = language === 'ko' ? '정체재고 비중' : 'Stagnant Ratio';
+
     return {
       k1: {
-        label: '과시즌 재고 (천 HKD)',
+        label: (language === 'ko' ? '과시즌 재고' : 'Old-season Stock') + unitLabel,
         value: formatCurrency(currentStock),
       },
       k2: {
-        label: '소진율 (10/1 대비)',
+        label: depletionLabel,
         value: `${sellThroughRate.toFixed(1)}%`,
       },
       k3: {
-        label: '정체재고 비중',
+        label: stagnantLabel,
         value: `${stagnantRatio.toFixed(1)}%`,
       },
     };
@@ -285,35 +296,36 @@ export default function SummaryCards({
   };
 
   const season = getSection2Season();
-  const section2Title = season ? `섹션2: 당시즌 판매율 (${season})` : '섹션2: 당시즌 판매율';
+  const section2Title = season ? `${t(language, 'section2Title')} (${season})` : t(language, 'section2Title');
   
   const season3 = getSection3Season();
-  const section3Title = season3 ? `섹션3: 과시즌 재고 소진 (${season3} 과시즌)` : '섹션3: 과시즌 재고 소진';
+  const section3SeasonText = language === 'ko' ? ` (${season3} 과시즌)` : ` (${season3})`;
+  const section3Title = season3 ? `${t(language, 'section3Title')}${section3SeasonText}` : t(language, 'section3Title');
   
   const cards = [
     {
-      title: '섹션1: 매장별 매출',
-      subtitle: 'Store Sales',
+      title: t(language, 'section1Title'),
+      subtitle: t(language, 'section1Subtitle'),
       kpis: section1KPIs,
-      insight: insights?.section1Line || '분석 중...',
+      insight: insights?.section1Line || t(language, 'analyzing'),
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
       sectionId: 'section1',
     },
     {
       title: section2Title,
-      subtitle: 'In-season Sell-through',
+      subtitle: t(language, 'section2Subtitle'),
       kpis: section2KPIs,
-      insight: insights?.section2Line || '분석 중...',
+      insight: insights?.section2Line || t(language, 'analyzing'),
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
       sectionId: 'section2',
     },
     {
       title: section3Title,
-      subtitle: 'Old-season Clearance',
+      subtitle: t(language, 'section3Subtitle'),
       kpis: section3KPIs,
-      insight: insights?.section3Line || '분석 중...',
+      insight: insights?.section3Line || t(language, 'analyzing'),
       bgColor: 'bg-purple-50',
       borderColor: 'border-purple-200',
       sectionId: 'section3',
@@ -354,7 +366,7 @@ export default function SummaryCards({
           <div className="pt-3 border-t border-gray-200">
             <p className="text-xs text-gray-700 italic">
               {loading ? (
-                <span className="animate-pulse">💡 인사이트 생성 중...</span>
+                <span className="animate-pulse">💡 {language === 'ko' ? '인사이트 생성 중...' : 'Generating insights...'}</span>
               ) : (
                 <span>💡 {card.insight}</span>
               )}

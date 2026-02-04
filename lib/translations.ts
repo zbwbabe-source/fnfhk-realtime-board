@@ -1,0 +1,216 @@
+export const translations = {
+  ko: {
+    // Header
+    title: 'FNF HKMC Dashboard',
+    subtitle: 'Real-time Sales & Sell-through Dashboard',
+    
+    // Filters
+    region: 'Region:',
+    brand: 'Brand:',
+    date: 'Date:',
+    
+    // Status
+    loading: '로딩 중...',
+    complete: '완료',
+    error: '오류',
+    refreshData: '데이터 새로고침',
+    
+    // Summary Cards
+    section1Title: '섹션1: 매장별 매출',
+    section1Subtitle: 'Store Sales',
+    section2Title: '섹션2: 당시즌 판매율',
+    section2Subtitle: 'In-season Sell-through',
+    section3Title: '섹션3: 과시즌 재고 소진',
+    section3Subtitle: 'Old-season Clearance',
+    analyzing: '분석 중...',
+    
+    // Section 1
+    section1Header: '섹션 1: 매장별 매출',
+    unit: '단위: 천 HKD',
+    ytdToggle: '연누적',
+    expandAll: '전체 펼치기',
+    collapseAll: '전체 접기',
+    storeName: '매장명',
+    monthlyTarget: '목표(월)',
+    ytdTarget: '목표(연누적)',
+    monthlyActual: '당월실적',
+    ytdActual: '연누적실적',
+    progress: '달성률',
+    lastYearSame: '전년동월',
+    lastYearYtd: '전년연누적',
+    yoy: 'YoY',
+    monthEndForecast: '월말예측',
+    forecastYoy: '예측YoY',
+    subtotal: '소계',
+    
+    // Section 2
+    section2Header: '섹션 2: 당시즌 판매율',
+    inSeason: '당시즌',
+    sellthrough: '판매율',
+    cumulativeSales: '누적판매',
+    cumulativeInbound: '누적입고',
+    overallSellthrough: '전체 판매율',
+    totalSales: '누적판매',
+    totalInbound: '누적입고',
+    season: '시즌',
+    stockDate: '재고 기준일',
+    categoryAggregate: '중분류(카테고리)별 집계',
+    clickToViewDetail: '카테고리를 클릭하면 아래 품번별 상세로 이동합니다',
+    topFiveOnly: 'TOP 5만 보기',
+    expandAllCategories: '전체 펼치기',
+    category: '카테고리',
+    inboundQty: '입고수량',
+    salesQty: '판매수량',
+    inboundTag: '누적입고(TAG)',
+    salesTag: '누적판매(TAG)',
+    sellRate: '판매율',
+    productCount: '품번수',
+    productDetail: '품번별 상세',
+    allProducts: '전체 품번',
+    filterCategory: '필터',
+    allCategories: '전체 카테고리',
+    productCode: '품번',
+    
+    // Section 3
+    section3Header: '섹션3. 과시즌 재고 소진현황',
+    oldSeason: '과시즌',
+    stagnantStockInfo: '정체재고: 최근 30일 판매없음 or 현재재고 대비 < 0.1%',
+    yearlyAggregate: '1. 연차별 집계',
+    categoryDetails: '2. 카테고리별 내역',
+    yearGroup: '연차',
+    baseStock: '기초재고(TAG)',
+    currentStock: '현재재고(TAG)',
+    stagnantStock: '정체재고(TAG)',
+    stagnantRatio: '정체재고비중',
+    stagnantRatioDesc: '정체재고 / 현재재고',
+    depletedStock: '소진재고액(TAG)',
+    discountRate: '할인율',
+    inventoryDays: '재고일수(기간)',
+    inventoryDaysNote: '※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.\n※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.',
+    noSales: '판매없음',
+    expandOtherCategories: '기타 카테고리 펼치기',
+    collapseOtherCategories: '기타 카테고리 접기',
+    expandProducts: '품번 펼치기',
+    collapseProducts: '품번 접기',
+    
+    // Common
+    year1: '1년차',
+    year2: '2년차',
+    year3Plus: '3년차 이상',
+    total: '전체',
+    detail: '상세',
+    days: '일',
+    items: '개',
+  },
+  
+  en: {
+    // Header
+    title: 'FNF HKMC Dashboard',
+    subtitle: 'Real-time Sales & Sell-through Dashboard',
+    
+    // Filters
+    region: 'Region:',
+    brand: 'Brand:',
+    date: 'Date:',
+    
+    // Status
+    loading: 'Loading...',
+    complete: 'Complete',
+    error: 'Error',
+    refreshData: 'Refresh Data',
+    
+    // Summary Cards
+    section1Title: 'Section 1: Store Sales',
+    section1Subtitle: 'Store Sales',
+    section2Title: 'Section 2: In-season Sell-through',
+    section2Subtitle: 'In-season Sell-through',
+    section3Title: 'Section 3: Old-season Clearance',
+    section3Subtitle: 'Old-season Clearance',
+    analyzing: 'Analyzing...',
+    
+    // Section 1
+    section1Header: 'Section 1: Store Sales',
+    unit: 'Unit: K HKD',
+    ytdToggle: 'YTD',
+    expandAll: 'Expand All',
+    collapseAll: 'Collapse All',
+    storeName: 'Store',
+    monthlyTarget: 'Target (MTD)',
+    ytdTarget: 'Target (YTD)',
+    monthlyActual: 'Actual (MTD)',
+    ytdActual: 'Actual (YTD)',
+    progress: 'Progress',
+    lastYearSame: 'LY Same',
+    lastYearYtd: 'LY YTD',
+    yoy: 'YoY',
+    monthEndForecast: 'Month-end Fcst',
+    forecastYoy: 'Fcst YoY',
+    subtotal: 'Subtotal',
+    
+    // Section 2
+    section2Header: 'Section 2: In-season Sell-through',
+    inSeason: 'In-season',
+    sellthrough: 'Sell-through',
+    cumulativeSales: 'Cumulative Sales',
+    cumulativeInbound: 'Cumulative Inbound',
+    overallSellthrough: 'Overall Sell-through',
+    totalSales: 'Total Sales',
+    totalInbound: 'Total Inbound',
+    season: 'Season',
+    stockDate: 'Stock Date',
+    categoryAggregate: 'By Category',
+    clickToViewDetail: 'Click category to view product details below',
+    topFiveOnly: 'TOP 5 Only',
+    expandAllCategories: 'Expand All',
+    category: 'Category',
+    inboundQty: 'Inbound Qty',
+    salesQty: 'Sales Qty',
+    inboundTag: 'Inbound (TAG)',
+    salesTag: 'Sales (TAG)',
+    sellRate: 'Sell-through',
+    productCount: 'SKUs',
+    productDetail: 'Product Detail',
+    allProducts: 'All Products',
+    filterCategory: 'Filter',
+    allCategories: 'All Categories',
+    productCode: 'SKU',
+    
+    // Section 3
+    section3Header: 'Section 3: Old-season Inventory Clearance',
+    oldSeason: 'Old-season',
+    stagnantStockInfo: 'Stagnant Stock: No sales in last 30 days or < 0.1% of current stock',
+    yearlyAggregate: '1. By Year',
+    categoryDetails: '2. By Category',
+    yearGroup: 'Year',
+    baseStock: 'Base Stock (TAG)',
+    currentStock: 'Current Stock (TAG)',
+    stagnantStock: 'Stagnant Stock (TAG)',
+    stagnantRatio: 'Stagnant Ratio',
+    stagnantRatioDesc: 'Stagnant / Current',
+    depletedStock: 'Depleted Stock (TAG)',
+    discountRate: 'Discount Rate',
+    inventoryDays: 'Inventory Days',
+    inventoryDaysNote: '※ Inventory days over 365 are marked in red as long-term stock.\n※ Color coding is for management decision reference at year/category level.',
+    noSales: 'No Sales',
+    expandOtherCategories: 'Show Other Categories',
+    collapseOtherCategories: 'Hide Other Categories',
+    expandProducts: 'Show Products',
+    collapseProducts: 'Hide Products',
+    
+    // Common
+    year1: 'Year 1',
+    year2: 'Year 2',
+    year3Plus: 'Year 3+',
+    total: 'Total',
+    detail: 'Detail',
+    days: 'days',
+    items: 'items',
+  },
+};
+
+export type Language = 'ko' | 'en';
+export type TranslationKey = keyof typeof translations.ko;
+
+export function t(lang: Language, key: TranslationKey): string {
+  return translations[lang][key] || translations.ko[key];
+}

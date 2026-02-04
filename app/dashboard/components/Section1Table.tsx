@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { t, type Language } from '@/lib/translations';
 
 interface Section1TableProps {
   region: string;
@@ -8,6 +9,7 @@ interface Section1TableProps {
   date: string;
   onDataChange?: (data: any) => void;
   onYtdModeChange?: (isYtd: boolean) => void;
+  language: Language;
 }
 
 interface StoreRow {
@@ -35,11 +37,11 @@ interface StoreRow {
   forecast: number | null;
 }
 
-export default function Section1Table({ region, brand, date, onDataChange, onYtdModeChange }: Section1TableProps) {
+export default function Section1Table({ region, brand, date, onDataChange, onYtdModeChange, language }: Section1TableProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isYtdMode, setIsYtdMode] = useState(false); // 누적(YTD) 모드 토글
+  const [isYtdMode, setIsYtdMode] = useState(false); // 연누적(YTD) 모드 토글
   const [expandedChannels, setExpandedChannels] = useState<Record<string, boolean>>({
     'hk_normal': false,
     'hk_outlet': false,
@@ -219,9 +221,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
+          {t(language, 'section1Header')} ({t(language, 'unit')})
         </h2>
-        <div className="text-center py-8 text-gray-600">Loading...</div>
+        <div className="text-center py-8 text-gray-600">{t(language, 'loading')}</div>
       </div>
     );
   }
@@ -230,10 +232,10 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          섹션 1: 매장별 매출 (실판매출기준, 단위 HKD)
+          {t(language, 'section1Header')} ({t(language, 'unit')})
         </h2>
         <div className="text-center py-8 text-red-600">
-          Error: {error}
+          {t(language, 'error')}: {error}
         </div>
       </div>
     );
@@ -282,7 +284,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             <div className="flex items-center gap-2">
               <span>{isExpanded ? '▼' : '▶'}</span>
               <span>{channelName}</span>
-              <span className="text-xs text-gray-500 font-normal">({stores.length}개 매장)</span>
+              <span className="text-xs text-gray-500 font-normal">
+                ({stores.length}{language === 'ko' ? '개 매장' : ' stores'})
+              </span>
             </div>
           </td>
           {subtotal ? (
@@ -361,13 +365,13 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             {row.shop_name && row.shop_name !== row.shop_cd && (
               <>
                 <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_name}</span>
-                {isClosed && <span className="text-red-500 text-xs">(영업종료)</span>}
+                {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
               </>
             )}
             {(!row.shop_name || row.shop_name === row.shop_cd) && (
               <>
                 <span className={`font-medium text-base ${isClosed ? 'text-gray-400' : ''}`}>{row.shop_cd}</span>
-                {isClosed && <span className="text-red-500 text-xs">(영업종료)</span>}
+                {isClosed && <span className="text-red-500 text-xs">({language === 'ko' ? '영업종료' : 'Closed'})</span>}
               </>
             )}
           </div>
@@ -418,22 +422,22 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            섹션 1: 매장별 매출 <span className="text-sm text-gray-600 font-normal">(단위: 천 HKD)</span>
+            {t(language, 'section1Header')} <span className="text-sm text-gray-600 font-normal">({t(language, 'unit')})</span>
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsYtdMode(!isYtdMode)}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-2 ${
                 isYtdMode 
-                  ? 'bg-purple-500 text-white hover:bg-purple-600' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-blue-500 text-white border-blue-500 shadow-md hover:bg-blue-600 hover:shadow-lg' 
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm'
               }`}
             >
-              {isYtdMode ? '✓ 누적' : '누적'}
+              {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
             </button>
             {isYtdMode && date && (
               <span className="text-xs text-gray-600">
-                ({new Date(date).getFullYear()}/1/1 ~ {date.replace(/-/g, '/')} 누적실적)
+                ({new Date(date).getFullYear()}/1/1 ~ {date.replace(/-/g, '/')} {language === 'ko' ? '누적실적' : 'YTD Actual'})
               </span>
             )}
           </div>
@@ -442,7 +446,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
           onClick={toggleAll}
           className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
         >
-          {isAllExpanded ? '전체 접기' : '전체 펼치기'}
+          {isAllExpanded ? t(language, 'collapseAll') : t(language, 'expandAll')}
         </button>
       </div>
 
@@ -465,7 +469,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('shop_name')}
               >
                 <div className="flex items-center">
-                  매장
+                  {t(language, 'storeName')}
                   {getSortIcon('shop_name')}
                 </div>
               </th>
@@ -474,7 +478,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('target')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '목표(누적)' : '목표(월)'}
+                  {t(language, isYtdMode ? 'ytdTarget' : 'monthlyTarget')}
                   {getSortIcon('target')}
                 </div>
               </th>
@@ -483,7 +487,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '누적실적' : '당월실적'}
+                  {t(language, isYtdMode ? 'ytdActual' : 'monthlyActual')}
                   {getSortIcon('actual')}
                 </div>
               </th>
@@ -492,7 +496,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('progress')}
               >
                 <div className="flex items-center justify-end">
-                  목표대비
+                  {t(language, 'progress')}
                   {getSortIcon('progress')}
                 </div>
               </th>
@@ -501,7 +505,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('actual_py')}
               >
                 <div className="flex items-center justify-end">
-                  {isYtdMode ? '전년누적' : '전년동월'}
+                  {t(language, isYtdMode ? 'lastYearYtd' : 'lastYearSame')}
                   {getSortIcon('actual_py')}
                 </div>
               </th>
@@ -510,7 +514,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('yoy')}
               >
                 <div className="flex items-center justify-end">
-                  YoY
+                  {t(language, 'yoy')}
                   {getSortIcon('yoy')}
                 </div>
               </th>
@@ -527,14 +531,20 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                     onClick={() => handleSort('monthEndProjection')}
                   >
                     <div className="flex items-center justify-end">
-                      월말환산
+                      {t(language, 'monthEndForecast')}
                       {getSortIcon('monthEndProjection')}
                       <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
                     </div>
                     <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 -top-16 right-0 w-64 z-10 shadow-lg">
-                      과거 2개년치 휴일/평일 일별 매출을 근거로 일자별 가중치를 계산함.
+                      {language === 'ko' 
+                        ? '과거 2개년치 휴일/평일 일별 매출을 근거로 일자별 가중치를 계산함.'
+                        : 'Calculated using weighted daily sales from past 2 years (holidays/weekdays).'}
                       <br/>
-                      <span className="text-gray-300 italic">MTD × (월전체가중치/누적가중치)</span>
+                      <span className="text-gray-300 italic">
+                        {language === 'ko' 
+                          ? 'MTD × (월전체가중치/누적가중치)'
+                          : 'MTD × (Month Weight / YTD Weight)'}
+                      </span>
                     </div>
                   </th>
                   <th 
@@ -542,7 +552,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                     onClick={() => handleSort('projectedYoY')}
                   >
                     <div className="flex items-center justify-end">
-                      환산 YoY
+                      {t(language, 'forecastYoy')}
                       {getSortIcon('projectedYoY')}
                     </div>
                   </th>
@@ -566,7 +576,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 <tr className="h-2"></tr>
                 <tr className="bg-yellow-50">
                   <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    HK 전체 합계
+                    {language === 'ko' ? 'HK 전체 합계' : 'HK Total'}
                   </td>
                 </tr>
                 {renderRow(data.hk_subtotal, true)}
@@ -591,7 +601,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 <tr className="h-2"></tr>
                 <tr className="bg-yellow-50">
                   <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    MC 전체 합계
+                    {language === 'ko' ? 'MC 전체 합계' : 'MC Total'}
                   </td>
                 </tr>
                 {renderRow(data.mc_subtotal, true)}
@@ -604,7 +614,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 <tr className="h-4"></tr>
                 <tr className="bg-indigo-50">
                   <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    HKMC 전체 합계
+                    {language === 'ko' ? 'HKMC 전체 합계' : 'HKMC Total'}
                   </td>
                 </tr>
                 {renderRow(data.total_subtotal, true)}

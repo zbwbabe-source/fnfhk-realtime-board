@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { t, type Language } from '@/lib/translations';
 
 interface Section3Props {
   region: string;
   brand: string;
   date: string;
   onDataChange?: (data: Section3Data | null) => void;
+  language: Language;
 }
 
 interface SKURow {
@@ -67,7 +69,7 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 } | null;
 
-export default function Section3OldSeasonInventory({ region, brand, date, onDataChange }: Section3Props) {
+export default function Section3OldSeasonInventory({ region, brand, date, onDataChange, language }: Section3Props) {
   const [data, setData] = useState<Section3Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       } catch (err: any) {
         console.error('❌ Section3: Failed to fetch data:', err);
         console.error('❌ Section3: Error details:', err.message, err.stack);
-        setError(err.message || '데이터를 불러오는데 실패했습니다.');
+        setError(err.message || (language === 'ko' ? '데이터를 불러오는데 실패했습니다.' : 'Failed to load data.'));
         
         // 에러 시 null 전달
         if (onDataChange) {
@@ -163,10 +165,10 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
 
   // 재고일수 표시 (상한 999+일 적용, 판매없음 처리)
   const formatInvDays = (invDaysRaw: number | null, invDays: number | null): string => {
-    if (invDays === -1) return '판매없음';  // 판매없음 플래그
+    if (invDays === -1) return t(language, 'noSales');  // 판매없음 플래그
     if (invDaysRaw === null || invDays === null) return '-';
-    if (invDaysRaw > 999) return '999+일';
-    return `${Math.round(invDays)}일`;
+    if (invDaysRaw > 999) return `999+${t(language, 'days')}`;
+    return `${Math.round(invDays)}${t(language, 'days')}`;
   };
 
   // 재고일수 색상 (365일 초과 시 빨간색, 판매없음도 빨간색)
@@ -265,7 +267,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
         <div className="flex items-center justify-center py-12">
-          <div className="text-gray-500">데이터를 불러오는 중...</div>
+          <div className="text-gray-500">{t(language, 'loading')}</div>
         </div>
       </div>
     );
@@ -339,48 +341,54 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-bold mb-2">
-        섹션3. 과시즌 재고 소진현황
+        {t(language, 'section3Header')}
         {data?.season_type && (
           <span className="ml-2 text-lg text-purple-600 font-semibold">
-            ({data.season_type} 과시즌)
+            ({data.season_type} {t(language, 'oldSeason')})
           </span>
         )}
       </h2>
-      <p className="text-sm text-gray-600 mb-4">단위: 천 HKD</p>
+      <div className="flex items-center gap-4 mb-4">
+        <p className="text-sm text-gray-600">{t(language, 'unit')}</p>
+        <div className="flex items-center gap-1.5 text-sm text-orange-600">
+          <span className="font-bold text-base">ⓘ</span>
+          <span>{t(language, 'stagnantStockInfo')}</span>
+        </div>
+      </div>
 
       {/* 섹션1: 연차별 집계 */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">1. 연차별 집계</h3>
+        <h3 className="text-lg font-semibold mb-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">{t(language, 'yearlyAggregate')}</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
           <table className="w-full text-sm bg-white">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">연차</th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">{t(language, 'yearGroup')}</th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
-                  기초재고(TAG)<br/>
+                  {t(language, 'baseStock')}<br/>
                   <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.base_stock_date)})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
-                  현재재고(TAG)<br/>
+                  {t(language, 'currentStock')}<br/>
                   <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span>
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
-                  정체재고(TAG)<br/>
-                  <span className="text-xs font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200 cursor-help" title={t(language, 'stagnantStockInfo')}>
+                  {t(language, 'stagnantStock')}
+                  <span className="ml-1 text-sm text-orange-500 font-bold">ⓘ</span>
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title="현재재고 대비 정체재고 비율">
-                  정체재고비중<br/>
-                  <span className="text-xs font-semibold text-orange-600">(정체재고 / 현재재고)</span>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title={t(language, 'stagnantRatioDesc')}>
+                  {t(language, 'stagnantRatio')}<br/>
+                  <span className="text-xs font-semibold text-orange-600">({t(language, 'stagnantRatioDesc')})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
-                  소진재고액(TAG)<br/>
+                  {t(language, 'depletedStock')}<br/>
                   <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
-                  할인율
+                  {t(language, 'discountRate')}
                 </th>
-                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
-                  재고일수(기간)<br/>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50" title={t(language, 'inventoryDaysNote')}>
+                  {t(language, 'inventoryDays')}<br/>
                   <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span>
                 </th>
               </tr>
@@ -432,7 +440,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 
                 return (
                   <tr className="font-semibold hover:bg-blue-100 transition-colors border-t-2 border-blue-300">
-                    <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">전체</td>
+                    <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">{t(language, 'total')}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.base_stock_amt)}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.curr_stock_amt)}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
@@ -459,19 +467,19 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       {/* 섹션2: 카테고리별 내역 (상세 전용) */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold bg-purple-100 px-4 py-2 rounded">2. 카테고리별 내역</h3>
+          <h3 className="text-lg font-semibold bg-purple-100 px-4 py-2 rounded">{t(language, 'categoryDetails')}</h3>
           <div className="flex gap-2">
             <button
               onClick={toggleAllOtherCategories}
               className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
             >
-              {isAllCategoriesExpanded ? '기타 카테고리 접기' : '기타 카테고리 펼치기'}
+              {isAllCategoriesExpanded ? t(language, 'collapseOtherCategories') : t(language, 'expandOtherCategories')}
             </button>
             <button
               onClick={toggleAllSKUs}
               className="px-4 py-2 text-sm font-medium text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors border border-purple-300"
             >
-              {isAllSKUsExpanded ? '품번 접기' : '품번 펼치기'}
+              {isAllSKUsExpanded ? t(language, 'collapseProducts') : t(language, 'expandProducts')}
             </button>
           </div>
         </div>
@@ -514,8 +522,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
-                          정체재고(TAG)<br/>
-                          <span className="text-[10px] font-semibold text-orange-600">(최근30일 판매없음 or &lt; 0.1%)</span><br/>
+                          정체재고(TAG) <span className="text-orange-500 font-bold">ⓘ</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100" title="현재재고 대비 정체재고 비율">
@@ -623,7 +630,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                               }}
                               className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors"
                             >
-                              기타 카테고리 펼치기 ({others.length}개)
+                              {t(language, 'expandOtherCategories')} ({others.length}{t(language, 'items')})
                             </button>
                           </td>
                         </tr>
