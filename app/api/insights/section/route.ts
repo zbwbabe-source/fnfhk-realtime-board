@@ -54,113 +54,176 @@ export async function POST(request: NextRequest) {
     const openai = createOpenAIClient();
     if (!openai) {
       console.log('⚠️ OpenAI API key not configured, skipping insights');
-      // 약간의 지연 후 빈 응답 (로딩 느낌 주기)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 400 }
-      );
+      // 약간의 지연 후 null 응답 (로딩 느낌 주기)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return NextResponse.json({ status: null, insight: null });
     }
 
     let prompt = '';
     let systemPrompt = language === 'ko' 
-      ? '당신은 소매업 데이터 분석 전문가입니다. 주어진 KPI를 분석하여 신호등 색상(green/yellow/red)과 2줄 이내의 간결한 인사이트를 제공하세요.'
-      : 'You are a retail data analysis expert. Analyze the given KPIs and provide a traffic light color (green/yellow/red) and a concise insight within 2 lines.';
+      ? '당신은 리테일 기업의 CFO 관점에서 판단하는 경영 분석가입니다. 숫자를 요약하지 말고, 반드시 "의미·판단·리스크"만 서술하세요. 긍정/중립/부정 중 하나로 명확히 판단하고, 경영 관점에서 중요한 포인트 1가지만 최대 1문장, 20자 이내로 작성하세요.'
+      : 'You are a CFO-perspective business analyst for a retail company. Do not summarize numbers; focus only on "meaning, judgment, and risk." Provide a clear judgment (positive/neutral/negative) and mention only one key point from a management perspective in one sentence, within 20 characters.';
 
     // 섹션별 프롬프트 생성
     if (section === '1') {
       const d = data as Section1Data;
       prompt = language === 'ko'
-        ? `매장별 매출 현황:
-- 연누적 달성률: ${d.achievement_rate.toFixed(1)}%
-- 전년 대비: ${d.yoy_ytd > 0 ? '+' : ''}${d.yoy_ytd.toFixed(1)}%
+        ? `아래는 특정 지역·브랜드의 당월 매출 성과 지표입니다.
+매출 성장의 '질'을 CFO 관점에서 판단하세요.
 
-기준:
-- 초록(양호): 달성률 100% 이상 & YoY +5% 이상
-- 노랑(유의): 달성률 90-100% 또는 YoY 0-5%
-- 빨강(위험): 달성률 90% 미만 또는 YoY 마이너스
+지표:
+- 연누적 달성률: ${d.achievement_rate.toFixed(1)}%
+- 전년 대비 성장률(YoY): ${d.yoy_ytd > 0 ? '+' : ''}${d.yoy_ytd.toFixed(1)}%
+
+판단 기준:
+- YoY와 목표 달성률의 괴리를 해석할 것
+- 단기 반등인지 추세적 개선인지 판단할 것
+- 추가 액션이 필요한 경우만 언급
+
+신호등 색상 기준:
+- green(긍정): 달성률 100% 이상 & YoY +5% 이상
+- yellow(중립): 달성률 90-100% 또는 YoY 0-5%
+- red(부정): 달성률 90% 미만 또는 YoY 마이너스
 
 JSON 형식으로만 응답하세요:
 {
   "status": "green|yellow|red",
-  "insight": "2줄 이내의 인사이트"
-}`
-        : `Store Sales Status:
-- YTD Achievement Rate: ${d.achievement_rate.toFixed(1)}%
-- YoY: ${d.yoy_ytd > 0 ? '+' : ''}${d.yoy_ytd.toFixed(1)}%
+  "insight": "최대 1문장, 20자 이내"
+}
 
-Criteria:
-- Green (Good): Achievement ≥100% & YoY ≥+5%
-- Yellow (Caution): Achievement 90-100% or YoY 0-5%
-- Red (Risk): Achievement <90% or YoY negative
+출력 예시:
+"목표 대비 속도 점검 필요함" / "성장 흐름은 안정적임" / "반등이나 지속성은 미확인"`
+        : `Below are the monthly sales performance indicators for a specific region and brand.
+Judge the 'quality' of sales growth from a CFO perspective.
+
+Indicators:
+- YTD Achievement Rate: ${d.achievement_rate.toFixed(1)}%
+- YoY Growth Rate: ${d.yoy_ytd > 0 ? '+' : ''}${d.yoy_ytd.toFixed(1)}%
+
+Judgment Criteria:
+- Interpret the gap between YoY and target achievement rate
+- Determine if it's a short-term rebound or a trend-based improvement
+- Mention only if additional action is needed
+
+Traffic Light Criteria:
+- green(positive): Achievement ≥100% & YoY ≥+5%
+- yellow(neutral): Achievement 90-100% or YoY 0-5%
+- red(negative): Achievement <90% or YoY negative
 
 Respond in JSON format only:
 {
   "status": "green|yellow|red",
-  "insight": "Concise insight within 2 lines"
-}`;
+  "insight": "One sentence, within 20 characters"
+}
+
+Output examples:
+"Check pacing vs target" / "Growth trend stable" / "Sustainability unclear"`;
     } else if (section === '2') {
       const d = data as Section2Data;
       prompt = language === 'ko'
-        ? `당시즌 판매율 현황:
-- 전체 판매율: ${d.sellthrough_rate.toFixed(1)}%
-- 전년 대비 판매: ${d.sales_yoy_pct.toFixed(1)}%
+        ? `아래는 당시즌 판매율 및 관련 지표입니다.
+재고 회전 관점에서 리스크 여부를 판단하세요.
 
-기준:
-- 초록(양호): 판매율 70% 이상 & 판매 YoY 100% 이상
-- 노랑(유의): 판매율 50-70% 또는 판매 YoY 90-100%
-- 빨강(위험): 판매율 50% 미만 또는 판매 YoY 90% 미만
+지표:
+- 전체 판매율: ${d.sellthrough_rate.toFixed(1)}%
+- 전년 대비 판매 증감률: ${d.sales_yoy_pct.toFixed(1)}%
+
+판단 기준:
+- 판매율 수준이 정상 / 경계 / 위험 중 어디인지 판단
+- 매출 대비 판매 속도의 적정성 평가
+- 할인 개입 가능성이 있으면 언급
+
+신호등 색상 기준:
+- green(긍정): 판매율 70% 이상 & 판매 YoY 100% 이상
+- yellow(중립): 판매율 50-70% 또는 판매 YoY 90-100%
+- red(부정): 판매율 50% 미만 또는 판매 YoY 90% 미만
 
 JSON 형식으로만 응답하세요:
 {
   "status": "green|yellow|red",
-  "insight": "2줄 이내의 인사이트"
-}`
-        : `In-season Sell-through Status:
-- Overall Sell-through: ${d.sellthrough_rate.toFixed(1)}%
-- Sales YoY: ${d.sales_yoy_pct.toFixed(1)}%
+  "insight": "최대 1문장, 20자 이내"
+}
 
-Criteria:
-- Green (Good): Sell-through ≥70% & Sales YoY ≥100%
-- Yellow (Caution): Sell-through 50-70% or Sales YoY 90-100%
-- Red (Risk): Sell-through <50% or Sales YoY <90%
+출력 예시:
+"회전 속도는 보수적임" / "할인 압력 가능성 있음" / "시즌 진행은 안정적임"`
+        : `Below are the in-season sell-through rate and related indicators.
+Judge the risk from an inventory turnover perspective.
+
+Indicators:
+- Overall Sell-through: ${d.sellthrough_rate.toFixed(1)}%
+- Sales YoY Change: ${d.sales_yoy_pct.toFixed(1)}%
+
+Judgment Criteria:
+- Determine if sell-through level is normal / caution / risk
+- Evaluate the adequacy of sales velocity vs sales amount
+- Mention if discount intervention is possible
+
+Traffic Light Criteria:
+- green(positive): Sell-through ≥70% & Sales YoY ≥100%
+- yellow(neutral): Sell-through 50-70% or Sales YoY 90-100%
+- red(negative): Sell-through <50% or Sales YoY <90%
 
 Respond in JSON format only:
 {
   "status": "green|yellow|red",
-  "insight": "Concise insight within 2 lines"
-}`;
+  "insight": "One sentence, within 20 characters"
+}
+
+Output examples:
+"Turnover is conservative" / "Discount pressure likely" / "Season pacing stable"`;
     } else if (section === '3') {
       const d = data as Section3Data;
       prompt = language === 'ko'
-        ? `과시즌 재고 소진 현황:
-- 재고 소진율: ${d.sellthrough_rate.toFixed(1)}%
-- 현재 재고: ${(d.curr_stock_amt / 1000000).toFixed(1)}M HKD
+        ? `아래는 과시즌 재고 및 소진 관련 지표입니다.
+재무 리스크 관점에서 상태를 판단하세요.
 
-기준:
-- 초록(양호): 소진율 25% 이상
-- 노랑(유의): 소진율 15-25%
-- 빨강(위험): 소진율 15% 미만
+지표:
+- 재고 소진율: ${d.sellthrough_rate.toFixed(1)}%
+- 현재 잔존 재고: ${(d.curr_stock_amt / 1000000).toFixed(1)}M HKD
+
+판단 기준:
+- 과시즌 재고가 관리 가능 수준인지 판단
+- 소진 추세 대비 잔존 리스크 평가
+- 손익 영향 가능성이 있으면 명확히 언급
+
+신호등 색상 기준:
+- green(긍정): 소진율 25% 이상
+- yellow(중립): 소진율 15-25%
+- red(부정): 소진율 15% 미만
 
 JSON 형식으로만 응답하세요:
 {
   "status": "green|yellow|red",
-  "insight": "2줄 이내의 인사이트"
-}`
-        : `Old-season Inventory Clearance:
-- Clearance Rate: ${d.sellthrough_rate.toFixed(1)}%
-- Current Stock: ${(d.curr_stock_amt / 1000000).toFixed(1)}M HKD
+  "insight": "최대 1문장, 20자 이내"
+}
 
-Criteria:
-- Green (Good): Clearance ≥25%
-- Yellow (Caution): Clearance 15-25%
-- Red (Risk): Clearance <15%
+출력 예시:
+"손익 부담 잔존함" / "소진은 진행 중이나 느림" / "재고 리스크 관리 구간"`
+        : `Below are the old-season inventory and clearance indicators.
+Judge the status from a financial risk perspective.
+
+Indicators:
+- Clearance Rate: ${d.sellthrough_rate.toFixed(1)}%
+- Current Remaining Stock: ${(d.curr_stock_amt / 1000000).toFixed(1)}M HKD
+
+Judgment Criteria:
+- Determine if old-season inventory is at a manageable level
+- Evaluate remaining risk vs clearance trend
+- Clearly mention if there's a P&L impact possibility
+
+Traffic Light Criteria:
+- green(positive): Clearance ≥25%
+- yellow(neutral): Clearance 15-25%
+- red(negative): Clearance <15%
 
 Respond in JSON format only:
 {
   "status": "green|yellow|red",
-  "insight": "Concise insight within 2 lines"
-}`;
+  "insight": "One sentence, within 20 characters"
+}
+
+Output examples:
+"P&L burden remains" / "Clearance slow but ongoing" / "Inventory risk managed"`;
     }
 
     const completion = await openai.chat.completions.create({
@@ -170,7 +233,7 @@ Respond in JSON format only:
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
-      max_tokens: 200,
+      max_tokens: 100, // 20자 이내로 줄임
       response_format: { type: 'json_object' },
     });
 

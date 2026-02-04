@@ -24,6 +24,19 @@ export const translations = {
     section3Subtitle: 'Old-season Clearance',
     analyzing: '분석 중...',
     
+    // Executive Summary
+    executiveSummaryTitle: '주요내용',
+    keyInsightsTitle: '핵심인사이트',
+    actualSales: '당월실적',
+    achievementRate: '목표달성률',
+    yoyRate: 'YoY',
+    sellthroughRate: '당시즌판매율',
+    cumulativeSalesMetric: '누적판매',
+    cumulativeInboundMetric: '누적입고',
+    oldSeasonStock: '과시즌재고',
+    clearanceRate: '소진율',
+    stagnantStockRatio: '정체재고비중',
+    
     // Section 1
     section1Header: '섹션 1: 매장별 매출',
     unit: '단위: HKD',
@@ -127,6 +140,19 @@ export const translations = {
     section3Title: 'Section 3: Old-season Clearance',
     section3Subtitle: 'Old-season Clearance',
     analyzing: 'Analyzing...',
+    
+    // Executive Summary
+    executiveSummaryTitle: 'Executive Summary',
+    keyInsightsTitle: 'Key Insights',
+    actualSales: 'Actual Sales',
+    achievementRate: 'Achievement Rate',
+    yoyRate: 'YoY',
+    sellthroughRate: 'In-season Sell-through',
+    cumulativeSalesMetric: 'Cumulative Sales',
+    cumulativeInboundMetric: 'Cumulative Inbound',
+    oldSeasonStock: 'Old-season Stock',
+    clearanceRate: 'Clearance Rate',
+    stagnantStockRatio: 'Stagnant Stock Ratio',
     
     // Section 1
     section1Header: 'Section 1: Store Sales',

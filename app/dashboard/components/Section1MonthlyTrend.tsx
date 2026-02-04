@@ -186,8 +186,11 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
   // Y축 범위 계산
   const maxSales = Math.max(...data.map(d => d.total_sales));
   const yoyValues = data.filter(d => d.yoy !== null).map(d => d.yoy as number);
-  const maxYoY = yoyValues.length > 0 ? Math.max(...yoyValues) : 100;
-  const minYoY = yoyValues.length > 0 ? Math.min(...yoyValues) : -100;
+  
+  // YoY 범위: 극단적인 outlier 제거 (1000% 이상은 데이터 오류로 간주)
+  const validYoyValues = yoyValues.filter(y => y >= -100 && y <= 1000);
+  const maxYoY = validYoyValues.length > 0 ? Math.max(...validYoyValues) : 150;
+  const minYoY = validYoyValues.length > 0 ? Math.min(...validYoyValues) : 50;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -244,8 +247,11 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
               <YAxis
                 stroke="#ea580c"
                 style={{ fontSize: '12px' }}
-                tickFormatter={(value) => `${value}%`}
-                domain={[Math.min(minYoY * 0.8, 50), Math.max(maxYoY * 1.2, 150)]}
+                tickFormatter={(value) => `${Math.round(value)}%`}
+                domain={[
+                  Math.max(Math.min(minYoY * 0.9, 80), 0), 
+                  Math.min(Math.max(maxYoY * 1.1, 120), 500)
+                ]}
                 label={{
                   value: 'YoY (%)',
                   angle: -90,

@@ -8,9 +8,11 @@ import Section1Table from './components/Section1Table';
 import Section1Card from './components/Section1Card';
 import Section1MonthlyTrend from './components/Section1MonthlyTrend';
 import Section2Card from './components/Section2Card';
+import Section2Treemap from './components/Section2Treemap';
 import Section2SellThrough from './components/Section2SellThrough';
 import Section3Card from './components/Section3Card';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
+import ExecutiveSummary from './components/ExecutiveSummary';
 import { t, type Language } from '@/lib/translations';
 
 export default function DashboardPage() {
@@ -29,6 +31,15 @@ export default function DashboardPage() {
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
   const [section3Data, setSection3Data] = useState<any>(null);
+
+  // 통합 AI 인사이트 상태
+  const [dashboardInsights, setDashboardInsights] = useState<{
+    section1: string | null;
+    section2: string | null;
+    section3: string | null;
+  } | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsFailed, setInsightsFailed] = useState(false);
 
   // 데이터 로딩 상태 추적
   const [dataLoadStatus, setDataLoadStatus] = useState<{
@@ -49,6 +60,10 @@ export default function DashboardPage() {
         section2: 'loading',
         section3: 'loading',
       });
+      // 인사이트 상태도 초기화
+      setDashboardInsights(null);
+      setInsightsLoading(false);
+      setInsightsFailed(false);
     }
   }, [region, brand, date]);
 
@@ -65,6 +80,10 @@ export default function DashboardPage() {
       section2: 'loading',
       section3: 'loading',
     });
+    // 인사이트 상태 초기화
+    setDashboardInsights(null);
+    setInsightsLoading(false);
+    setInsightsFailed(false);
   };
 
   // 섹션별 데이터 변경 핸들러 (로딩 상태 추적 포함) - useCallback으로 메모이제이션
@@ -93,6 +112,91 @@ export default function DashboardPage() {
   const anyDataError = dataLoadStatus.section1 === 'error' || 
                        dataLoadStatus.section2 === 'error' || 
                        dataLoadStatus.section3 === 'error';
+
+  // 모든 데이터가 로드되면 통합 AI 인사이트 가져오기 (자동 재시도 포함)
+  const fetchDashboardInsights = useCallback(async (retryCount = 0, skipCache = false) => {
+    if (!allDataLoaded || !section1Data || !section2Data || !section3Data) {
+      return;
+    }
+
+    setInsightsLoading(true);
+    setInsightsFailed(false);
+    
+    console.log(`🔍 Fetching insights (attempt ${retryCount + 1})${skipCache ? ' [skip cache]' : ''}...`);
+    
+    try {
+      const response = await fetch('/api/insights/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          region,
+          brand,
+          asof_date: date,
+          skip_cache: skipCache, // 캐시 건너뛰기 옵션
+          section1: {
+            achievement_rate: section1Data.total_subtotal?.progress_ytd || 0,
+            yoy_ytd: section1Data.total_subtotal?.yoy_ytd || 0,
+            actual_sales_ytd: section1Data.total_subtotal?.ytd_act || 0,
+            target_ytd: section1Data.total_subtotal?.ytd_target || 0,
+          },
+          section2: {
+            sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
+            sales_amt: section2Data.header?.total_sales || 0,
+            inbound_amt: section2Data.header?.total_inbound || 0,
+            sales_yoy_pct: section2Data.header?.sales_yoy_pct || 100,
+          },
+          section3: {
+            sellthrough_rate: ((section3Data.summary?.total_base_stock || 0) - (section3Data.summary?.total_curr_stock || 0)) / (section3Data.summary?.total_base_stock || 1) * 100,
+            base_stock_amt: section3Data.summary?.total_base_stock || 0,
+            curr_stock_amt: section3Data.summary?.total_curr_stock || 0,
+          },
+          language,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Dashboard insights received:', data);
+        
+        // "추가 관찰 후 판단 필요함"이 모두 반환되면 실패로 간주
+        const allFallback = 
+          data.section1 === "추가 관찰 후 판단 필요함" &&
+          data.section2 === "추가 관찰 후 판단 필요함" &&
+          data.section3 === "추가 관찰 후 판단 필요함";
+        
+        if (allFallback && retryCount < 1) {
+          // 1회만 재시도 (캐시 건너뛰고)
+          console.log(`⚠️ All fallback responses, retrying with fresh data in 1 second...`);
+          setTimeout(() => {
+            fetchDashboardInsights(retryCount + 1, true); // 캐시 건너뛰고 재시도
+          }, 1000);
+          return;
+        }
+        
+        setDashboardInsights(data);
+        setInsightsFailed(allFallback); // fallback이면 실패로 간주
+        setInsightsLoading(false);
+      } else {
+        console.log('❌ Dashboard insights API error, status:', response.status);
+        setDashboardInsights(null);
+        setInsightsFailed(true);
+        setInsightsLoading(false);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard insights:', error);
+      setDashboardInsights(null);
+      setInsightsFailed(true);
+      setInsightsLoading(false);
+    }
+  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date, language]);
+
+  useEffect(() => {
+    if (allDataLoaded) {
+      // 데이터 로딩 완료 후 즉시 인사이트 가져오기
+      console.log('✅ All data loaded, fetching insights immediately...');
+      fetchDashboardInsights(0, false);
+    }
+  }, [allDataLoaded, fetchDashboardInsights]);
 
   // 메타 데이터 로드
   useEffect(() => {
@@ -235,6 +339,20 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
+        {/* 통합 경영 요약 - 전체 데이터가 로드된 후 표시 */}
+        {allDataLoaded && (
+          <ExecutiveSummary
+            region={region}
+            brand={brand}
+            date={date}
+            language={language}
+            section1Data={section1Data}
+            section2Data={section2Data}
+            section3Data={section3Data}
+            isLoading={anyDataLoading}
+          />
+        )}
+        
         {/* 상단: 요약카드 + 그래프 그리드 (3열) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* 섹션1 열 */}
@@ -258,7 +376,14 @@ export default function DashboardPage() {
               section2Data={section2Data}
               language={language}
             />
-            {/* 섹션2 그래프 추후 추가 */}
+            
+            {/* 트리맵 차트 - Section2Card 바로 아래 */}
+            <Section2Treemap
+              region={region}
+              brand={brand}
+              date={date}
+              language={language}
+            />
           </div>
 
           {/* 섹션3 열 */}
