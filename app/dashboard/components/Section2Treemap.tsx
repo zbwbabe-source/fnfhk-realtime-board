@@ -185,10 +185,10 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
    * @param treemapMode - 'compact': 카테고리명+비중만 표시 / 'detail': 모든 지표 표시
    */
   const createCustomizedContent = (treemapMode: TreemapMode) => {
-    return (props: any) => {
+    return (props: any): JSX.Element => {
       const { x, y, width, height, name, value, sales_pct, discount_rate, discount_rate_diff, yoy } = props;
 
-      if (!name) return null;
+      if (!name) return <g />;
 
       // 색상 결정
       let fillColor = '#D1D5DB';
