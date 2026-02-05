@@ -6,6 +6,23 @@ import { getCategoryMapping } from '@/lib/category-utils';
 
 export const dynamic = 'force-dynamic';
 
+// Memory cache for treemap data (5 minute TTL)
+const memCache = new Map<string, { exp: number; value: any }>();
+
+function cacheGet(key: string) {
+  const hit = memCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.exp) {
+    memCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: any, ttlMs: number) {
+  memCache.set(key, { exp: Date.now() + ttlMs, value });
+}
+
 /**
  * GET /api/section2/treemap
  * 
@@ -34,6 +51,16 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Check cache first
+    const cacheKey = `treemap:${region}:${brand}:${date}:${mode}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      console.log(`✅ Treemap cache HIT: ${cacheKey}`);
+      return NextResponse.json(cached);
+    }
+
+    console.log(`⏳ Treemap cache MISS: ${cacheKey}, fetching from DB...`);
 
     const normalizedBrand = normalizeBrand(brand);
     const asofDate = new Date(date);
@@ -326,7 +353,7 @@ export async function GET(request: NextRequest) {
       total_sales_act: totalSalesAct,
     });
 
-    return NextResponse.json({
+    const responseData = {
       asof_date: date,
       mode,
       region,
@@ -335,7 +362,12 @@ export async function GET(request: NextRequest) {
       total_sales_tag: totalSalesTag,
       total_sales_act: totalSalesAct,
       large_categories: largeCategories,
-    });
+    };
+
+    // Cache for 5 minutes (300,000ms)
+    cacheSet(cacheKey, responseData, 300_000);
+
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
     console.error('❌ Treemap API Error:', error);

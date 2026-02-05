@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import { type Language } from '@/lib/translations';
 import { getColorByLargeCategory } from '@/lib/category-utils';
@@ -62,15 +62,32 @@ type TreemapMode = 'compact' | 'detail';
 
 export default function Section2Treemap({ region, brand, date, language }: TreemapProps) {
   const [mode, setMode] = useState<'monthly' | 'ytd'>('monthly');
-  const [data, setData] = useState<TreemapData | null>(null);
+  const [monthlyData, setMonthlyData] = useState<TreemapData | null>(null);
+  const [ytdData, setYtdData] = useState<TreemapData | null>(null);
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Get current data based on mode
+  const data = mode === 'monthly' ? monthlyData : ytdData;
+
+  // Reset cached data when region, brand, or date changes
+  useEffect(() => {
+    setMonthlyData(null);
+    setYtdData(null);
+    setCurrentPath([]);
+  }, [region, brand, date]);
+
   useEffect(() => {
     if (!date) return;
+
+    // Check if data is already cached for this mode
+    if (data) {
+      console.log(`✅ Using cached ${mode} data`);
+      return;
+    }
 
     async function fetchData() {
       setLoading(true);
@@ -97,7 +114,13 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             middle_count: l.middle_categories?.length 
           })),
         });
-        setData(json);
+        
+        // Store in the appropriate cache based on mode
+        if (mode === 'monthly') {
+          setMonthlyData(json);
+        } else {
+          setYtdData(json);
+        }
         
         // 애니메이션 타이밍
         setTimeout(() => setIsTransitioning(false), 160);
@@ -111,7 +134,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
     }
 
     fetchData();
-  }, [region, brand, date, mode]);
+  }, [region, brand, date, mode, data]);
 
   // 드릴다운 데이터 계산 (비중 조정 로직 포함)
   const displayData = useMemo(() => {
@@ -186,7 +209,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
    * 커스텀 Treemap 셀 렌더링
    * @param treemapMode - 'compact': 카테고리명+비중만 표시 / 'detail': 모든 지표 표시
    */
-  const createCustomizedContent = (treemapMode: TreemapMode) => {
+  const createCustomizedContent = useCallback((treemapMode: TreemapMode) => {
     return (props: any): JSX.Element => {
       const { x, y, width, height, name, value, sales_tag, sales_act, sales_pct, discount_rate, discount_rate_diff, yoy } = props;
 
@@ -513,7 +536,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
         </g>
       );
     };
-  };
+  }, [currentPath, language, data]);
 
   // Custom Tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -561,17 +584,8 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
     );
   };
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-center h-[350px] text-gray-500">
-          {language === 'ko' ? '로딩 중...' : 'Loading...'}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
+  // Show error if no data at all
+  if (error && !data) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-center h-[350px] text-red-500">
@@ -581,10 +595,31 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
     );
   }
 
+  // Show initial loading state if no data
+  if (loading && !data) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-center h-[350px] text-gray-500">
+          {language === 'ko' ? '로딩 중...' : 'Loading...'}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* ========== 기본 카드 (COMPACT 모드) ========== */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[488px] flex flex-col">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[488px] flex flex-col relative">
+        {/* Loading overlay - shows while fetching but keeps existing data visible */}
+        {loading && data && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
+            <div className="bg-white px-4 py-2 rounded-md shadow-lg border border-gray-200">
+              <span className="text-sm text-gray-700">
+                {language === 'ko' ? '업데이트 중...' : 'Updating...'}
+              </span>
+            </div>
+          </div>
+        )}
         {/* 헤더: 제목 + 당월/누적 버튼 + 확대 버튼 */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
