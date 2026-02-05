@@ -193,7 +193,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
   const minYoY = validYoyValues.length > 0 ? Math.min(...validYoyValues) : 50;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[488px] flex flex-col">
       {/* 헤더와 토글 버튼 */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">
@@ -225,7 +225,8 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
         </div>
       </div>
       
-      <ResponsiveContainer width="100%" height={350}>
+      <div className="flex-1">
+        <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           
@@ -329,6 +330,7 @@ export default function Section1MonthlyTrend({ region, brand, date, language }: 
           )}
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

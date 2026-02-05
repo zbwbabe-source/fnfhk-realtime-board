@@ -251,7 +251,12 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 300, textShadow: 'none', filter: 'none' }}
+              style={{ 
+                fontWeight: 500, 
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                textShadow: 'none', 
+                filter: 'none' 
+              }}
             >
               <tspan x={x + width / 2} dy="-0.5em" fontSize="14">
                 {name}
@@ -294,7 +299,12 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
+              style={{ 
+                fontWeight: 500, 
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                textShadow: 'none', 
+                filter: 'none' 
+              }}
             >
               <tspan x={x + width / 2} dy="-4.5em" fontSize="18" fontWeight="600">
                 {name}
@@ -353,7 +363,12 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
+              style={{ 
+                fontWeight: 500, 
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                textShadow: 'none', 
+                filter: 'none' 
+              }}
             >
               <tspan x={x + width / 2} dy="-3em" fontSize="15" fontWeight="600">
                 {name}
@@ -409,7 +424,12 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
+              style={{ 
+                fontWeight: 500, 
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                textShadow: 'none', 
+                filter: 'none' 
+              }}
             >
               <tspan x={x + width / 2} dy="-2em" fontSize="13" fontWeight="600">
                 {name}
@@ -454,7 +474,12 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
+              style={{ 
+                fontWeight: 500, 
+                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                textShadow: 'none', 
+                filter: 'none' 
+              }}
             >
               <tspan x={x + width / 2} dy="-0.5em" fontSize="11">
                 {name}
@@ -559,9 +584,9 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
   return (
     <>
       {/* ========== 기본 카드 (COMPACT 모드) ========== */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[488px] flex flex-col">
         {/* 헤더: 제목 + 당월/누적 버튼 + 확대 버튼 */}
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
             {language === 'ko' ? '카테고리별 매출 구성' : 'Sales by Category'}
           </h3>
@@ -607,13 +632,6 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
           </div>
         </div>
 
-        {/* 대상기간 표시 */}
-        {data && (
-          <div className="text-xs text-gray-500 mb-3">
-            {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
-          </div>
-        )}
-
         {/* Breadcrumb */}
         {currentPath.length > 0 && (
           <div className="mb-3 flex items-center gap-2 text-sm">
@@ -639,11 +657,11 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
         {/* Treemap 차트 - COMPACT 모드 */}
         <div 
-          className={`transition-all duration-[160ms] ease-out ${
+          className={`flex-1 transition-all duration-[160ms] ease-out ${
             isTransitioning ? 'opacity-0 translate-y-1.5' : 'opacity-100 translate-y-0'
           }`}
         >
-          <ResponsiveContainer width="100%" height={350}>
+          <ResponsiveContainer width="100%" height="100%">
             <Treemap
               data={displayData}
               dataKey="value"
@@ -657,6 +675,13 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             </Treemap>
           </ResponsiveContainer>
         </div>
+
+        {/* 대상기간 표시 - 하단으로 이동 */}
+        {data && (
+          <div className="text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-100">
+            {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
+          </div>
+        )}
       </div>
 
       {/* ========== 확대 모달 (DETAIL 모드) ========== */}
