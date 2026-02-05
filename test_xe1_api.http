@@ -1,0 +1,11 @@
+# XE1 매장 데이터 확인 API 테스트
+# localhost에서 실행
+
+### Discovery(X) 브랜드 - 2026년 1월 31일
+GET http://localhost:3000/api/section1/store-sales?region=HKMC&brand=X&date=2026-01-31
+
+### Discovery(X) 브랜드 - 2026년 2월 4일
+GET http://localhost:3000/api/section1/store-sales?region=HKMC&brand=X&date=2026-02-04
+
+### MLB(M) 브랜드 - 비교용
+GET http://localhost:3000/api/section1/store-sales?region=HKMC&brand=M&date=2026-01-31

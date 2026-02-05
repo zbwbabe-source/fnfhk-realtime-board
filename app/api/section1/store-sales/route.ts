@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
     // 가중치 데이터 로드 (서버 사이드)
     const weightMap = await loadWeightDataServer();
 
-    // MTD + YTD 동시 조회 쿼리
+    // MTD + YTD + MoM(전월 대비) 동시 조회 쿼리
     const query = `
       WITH store_sales AS (
         SELECT
@@ -133,13 +133,21 @@ export async function GET(request: NextRequest) {
             END
           ) AS mtd_act,
           
-          /* MTD ACT PY */
+          /* MTD ACT PY (전년 동월) */
           SUM(
             CASE
               WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
               THEN ACT_SALE_AMT ELSE 0
             END
           ) AS mtd_act_py,
+          
+          /* MTD ACT PM (전월) */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATEADD(MONTH, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(DAY, -1, DATE_TRUNC('MONTH', TO_DATE(?)))
+              THEN ACT_SALE_AMT ELSE 0
+            END
+          ) AS mtd_act_pm,
           
           /* YTD ACT */
           SUM(
@@ -168,11 +176,17 @@ export async function GET(request: NextRequest) {
         shop_cd,
         mtd_act,
         mtd_act_py,
+        mtd_act_pm,
         CASE
           WHEN mtd_act_py > 0
           THEN (mtd_act / mtd_act_py) * 100
           ELSE 0
         END AS yoy,
+        CASE
+          WHEN mtd_act_pm > 0
+          THEN (mtd_act / mtd_act_pm) * 100
+          ELSE 0
+        END AS mom,
         ytd_act,
         ytd_act_py,
         CASE
@@ -187,6 +201,7 @@ export async function GET(request: NextRequest) {
     const rows = await executeSnowflakeQuery(query, [
       date, date,           // MTD current
       date, date,           // MTD PY
+      date, date,           // MTD PM (전월)
       date, date,           // YTD current
       date, date,           // YTD PY
       brand,                // brand filter
@@ -224,7 +239,9 @@ export async function GET(request: NextRequest) {
       // MTD 데이터
       const mtd_act = parseFloat(row.MTD_ACT || 0);
       const mtd_act_py = parseFloat(row.MTD_ACT_PY || 0);
+      const mtd_act_pm = parseFloat(row.MTD_ACT_PM || 0);
       const yoy = parseFloat(row.YOY || 0);
+      const mom = parseFloat(row.MOM || 0);
       
       // YTD 데이터
       const ytd_act = parseFloat(row.YTD_ACT || 0);
@@ -257,7 +274,9 @@ export async function GET(request: NextRequest) {
         mtd_act,
         progress,
         mtd_act_py,
+        mtd_act_pm,
         yoy,
+        mom,
         monthEndProjection,
         projectedYoY,
         
@@ -305,8 +324,10 @@ export async function GET(request: NextRequest) {
       const target_mth = stores.reduce((sum, s) => sum + s.target_mth, 0);
       const mtd_act = stores.reduce((sum, s) => sum + s.mtd_act, 0);
       const mtd_act_py = stores.reduce((sum, s) => sum + s.mtd_act_py, 0);
+      const mtd_act_pm = stores.reduce((sum, s) => sum + s.mtd_act_pm, 0);
       const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
       const yoy = mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0;
+      const mom = mtd_act_pm > 0 ? (mtd_act / mtd_act_pm) * 100 : 0;
       
       // YTD 합계
       const ytd_target = stores.reduce((sum, s) => sum + s.ytd_target, 0);
@@ -332,7 +353,9 @@ export async function GET(request: NextRequest) {
         mtd_act,
         progress,
         mtd_act_py,
+        mtd_act_pm,
         yoy,
+        mom,
         monthEndProjection,
         projectedYoY,
         

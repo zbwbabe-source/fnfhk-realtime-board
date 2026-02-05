@@ -361,6 +361,7 @@ export default function DashboardPage() {
               isYtdMode={isYtdMode}
               section1Data={section1Data}
               language={language}
+              brand={brand}
             />
             <Section1MonthlyTrend
               region={region}

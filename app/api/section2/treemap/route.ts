@@ -181,7 +181,8 @@ export async function GET(request: NextRequest) {
         code: smallCode,
         large: mapping.large,
         middle: mapping.middle,
-        sales_amt: salesActTY,
+        sales_tag: parseFloat(row.SALES_TAG_TY || 0),
+        sales_act: salesActTY,
         discount_rate: discountRateTY,
         discount_rate_ly: discountRateLY,
         discount_rate_diff: discountRateTY - discountRateLY,
@@ -197,7 +198,8 @@ export async function GET(request: NextRequest) {
         middleMap.set(key, {
           name: item.middle,
           large: item.large,
-          sales_amt: 0,
+          sales_tag: 0,
+          sales_act: 0,
           discount_rate_weighted: 0,
           discount_rate_ly_weighted: 0,
           yoy_weighted: 0,
@@ -206,23 +208,24 @@ export async function GET(request: NextRequest) {
         });
       }
       const middleData = middleMap.get(key);
-      middleData.sales_amt += item.sales_amt;
-      middleData.discount_rate_weighted += item.discount_rate * item.sales_amt;
-      middleData.discount_rate_ly_weighted += item.discount_rate_ly * item.sales_amt;
+      middleData.sales_tag += item.sales_tag;
+      middleData.sales_act += item.sales_act;
+      middleData.discount_rate_weighted += item.discount_rate * item.sales_act;
+      middleData.discount_rate_ly_weighted += item.discount_rate_ly * item.sales_act;
       if (item.yoy !== null) {
-        middleData.yoy_weighted += item.yoy * item.sales_amt;
-        middleData.total_sales_for_weight += item.sales_amt;
+        middleData.yoy_weighted += item.yoy * item.sales_act;
+        middleData.total_sales_for_weight += item.sales_act;
       }
       middleData.small_categories.push(item);
     });
 
     // 중분류 비율 계산
     const middleCategories = Array.from(middleMap.values()).map(middle => {
-      const discount_rate = middle.sales_amt > 0 
-        ? middle.discount_rate_weighted / middle.sales_amt 
+      const discount_rate = middle.sales_tag > 0 
+        ? ((middle.sales_tag - middle.sales_act) / middle.sales_tag) * 100
         : 0;
-      const discount_rate_ly = middle.sales_amt > 0 
-        ? middle.discount_rate_ly_weighted / middle.sales_amt 
+      const discount_rate_ly = middle.sales_act > 0 
+        ? middle.discount_rate_ly_weighted / middle.sales_act 
         : 0;
       const yoy = middle.total_sales_for_weight > 0
         ? middle.yoy_weighted / middle.total_sales_for_weight
@@ -231,7 +234,8 @@ export async function GET(request: NextRequest) {
       return {
         name: middle.name,
         large: middle.large,
-        sales_amt: middle.sales_amt,
+        sales_tag: middle.sales_tag,
+        sales_act: middle.sales_act,
         sales_pct: 0, // Will be calculated later
         discount_rate,
         discount_rate_ly,
@@ -239,8 +243,9 @@ export async function GET(request: NextRequest) {
         yoy,
         small_categories: middle.small_categories.map((small: any) => ({
           code: small.code,
-          sales_amt: small.sales_amt,
-          sales_pct: middle.sales_amt > 0 ? (small.sales_amt / middle.sales_amt) * 100 : 0,
+          sales_tag: small.sales_tag,
+          sales_act: small.sales_act,
+          sales_pct: middle.sales_act > 0 ? (small.sales_act / middle.sales_act) * 100 : 0,
           discount_rate: small.discount_rate,
           discount_rate_ly: small.discount_rate_ly,
           discount_rate_diff: small.discount_rate_diff,
@@ -255,7 +260,8 @@ export async function GET(request: NextRequest) {
       if (!largeMap.has(middle.large)) {
         largeMap.set(middle.large, {
           name: middle.large,
-          sales_amt: 0,
+          sales_tag: 0,
+          sales_act: 0,
           discount_rate_weighted: 0,
           discount_rate_ly_weighted: 0,
           yoy_weighted: 0,
@@ -264,27 +270,29 @@ export async function GET(request: NextRequest) {
         });
       }
       const largeData = largeMap.get(middle.large);
-      largeData.sales_amt += middle.sales_amt;
-      largeData.discount_rate_weighted += middle.discount_rate * middle.sales_amt;
-      largeData.discount_rate_ly_weighted += middle.discount_rate_ly * middle.sales_amt;
+      largeData.sales_tag += middle.sales_tag;
+      largeData.sales_act += middle.sales_act;
+      largeData.discount_rate_weighted += middle.discount_rate * middle.sales_act;
+      largeData.discount_rate_ly_weighted += middle.discount_rate_ly * middle.sales_act;
       if (middle.yoy !== null) {
-        largeData.yoy_weighted += middle.yoy * middle.sales_amt;
-        largeData.total_sales_for_weight += middle.sales_amt;
+        largeData.yoy_weighted += middle.yoy * middle.sales_act;
+        largeData.total_sales_for_weight += middle.sales_act;
       }
       largeData.middle_categories.push(middle);
     });
 
     // 전체 매출 계산
-    const totalSales = Array.from(largeMap.values()).reduce((sum, large) => sum + large.sales_amt, 0);
+    const totalSalesTag = Array.from(largeMap.values()).reduce((sum, large) => sum + large.sales_tag, 0);
+    const totalSalesAct = Array.from(largeMap.values()).reduce((sum, large) => sum + large.sales_act, 0);
 
     // 대분류 비율 계산 및 정렬
     const largeCategories = Array.from(largeMap.values())
       .map(large => {
-        const discount_rate = large.sales_amt > 0 
-          ? large.discount_rate_weighted / large.sales_amt 
+        const discount_rate = large.sales_tag > 0 
+          ? ((large.sales_tag - large.sales_act) / large.sales_tag) * 100
           : 0;
-        const discount_rate_ly = large.sales_amt > 0 
-          ? large.discount_rate_ly_weighted / large.sales_amt 
+        const discount_rate_ly = large.sales_act > 0 
+          ? large.discount_rate_ly_weighted / large.sales_act 
           : 0;
         const yoy = large.total_sales_for_weight > 0
           ? large.yoy_weighted / large.total_sales_for_weight
@@ -293,13 +301,14 @@ export async function GET(request: NextRequest) {
         // 중분류에 대분류 내 비율 계산
         const middleWithPct = large.middle_categories.map((middle: any) => ({
           ...middle,
-          sales_pct: large.sales_amt > 0 ? (middle.sales_amt / large.sales_amt) * 100 : 0,
+          sales_pct: large.sales_act > 0 ? (middle.sales_act / large.sales_act) * 100 : 0,
         }));
 
         return {
           name: large.name,
-          sales_amt: large.sales_amt,
-          sales_pct: totalSales > 0 ? (large.sales_amt / totalSales) * 100 : 0,
+          sales_tag: large.sales_tag,
+          sales_act: large.sales_act,
+          sales_pct: totalSalesAct > 0 ? (large.sales_act / totalSalesAct) * 100 : 0,
           discount_rate,
           discount_rate_ly,
           discount_rate_diff: discount_rate - discount_rate_ly,
@@ -307,13 +316,14 @@ export async function GET(request: NextRequest) {
           middle_categories: middleWithPct,
         };
       })
-      .sort((a, b) => b.sales_amt - a.sales_amt);
+      .sort((a, b) => b.sales_act - a.sales_act);
 
     console.log('📊 Treemap aggregation:', {
       large_count: largeCategories.length,
       middle_count: middleCategories.length,
       small_count: smallCategories.length,
-      total_sales: totalSales,
+      total_sales_tag: totalSalesTag,
+      total_sales_act: totalSalesAct,
     });
 
     return NextResponse.json({
@@ -322,7 +332,8 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       sesn,
-      total_sales: totalSales,
+      total_sales_tag: totalSalesTag,
+      total_sales_act: totalSalesAct,
       large_categories: largeCategories,
     });
 

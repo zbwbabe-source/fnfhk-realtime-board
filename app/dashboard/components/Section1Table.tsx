@@ -108,8 +108,14 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
           bValue = isYtdMode ? b.ytd_act_py : b.mtd_act_py;
           break;
         case 'yoy':
-          aValue = isYtdMode ? a.yoy_ytd : a.yoy;
-          bValue = isYtdMode ? b.yoy_ytd : b.yoy;
+          // X 브랜드는 MoM, 나머지는 YoY
+          if (brand === 'X') {
+            aValue = isYtdMode ? a.yoy_ytd : a.mom;
+            bValue = isYtdMode ? b.yoy_ytd : b.mom;
+          } else {
+            aValue = isYtdMode ? a.yoy_ytd : a.yoy;
+            bValue = isYtdMode ? b.yoy_ytd : b.yoy;
+          }
           break;
         case 'monthEndProjection':
           aValue = a.monthEndProjection;
@@ -272,7 +278,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     const subtotalActual = subtotal ? (isYtdMode ? subtotal.ytd_act : subtotal.mtd_act) : 0;
     const subtotalProgress = subtotal ? (isYtdMode ? subtotal.progress_ytd : subtotal.progress) : 0;
     const subtotalActualPy = subtotal ? (isYtdMode ? subtotal.ytd_act_py : subtotal.mtd_act_py) : 0;
-    const subtotalYoy = subtotal ? (isYtdMode ? subtotal.yoy_ytd : subtotal.yoy) : 0;
+    // X 브랜드는 MoM, 나머지는 YoY
+    const subtotalYoy = subtotal ? (isYtdMode ? subtotal.yoy_ytd : (brand === 'X' ? subtotal.mom : subtotal.yoy)) : 0;
     
     return (
       <>
@@ -353,7 +360,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     const actualPyValue = isYtdMode ? row.ytd_act_py : row.mtd_act_py;
     const targetValue = isYtdMode ? row.ytd_target : row.target_mth;
     const progressValue = isYtdMode ? row.progress_ytd : row.progress;
-    const yoyValue = isYtdMode ? row.yoy_ytd : row.yoy;
+    // X 브랜드는 MoM, 나머지는 YoY
+    const yoyValue = isYtdMode ? row.yoy_ytd : (brand === 'X' ? row.mom : row.yoy);
     
     const isClosed = !isSubtotal && actualValue === 0;
     
@@ -526,7 +534,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 onClick={() => handleSort('yoy')}
               >
                 <div className="flex items-center justify-end">
-                  {t(language, 'yoy')}
+                  {t(language, brand === 'X' ? 'mom' : 'yoy')}
                   {getSortIcon('yoy')}
                 </div>
               </th>

@@ -14,7 +14,8 @@ interface TreemapProps {
 
 interface SmallCategory {
   code: string;
-  sales_amt: number;
+  sales_tag: number;
+  sales_act: number;
   sales_pct: number;
   discount_rate: number;
   discount_rate_ly: number;
@@ -24,7 +25,8 @@ interface SmallCategory {
 
 interface MiddleCategory {
   name: string;
-  sales_amt: number;
+  sales_tag: number;
+  sales_act: number;
   sales_pct: number;
   discount_rate: number;
   discount_rate_ly: number;
@@ -35,7 +37,8 @@ interface MiddleCategory {
 
 interface LargeCategory {
   name: string;
-  sales_amt: number;
+  sales_tag: number;
+  sales_act: number;
   sales_pct: number;
   discount_rate: number;
   discount_rate_ly: number;
@@ -50,7 +53,8 @@ interface TreemapData {
   region: string;
   brand: string;
   sesn: string;
-  total_sales: number;
+  total_sales_tag: number;
+  total_sales_act: number;
   large_categories: LargeCategory[];
 }
 
@@ -119,38 +123,36 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
       // 대분류
       rawData = data.large_categories.map(large => ({
         name: large.name,
-        value: large.sales_amt,
+        value: large.sales_act,
+        sales_tag: large.sales_tag,
+        sales_act: large.sales_act,
         sales_pct: large.sales_pct,
         discount_rate: large.discount_rate,
         discount_rate_diff: large.discount_rate_diff,
         yoy: large.yoy,
       }));
-    } else if (currentPath.length === 1) {
-      // 중분류
-      const large = data.large_categories.find(l => l.name === currentPath[0]);
-      if (!large) return [];
-      rawData = large.middle_categories.map(middle => ({
-        name: middle.name,
-        value: middle.sales_amt,
-        sales_pct: middle.sales_pct,
-        discount_rate: middle.discount_rate,
-        discount_rate_diff: middle.discount_rate_diff,
-        yoy: middle.yoy,
-      }));
     } else {
-      // 소분류
+      // 소분류 (중분류 건너뛰고 바로 소분류)
       const large = data.large_categories.find(l => l.name === currentPath[0]);
       if (!large) return [];
-      const middle = large.middle_categories.find(m => m.name === currentPath[1]);
-      if (!middle) return [];
-      rawData = middle.small_categories.map(small => ({
-        name: small.code,
-        value: small.sales_amt,
-        sales_pct: small.sales_pct,
-        discount_rate: small.discount_rate,
-        discount_rate_diff: small.discount_rate_diff,
-        yoy: small.yoy,
-      }));
+      
+      // 모든 중분류의 소분류를 합침
+      const allSmallCategories: any[] = [];
+      large.middle_categories.forEach(middle => {
+        middle.small_categories.forEach(small => {
+          allSmallCategories.push({
+            name: small.code,
+            value: small.sales_act,
+            sales_tag: small.sales_tag,
+            sales_act: small.sales_act,
+            sales_pct: small.sales_pct,
+            discount_rate: small.discount_rate,
+            discount_rate_diff: small.discount_rate_diff,
+            yoy: small.yoy,
+          });
+        });
+      });
+      rawData = allSmallCategories;
     }
 
     // 비중 조정: 큰 값의 영향력을 줄여 작은 항목도 보이도록
@@ -186,7 +188,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
    */
   const createCustomizedContent = (treemapMode: TreemapMode) => {
     return (props: any): JSX.Element => {
-      const { x, y, width, height, name, value, sales_pct, discount_rate, discount_rate_diff, yoy } = props;
+      const { x, y, width, height, name, value, sales_tag, sales_act, sales_pct, discount_rate, discount_rate_diff, yoy } = props;
 
       if (!name) return <g />;
 
@@ -216,7 +218,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 strokeWidth={2}
                 className="cursor-pointer"
                 onClick={() => {
-                  if (currentPath.length < 2) {
+                  if (currentPath.length < 1) {
                     setCurrentPath([...currentPath, name]);
                   }
                 }}
@@ -255,7 +257,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {name}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="13">
-                {sales_pct?.toFixed(1)}%
+                {yoy ? `YoY ${yoy.toFixed(1)}%` : 'N/A'}
               </tspan>
             </text>
           </g>
@@ -280,7 +282,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               strokeWidth={1}
               className="cursor-pointer"
               onClick={() => {
-                if (currentPath.length < 2) {
+                if (currentPath.length < 1) {
                   setCurrentPath([...currentPath, name]);
                 }
               }}
@@ -292,30 +294,33 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 300, textShadow: 'none', filter: 'none' }}
+              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
             >
-              <tspan x={x + width / 2} dy="-3em" fontSize="20">
+              <tspan x={x + width / 2} dy="-4.5em" fontSize="18" fontWeight="600">
                 {name}
               </tspan>
-              <tspan x={x + width / 2} dy="1.6em" fontSize="18">
-                {formatSales(value)}
+              <tspan x={x + width / 2} dy="1.8em" fontSize="15">
+                {language === 'ko' ? '택매출' : 'Tag'}: {formatSales(sales_tag || 0)}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="15">
-                ({sales_pct?.toFixed(1)}%)
+                {language === 'ko' ? '실판매출' : 'Actual'}: {formatSales(sales_act || 0)}
               </tspan>
-              <tspan x={x + width / 2} dy="1.5em" fontSize="15">
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+              <tspan x={x + width / 2} dy="1.5em" fontSize="14">
+                YoY: {yoy ? yoy.toFixed(1) : 'N/A'}%
               </tspan>
-              <tspan x={x + width / 2} dy="1.5em" fontSize="15">
-                {language === 'ko' ? '할인' : 'Disc'}: {discount_rate?.toFixed(1)}%
+              <tspan x={x + width / 2} dy="1.5em" fontSize="14">
+                {language === 'ko' ? '할인율' : 'Discount'}: {discount_rate?.toFixed(1)}%
               </tspan>
               <tspan 
                 x={x + width / 2} 
                 dy="1.4em" 
-                fontSize="14"
+                fontSize="13"
                 fill={discountColor}
               >
                 ({discountSymbol}{Math.abs(discount_rate_diff || 0).toFixed(1)}%p)
+              </tspan>
+              <tspan x={x + width / 2} dy="1.5em" fontSize="14">
+                {language === 'ko' ? '비중' : 'Share'}: {sales_pct?.toFixed(1)}%
               </tspan>
             </text>
           </g>
@@ -336,7 +341,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               strokeWidth={1}
               className="cursor-pointer"
               onClick={() => {
-                if (currentPath.length < 2) {
+                if (currentPath.length < 1) {
                   setCurrentPath([...currentPath, name]);
                 }
               }}
@@ -348,27 +353,27 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 300, textShadow: 'none', filter: 'none' }}
+              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
             >
-              <tspan x={x + width / 2} dy="-2.5em" fontSize="16">
+              <tspan x={x + width / 2} dy="-3em" fontSize="15" fontWeight="600">
                 {name}
               </tspan>
-              <tspan x={x + width / 2} dy="1.5em" fontSize="15">
-                {formatSales(value)}
-              </tspan>
-              <tspan x={x + width / 2} dy="1.4em" fontSize="13">
-                ({sales_pct?.toFixed(1)}%)
+              <tspan x={x + width / 2} dy="1.5em" fontSize="13">
+                {language === 'ko' ? '택' : 'Tag'}: {formatSales(sales_tag || 0)}
               </tspan>
               <tspan x={x + width / 2} dy="1.3em" fontSize="13">
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+                {language === 'ko' ? '실판' : 'Act'}: {formatSales(sales_act || 0)}
               </tspan>
-              <tspan x={x + width / 2} dy="1.3em" fontSize="13">
-                {discount_rate?.toFixed(1)}%
+              <tspan x={x + width / 2} dy="1.3em" fontSize="12">
+                YoY: {yoy ? yoy.toFixed(1) : 'N/A'}%
+              </tspan>
+              <tspan x={x + width / 2} dy="1.2em" fontSize="12">
+                {language === 'ko' ? '할인' : 'Disc'}: {discount_rate?.toFixed(1)}%
               </tspan>
               <tspan 
                 x={x + width / 2} 
                 dy="1.2em" 
-                fontSize="12"
+                fontSize="11"
                 fill={discountColor}
               >
                 ({discountSymbol}{Math.abs(discount_rate_diff || 0).toFixed(1)}%p)
@@ -392,7 +397,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               strokeWidth={1}
               className="cursor-pointer"
               onClick={() => {
-                if (currentPath.length < 2) {
+                if (currentPath.length < 1) {
                   setCurrentPath([...currentPath, name]);
                 }
               }}
@@ -404,18 +409,18 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 300, textShadow: 'none', filter: 'none' }}
+              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
             >
-              <tspan x={x + width / 2} dy="-1.5em" fontSize="14">
+              <tspan x={x + width / 2} dy="-2em" fontSize="13" fontWeight="600">
                 {name}
               </tspan>
-              <tspan x={x + width / 2} dy="1.4em" fontSize="13">
-                {formatSales(value)}
+              <tspan x={x + width / 2} dy="1.4em" fontSize="11">
+                {formatSales(sales_act || 0)}
               </tspan>
-              <tspan x={x + width / 2} dy="1.3em" fontSize="12">
-                ({sales_pct?.toFixed(1)}%)
+              <tspan x={x + width / 2} dy="1.2em" fontSize="10">
+                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
               </tspan>
-              <tspan x={x + width / 2} dy="1.2em" fontSize="11">
+              <tspan x={x + width / 2} dy="1.2em" fontSize="10">
                 {discount_rate?.toFixed(1)}%
               </tspan>
             </text>
@@ -423,7 +428,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
         );
       }
 
-      // 소형 셀 (40-70px): 이름과 비중만
+      // 소형 셀 (40-70px): 이름과 YoY만
       if (width > 40 && height > 35) {
         return (
           <g>
@@ -437,7 +442,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               strokeWidth={2}
               className="cursor-pointer"
               onClick={() => {
-                if (currentPath.length < 2) {
+                if (currentPath.length < 1) {
                   setCurrentPath([...currentPath, name]);
                 }
               }}
@@ -449,13 +454,13 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               fill="#111"
               stroke="none"
               strokeWidth={0}
-              style={{ fontWeight: 300, textShadow: 'none', filter: 'none' }}
+              style={{ fontWeight: 400, textShadow: 'none', filter: 'none' }}
             >
               <tspan x={x + width / 2} dy="-0.5em" fontSize="11">
                 {name}
               </tspan>
               <tspan x={x + width / 2} dy="1.3em" fontSize="10">
-                {sales_pct?.toFixed(1)}%
+                {yoy ? `${yoy.toFixed(0)}%` : 'N/A'}
               </tspan>
             </text>
           </g>
@@ -473,9 +478,9 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             fill={fillColor}
             stroke="#fff"
             strokeWidth={2}
-            className="cursor-pointer transition-opacity hover:opacity-90"
+            className="cursor-pointer"
             onClick={() => {
-              if (currentPath.length < 2) {
+              if (currentPath.length < 1) {
                 setCurrentPath([...currentPath, name]);
               }
             }}
@@ -491,20 +496,40 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
     const data = payload[0].payload;
     const discountColor = data.discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
-    const discountSymbol = data.discount_rate_diff > 0 ? '+' : '▼';
+    const discountSymbol = data.discount_rate_diff > 0 ? '+' : '';
 
     return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200 text-sm">
-        <div className="font-bold text-gray-900 mb-2">{data.name}</div>
-        <div className="space-y-1 text-gray-700">
-          <div>{language === 'ko' ? '매출' : 'Sales'}: {formatSales(data.value)}</div>
-          <div>{language === 'ko' ? '비중' : 'Share'}: {data.sales_pct?.toFixed(1)}%</div>
-          <div>YoY: {data.yoy ? data.yoy.toFixed(1) : 'N/A'}%</div>
+      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-300 text-sm">
+        <div className="font-bold text-gray-900 mb-3 text-base">{data.name}</div>
+        <div className="space-y-1.5 text-gray-700">
           <div>
-            {language === 'ko' ? '할인율' : 'Discount'}: {data.discount_rate?.toFixed(1)}%
-            <span style={{ color: discountColor, fontWeight: 'bold', marginLeft: '4px' }}>
-              ({discountSymbol}{Math.abs(data.discount_rate_diff || 0).toFixed(1)}%p)
+            <span className="font-semibold">{language === 'ko' ? '택매출' : 'Tag Sales'}:</span>{' '}
+            {formatSales(data.sales_tag || 0)}
+            {data.yoy && (
+              <span className="ml-2 text-blue-600">
+                (YoY {data.yoy.toFixed(1)}%)
+              </span>
+            )}
+          </div>
+          <div>
+            <span className="font-semibold">{language === 'ko' ? '실판매출' : 'Actual Sales'}:</span>{' '}
+            {formatSales(data.sales_act || 0)}
+            {data.yoy && (
+              <span className="ml-2 text-blue-600">
+                (YoY {data.yoy.toFixed(1)}%)
+              </span>
+            )}
+          </div>
+          <div>
+            <span className="font-semibold">{language === 'ko' ? '할인율' : 'Discount'}:</span>{' '}
+            {data.discount_rate?.toFixed(1)}%
+            <span style={{ color: discountColor, fontWeight: 'bold', marginLeft: '6px' }}>
+              ({discountSymbol}{data.discount_rate_diff?.toFixed(1)}%p)
             </span>
+          </div>
+          <div>
+            <span className="font-semibold">{language === 'ko' ? '비중' : 'Share'}:</span>{' '}
+            {data.sales_pct?.toFixed(1)}%
           </div>
         </div>
       </div>
@@ -632,23 +657,6 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             </Treemap>
           </ResponsiveContainer>
         </div>
-
-        {/* 범례 */}
-        <div className="mt-4 flex items-center gap-4 text-xs text-gray-600">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded"></div>
-            <span>{language === 'ko' ? '빨강: 할인 증가' : 'Red: Discount ↑'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-500 rounded"></div>
-            <span>{language === 'ko' ? '파랑: 할인 감소' : 'Blue: Discount ↓'}</span>
-          </div>
-          {displayData.length > 0 && (
-            <span className="ml-auto font-medium">
-              {language === 'ko' ? '총' : 'Total'}: {displayData.length}{language === 'ko' ? '개 항목' : ' items'}
-            </span>
-          )}
-        </div>
       </div>
 
       {/* ========== 확대 모달 (DETAIL 모드) ========== */}
@@ -748,7 +756,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   isAnimationActive={false}
                   animationDuration={0}
                 >
-                  <Tooltip content={<CustomTooltip />} />
+                  {/* 확대 모달에서는 툴팁 제거 - 정보가 블록 안에 직접 표시됨 */}
                 </Treemap>
               </ResponsiveContainer>
             </div>

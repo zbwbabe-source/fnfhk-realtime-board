@@ -7,9 +7,10 @@ interface Section1CardProps {
   isYtdMode: boolean;
   section1Data: any;
   language: Language;
+  brand: string;
 }
 
-export default function Section1Card({ isYtdMode, section1Data, language }: Section1CardProps) {
+export default function Section1Card({ isYtdMode, section1Data, language, brand }: Section1CardProps) {
 
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
@@ -26,7 +27,7 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
     if (!section1Data?.total_subtotal) {
       return {
         k1: { label: t(language, isYtdMode ? 'ytdActual' : 'monthlyActual'), value: 'N/A' },
-        k2: { label: t(language, 'yoy'), value: 'N/A' },
+        k2: { label: t(language, brand === 'X' ? 'mom' : 'yoy'), value: 'N/A' },
         k3: { label: t(language, 'progress'), value: 'N/A' },
       };
     }
@@ -37,7 +38,7 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
       if (typeof total.ytd_act === 'undefined' || total.ytd_act === null) {
         return {
           k1: { label: t(language, 'ytdActual'), value: 'N/A' },
-          k2: { label: t(language, 'yoy'), value: 'N/A' },
+          k2: { label: t(language, brand === 'X' ? 'mom' : 'yoy'), value: 'N/A' },
           k3: { label: t(language, 'progress'), value: 'N/A' },
         };
       }
@@ -45,14 +46,15 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
       if (typeof total.mtd_act === 'undefined' || total.mtd_act === null) {
         return {
           k1: { label: t(language, 'monthlyActual'), value: 'N/A' },
-          k2: { label: t(language, 'yoy'), value: 'N/A' },
+          k2: { label: t(language, brand === 'X' ? 'mom' : 'yoy'), value: 'N/A' },
           k3: { label: t(language, 'progress'), value: 'N/A' },
         };
       }
     }
 
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
-    const yoy = isYtdMode ? total.yoy_ytd : total.yoy;
+    // X 브랜드는 MoM, 나머지는 YoY
+    const compareRate = brand === 'X' ? (isYtdMode ? total.yoy_ytd : total.mom) : (isYtdMode ? total.yoy_ytd : total.yoy);
     const progress = isYtdMode ? total.progress_ytd : total.progress;
 
     return {
@@ -61,8 +63,8 @@ export default function Section1Card({ isYtdMode, section1Data, language }: Sect
         value: formatCurrency(actual),
       },
       k2: {
-        label: t(language, 'yoy'),
-        value: `${yoy.toFixed(1)}%`,
+        label: t(language, brand === 'X' ? 'mom' : 'yoy'),
+        value: `${compareRate.toFixed(1)}%`,
       },
       k3: {
         label: t(language, 'progress'),
