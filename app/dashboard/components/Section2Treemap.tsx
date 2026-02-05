@@ -285,7 +285,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {name}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="13">
-                {yoy ? `YoY ${yoy.toFixed(1)}%` : 'N/A'}
+                {yoy ? `YoY ${yoy.toFixed(0)}%` : 'N/A'}
               </tspan>
             </text>
           </g>
@@ -339,7 +339,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {language === 'ko' ? '실판매출' : 'Actual'}: {formatSales(sales_act || 0)}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="14">
-                YoY: {yoy ? yoy.toFixed(1) : 'N/A'}%
+                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="14">
                 {language === 'ko' ? '할인율' : 'Discount'}: {discount_rate?.toFixed(1)}%
@@ -403,7 +403,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {language === 'ko' ? '실판' : 'Act'}: {formatSales(sales_act || 0)}
               </tspan>
               <tspan x={x + width / 2} dy="1.3em" fontSize="12">
-                YoY: {yoy ? yoy.toFixed(1) : 'N/A'}%
+                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
               </tspan>
               <tspan x={x + width / 2} dy="1.2em" fontSize="12">
                 {language === 'ko' ? '할인' : 'Disc'}: {discount_rate?.toFixed(1)}%
@@ -555,7 +555,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             {formatSales(data.sales_tag || 0)}
             {data.yoy && (
               <span className="ml-2 text-blue-600">
-                (YoY {data.yoy.toFixed(1)}%)
+                (YoY {data.yoy.toFixed(0)}%)
               </span>
             )}
           </div>
@@ -564,7 +564,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             {formatSales(data.sales_act || 0)}
             {data.yoy && (
               <span className="ml-2 text-blue-600">
-                (YoY {data.yoy.toFixed(1)}%)
+                (YoY {data.yoy.toFixed(0)}%)
               </span>
             )}
           </div>
