@@ -621,10 +621,17 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
           </div>
         )}
         {/* 헤더: 제목 + 당월/누적 버튼 + 확대 버튼 */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {language === 'ko' ? '카테고리별 매출 구성' : 'Sales by Category'}
-          </h3>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {language === 'ko' ? '카테고리별 매출 구성' : 'Sales by Category'}
+            </h3>
+            {data && (
+              <div className="text-xs text-gray-500 mt-1">
+                {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             {/* 당월/누적 토글 */}
             <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
@@ -669,7 +676,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
         {/* Breadcrumb */}
         {currentPath.length > 0 && (
-          <div className="mb-3 flex items-center gap-2 text-sm">
+          <div className="mb-2 flex items-center gap-2 text-sm">
             <button
               onClick={() => handleBreadcrumbClick(-1)}
               className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -710,13 +717,6 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             </Treemap>
           </ResponsiveContainer>
         </div>
-
-        {/* 대상기간 표시 - 하단으로 이동 */}
-        {data && (
-          <div className="text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-100">
-            {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
-          </div>
-        )}
       </div>
 
       {/* ========== 확대 모달 (DETAIL 모드) ========== */}
