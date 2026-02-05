@@ -23,7 +23,9 @@ interface StoreRow {
   mtd_act: number;
   progress: number;
   mtd_act_py: number;
+  mtd_act_pm: number;
   yoy: number;
+  mom: number;
   monthEndProjection: number;
   projectedYoY: number;
   
