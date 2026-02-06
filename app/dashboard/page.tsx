@@ -252,7 +252,7 @@ export default function DashboardPage() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                한국어
+                KR
               </button>
               <button
                 onClick={() => setLanguage('en')}
@@ -262,7 +262,7 @@ export default function DashboardPage() {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                English
+                EN
               </button>
             </div>
           </div>
