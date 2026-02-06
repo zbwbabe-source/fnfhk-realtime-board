@@ -56,6 +56,11 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand 
     // X 브랜드는 MoM, 나머지는 YoY
     const compareRate = brand === 'X' ? (isYtdMode ? total.yoy_ytd : total.mom) : (isYtdMode ? total.yoy_ytd : total.yoy);
     const progress = isYtdMode ? total.progress_ytd : total.progress;
+    const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
+
+    // YoY/MoM이 없거나 0일 때 할인율 표시
+    const hasCompareRate = compareRate && compareRate !== 0;
+    const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
 
     return {
       k1: {
@@ -63,8 +68,12 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand 
         value: formatCurrency(actual),
       },
       k2: {
-        label: t(language, brand === 'X' ? 'mom' : 'yoy'),
-        value: `${compareRate.toFixed(1)}%`,
+        label: hasCompareRate 
+          ? t(language, brand === 'X' ? 'mom' : 'yoy')
+          : (language === 'ko' ? '할인율' : 'Discount Rate'),
+        value: hasCompareRate 
+          ? `${compareRate.toFixed(0)}%`
+          : (hasDiscountRate ? `${discountRate.toFixed(1)}%` : 'N/A'),
       },
       k3: {
         label: t(language, 'progress'),
