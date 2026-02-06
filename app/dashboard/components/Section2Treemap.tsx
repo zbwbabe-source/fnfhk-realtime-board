@@ -294,7 +294,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {name}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="13" textAnchor="middle">
-                {yoy ? `YoY ${yoy.toFixed(0)}%` : 'N/A'}
+                {yoy ? `YoY ${yoy.toFixed(0)}%` : `할인 ${discount_rate.toFixed(1)}%`}
               </tspan>
             </text>
           </g>
@@ -409,7 +409,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `할인율: ${discount_rate?.toFixed(1)}%`}
               </text>
               <text
                 x={cx}
@@ -426,7 +426,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                {language === 'ko' ? '할인율' : 'Discount'}: {discount_rate?.toFixed(1)}%
+                {yoy ? `${language === 'ko' ? '할인율' : 'Discount'}: ${discount_rate?.toFixed(1)}%` : `비중: ${sales_pct?.toFixed(1)}%`}
               </text>
               <text
                 x={cx}
@@ -559,7 +559,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `할인 ${discount_rate?.toFixed(1)}%`}
               </text>
             </g>
           </g>
@@ -624,7 +624,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `할인 ${discount_rate?.toFixed(1)}%`}
               </text>
             </g>
           </g>
@@ -723,7 +723,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
           </div>
           <div>
             <span className="font-semibold">YoY:</span>{' '}
-            {data.yoy ? `${data.yoy.toFixed(0)}%` : 'N/A'}
+            {data.yoy ? `${data.yoy.toFixed(0)}%` : `N/A (할인율 ${data.discount_rate?.toFixed(1)}%)`}
           </div>
           <div>
             <span className="font-semibold">{language === 'ko' ? '할인율' : 'Discount'}:</span>{' '}
