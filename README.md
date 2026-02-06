@@ -35,6 +35,12 @@ FNF HKMC(홍콩+마카오) 리전의 매출 및 재고 판매율을 실시간으
 
 ## 기능
 
+### AI 요약 및 음성 읽기 (TTS)
+- OpenAI 기반 AI 경영 요약 자동 생성
+- ElevenLabs TTS로 요약 내용 음성 재생
+- 한국어/영어 지원
+- 아나운서 스타일의 자연스러운 음성
+
 ### 섹션 1: 매장별 매출 (ACT 기준)
 - HK/MC 매장별 MTD(Month-to-Date) 실적
 - 전년 동기 대비 YoY 비교
@@ -57,6 +63,7 @@ FNF HKMC(홍콩+마카오) 리전의 매출 및 재고 판매율을 실시간으
 - **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Database**: Snowflake (SAP_FNF.DW_HMD_SALE_D, DW_HMD_STOCK_SNAP_D)
+- **AI/TTS**: OpenAI GPT-4, ElevenLabs Text-to-Speech
 - **Scheduler**: Vercel Cron
 - **Deployment**: Vercel
 - **Language**: TypeScript
@@ -129,11 +136,24 @@ SNOWFLAKE_SCHEMA=DASH
 SNOWFLAKE_WAREHOUSE=your_warehouse
 SNOWFLAKE_ROLE=your_role
 
+# OpenAI API Key (for AI insights)
+OPENAI_API_KEY=sk-your-openai-api-key
+
+# ElevenLabs API Key (for Text-to-Speech)
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+
 # Vercel Cron Protection
 CRON_SECRET=your_random_secret_key_here
 
 NODE_ENV=development
 ```
+
+#### ElevenLabs API 키 발급 방법
+
+1. https://elevenlabs.io 회원가입
+2. 무료 계정: 월 10,000 characters 제공
+3. API Keys 메뉴에서 새 키 생성
+4. `.env.local`에 `ELEVENLABS_API_KEY` 추가
 
 ### 3. 로컬 개발 서버 실행
 
@@ -189,6 +209,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA SAP_FNF.DASH TO ROLE your_role;
 | `SNOWFLAKE_SCHEMA` | 스키마 | `DASH` |
 | `SNOWFLAKE_WAREHOUSE` | Warehouse | `COMPUTE_WH` |
 | `SNOWFLAKE_ROLE` | 역할 (선택) | `ANALYST` |
+| `OPENAI_API_KEY` | OpenAI API 키 | `sk-...` |
+| `ELEVENLABS_API_KEY` | ElevenLabs API 키 | `...` |
 | `CRON_SECRET` | Cron 보안 키 | `random_secret_123` |
 
 ---
@@ -224,6 +246,8 @@ Vercel 프로젝트 설정 → Environment Variables에서 추가:
 - `SNOWFLAKE_SCHEMA`
 - `SNOWFLAKE_WAREHOUSE`
 - `SNOWFLAKE_ROLE` (선택)
+- `OPENAI_API_KEY`
+- `ELEVENLABS_API_KEY`
 - `CRON_SECRET`
 
 ### 4. Vercel Cron 설정

@@ -40,6 +40,17 @@ export default function DashboardPage() {
   } | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFailed, setInsightsFailed] = useState(false);
+  
+  // Executive Summary 데이터 상태 (미리 로드)
+  const [executiveSummary, setExecutiveSummary] = useState<{
+    main_summary: string;
+    key_insights: string[];
+  } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  
+  // AI 요약 표시 여부 상태
+  const [showAISummary, setShowAISummary] = useState(false);
 
   // 데이터 로딩 상태 추적
   const [dataLoadStatus, setDataLoadStatus] = useState<{
@@ -64,6 +75,12 @@ export default function DashboardPage() {
       setDashboardInsights(null);
       setInsightsLoading(false);
       setInsightsFailed(false);
+      // Executive Summary 상태 초기화
+      setExecutiveSummary(null);
+      setSummaryLoading(false);
+      setSummaryError('');
+      // AI 요약 표시 상태 초기화 (버튼을 다시 "AI 요약 보기"로 되돌림)
+      setShowAISummary(false);
     }
   }, [region, brand, date]);
 
@@ -84,6 +101,12 @@ export default function DashboardPage() {
     setDashboardInsights(null);
     setInsightsLoading(false);
     setInsightsFailed(false);
+    // Executive Summary 상태 초기화
+    setExecutiveSummary(null);
+    setSummaryLoading(false);
+    setSummaryError('');
+    // AI 요약 표시 상태 초기화
+    setShowAISummary(false);
   };
 
   // 섹션별 데이터 변경 핸들러 (로딩 상태 추적 포함) - useCallback으로 메모이제이션
@@ -190,13 +213,72 @@ export default function DashboardPage() {
     }
   }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date, language]);
 
+  // Executive Summary 미리 로드 (데이터 로딩 완료 시)
+  const fetchExecutiveSummary = useCallback(async () => {
+    if (!allDataLoaded || !section1Data || !section2Data || !section3Data) {
+      return;
+    }
+
+    setSummaryLoading(true);
+    setSummaryError('');
+    
+    console.log('🔍 Fetching Executive Summary...');
+    
+    try {
+      const response = await fetch('/api/insights/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          region,
+          brand,
+          asof_date: date,
+          section1: {
+            achievement_rate: section1Data.total_subtotal?.progress_ytd || 0,
+            yoy_ytd: section1Data.total_subtotal?.yoy_ytd || 0,
+            actual_sales_ytd: section1Data.total_subtotal?.ytd_act || 0,
+            target_ytd: section1Data.total_subtotal?.ytd_target || 0,
+          },
+          section2: {
+            sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
+            sales_amt: section2Data.header?.total_sales || 0,
+            inbound_amt: section2Data.header?.total_inbound || 0,
+            sales_yoy_pct: section2Data.header?.sales_yoy_pct || 100,
+          },
+          section3: {
+            sellthrough_rate: ((section3Data.header?.base_stock_amt || 0) - (section3Data.header?.curr_stock_amt || 0)) / (section3Data.header?.base_stock_amt || 1) * 100,
+            base_stock_amt: section3Data.header?.base_stock_amt || 0,
+            curr_stock_amt: section3Data.header?.curr_stock_amt || 0,
+            stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
+              ? ((section3Data.header?.stagnant_stock_amt || 0) / section3Data.header.curr_stock_amt * 100)
+              : 0,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch executive summary');
+      }
+
+      const data = await response.json();
+      console.log('✅ Executive Summary loaded:', data);
+      setExecutiveSummary(data);
+    } catch (err: any) {
+      console.error('❌ Executive summary fetch error:', err);
+      setSummaryError(err.message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date]);
+
   useEffect(() => {
     if (allDataLoaded) {
       // 데이터 로딩 완료 후 즉시 인사이트 가져오기
       console.log('✅ All data loaded, fetching insights immediately...');
       fetchDashboardInsights(0, false);
+      // Executive Summary도 미리 로드
+      fetchExecutiveSummary();
     }
-  }, [allDataLoaded, fetchDashboardInsights]);
+  }, [allDataLoaded, fetchDashboardInsights, fetchExecutiveSummary]);
 
   // 메타 데이터 로드
   useEffect(() => {
@@ -339,8 +421,36 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
-        {/* 통합 경영 요약 - 전체 데이터가 로드된 후 표시 */}
+        {/* AI 요약 버튼 */}
         {allDataLoaded && (
+          <div className="mb-6">
+            <button
+              onClick={() => setShowAISummary(!showAISummary)}
+              disabled={summaryLoading}
+              className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {summaryLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>{language === 'ko' ? 'AI 분석 중...' : 'AI Analyzing...'}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xl">🤖</span>
+                  <span>
+                    {showAISummary 
+                      ? (language === 'ko' ? 'AI 요약 숨기기' : 'Hide AI Summary')
+                      : (language === 'ko' ? 'AI 요약 보기' : 'View AI Summary')
+                    }
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        
+        {/* AI 요약 표시 (버튼 클릭 시에만) */}
+        {allDataLoaded && showAISummary && (
           <ExecutiveSummary
             region={region}
             brand={brand}
@@ -349,7 +459,9 @@ export default function DashboardPage() {
             section1Data={section1Data}
             section2Data={section2Data}
             section3Data={section3Data}
-            isLoading={anyDataLoading}
+            isLoading={false}
+            preloadedSummary={executiveSummary}
+            preloadedError={summaryError}
           />
         )}
         
