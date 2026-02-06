@@ -45,9 +45,15 @@ export default function ExecutiveSummary({
   const [error, setError] = useState(preloadedError || '');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
+  const [manuallyEdited, setManuallyEdited] = useState(false); // 수동 편집 플래그
 
-  // preloaded 데이터가 업데이트되면 state에 반영
+  // preloaded 데이터가 업데이트되면 state에 반영 (단, 수동 편집 중이 아닐 때만)
   useEffect(() => {
+    // 수동 편집 후라면 preloadedSummary로 덮어쓰지 않음
+    if (manuallyEdited) {
+      return;
+    }
+    
     if (preloadedSummary) {
       setSummary(preloadedSummary);
       setError('');
@@ -57,7 +63,7 @@ export default function ExecutiveSummary({
     if (preloadedError) {
       setError(preloadedError);
     }
-  }, [preloadedSummary, preloadedError]);
+  }, [preloadedSummary, preloadedError, manuallyEdited]);
 
   // 편집된 데이터인지 확인
   const checkIfEdited = async () => {
@@ -71,6 +77,11 @@ export default function ExecutiveSummary({
       console.error('Failed to check if edited:', err);
     }
   };
+
+  // region, brand, date가 변경되면 수동 편집 플래그 초기화
+  useEffect(() => {
+    setManuallyEdited(false);
+  }, [region, brand, date]);
 
   useEffect(() => {
     // preloaded 데이터가 있으면 fetch하지 않음
@@ -200,6 +211,7 @@ export default function ExecutiveSummary({
   const handleSave = (data: { main_summary: string; key_insights: string[] }) => {
     setSummary(data);
     setIsEdited(true);
+    setManuallyEdited(true); // 수동 편집 플래그 설정
     if (onSummaryUpdated) {
       onSummaryUpdated(data);
     }
