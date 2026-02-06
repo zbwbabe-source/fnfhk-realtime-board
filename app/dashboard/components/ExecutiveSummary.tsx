@@ -224,13 +224,23 @@ export default function ExecutiveSummary({
 
   const handleSave = (data: { main_summary: string; key_insights: string[] }) => {
     console.log('🔄 handleSave called with data:', data);
-    setSummary(data);
+    
+    // 새 객체로 생성하여 참조 변경 (React 리렌더링 보장)
+    const newSummary = {
+      main_summary: data.main_summary,
+      key_insights: [...data.key_insights]
+    };
+    
+    setSummary(newSummary);
     setIsEdited(true);
     manuallyEditedRef.current = true; // ref로 즉시 설정
-    prevPreloadedSummaryRef.current = data; // 이 데이터를 이전 값으로 저장
-    console.log('✅ Local summary updated, manuallyEdited set to true');
+    prevPreloadedSummaryRef.current = newSummary; // 이 데이터를 이전 값으로 저장
+    
+    console.log('✅ Local summary updated:', newSummary);
+    console.log('✅ manuallyEdited set to true');
+    
     if (onSummaryUpdated) {
-      onSummaryUpdated(data);
+      onSummaryUpdated(newSummary);
       console.log('✅ onSummaryUpdated callback called');
     }
   };
@@ -264,7 +274,7 @@ export default function ExecutiveSummary({
 
         {/* 주요내용 */}
         <div className="mb-5">
-          <p className="text-base text-gray-800 leading-relaxed whitespace-pre-line">
+          <p key={summary.main_summary} className="text-base text-gray-800 leading-relaxed whitespace-pre-line">
             {summary.main_summary}
           </p>
         </div>
@@ -279,7 +289,7 @@ export default function ExecutiveSummary({
           </div>
           <ul className="space-y-2">
             {summary.key_insights.map((insight, index) => (
-              <li key={index} className="flex items-start gap-2">
+              <li key={`${insight}-${index}`} className="flex items-start gap-2">
                 <span className="text-orange-500 font-bold mt-0.5">•</span>
                 <span className="text-sm text-gray-800 leading-relaxed flex-1">
                   {insight}
