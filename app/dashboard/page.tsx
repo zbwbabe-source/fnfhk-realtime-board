@@ -79,8 +79,8 @@ export default function DashboardPage() {
       setExecutiveSummary(null);
       setSummaryLoading(false);
       setSummaryError('');
-      // AI 요약 표시 상태는 유지 (브랜드/지역 변경 시 자동으로 새 요약 표시)
-      // setShowAISummary(false); // 제거: 사용자가 요약을 보고 있었다면 계속 보여줌
+      // AI 요약 표시 상태 초기화 (버튼을 다시 "AI 요약 보기"로 되돌림)
+      setShowAISummary(false);
     }
   }, [region, brand, date]);
 
@@ -105,8 +105,8 @@ export default function DashboardPage() {
     setExecutiveSummary(null);
     setSummaryLoading(false);
     setSummaryError('');
-    // AI 요약 표시 상태는 유지 (새로고침 시에도 계속 표시)
-    // setShowAISummary(false); // 제거
+    // AI 요약 표시 상태 초기화
+    setShowAISummary(false);
   };
 
   // 섹션별 데이터 변경 핸들러 (로딩 상태 추적 포함) - useCallback으로 메모이제이션
