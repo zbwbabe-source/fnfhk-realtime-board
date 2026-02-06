@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 import {
   calculateSalesPerAreaPerDay,
@@ -735,129 +735,96 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 <option value="per_area">{language === 'ko' ? '평당매출/1일' : 'Sales/Area/Day'}</option>
               </select>
             </div>
-            
-            {/* 모바일 스크롤 안내 */}
-            {isMobile && displayData.length > 5 && (
-              <div className="px-3 py-1.5 bg-blue-50 border-t border-blue-100">
-                <p className="text-[10px] text-blue-700 text-center">
-                  👈 {language === 'ko' ? '좌우로 스크롤하여 전체 매장 확인' : 'Scroll left/right to see all stores'} 👉
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* 모달 차트 - 가로 스크롤 가능 */}
+          {/* 모달 차트 */}
           <div className="flex-1 min-h-0 overflow-auto">
-            <div className={isMobile ? 'p-2 min-w-max' : 'p-6'}>
+            <div className={isMobile ? 'py-2' : 'p-6'}>
               {isMobile ? (
-                // 모바일: 동적 너비로 가로 스크롤
-                <div style={{ width: Math.max(displayData.length * 50, 320), height: '100%', minHeight: 400 }}>
-                  <ComposedChart 
-                    data={displayData} 
-                    width={Math.max(displayData.length * 50, 320)}
-                    height={400}
-                    margin={{ top: 10, right: 40, left: 10, bottom: 60 }}
-                  >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                
-                {/* X축: 매장 축약 코드 (모달에서는 30도 사선) */}
-                <XAxis
-                  dataKey="shortCode"
-                  stroke="#6b7280"
-                  style={{ fontSize: '12px', fontWeight: 500 }}
-                  angle={-30}
-                  textAnchor="end"
-                  height={70}
-                  interval={0}
-                />
-                
-                {/* 왼쪽 Y축: 실판매출 또는 평당매출 */}
-                <YAxis
-                  yAxisId="left"
-                  stroke="#6b7280"
-                  style={{ fontSize: '12px' }}
-                  tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
-                  domain={[0, maxSales * 1.1]}
-                  label={{
-                    value: showSalesPerArea 
-                      ? (language === 'ko' ? '평당매출/1일 (HKD/평/일)' : 'Sales/Area/Day (HKD)')
-                      : (language === 'ko' ? '실판매출 (HKD)' : 'Sales (HKD)'),
-                    angle: -90,
-                    position: 'insideLeft',
-                    style: { fontSize: '12px', fill: '#6b7280' }
-                  }}
-                />
-                
-                {/* 오른쪽 Y축: YoY% - 0~150% 고정 */}
-                <YAxis
-                  yAxisId="yoy"
-                  orientation="right"
-                  stroke="#ea580c"
-                  style={{ fontSize: '12px' }}
-                  tickFormatter={(value) => `${Math.round(value)}%`}
-                  domain={[0, 150]}
-                  allowDataOverflow={false}
-                  label={{
-                    value: 'YoY (%)',
-                    angle: 90,
-                    position: 'insideRight',
-                    style: { fontSize: '12px', fill: '#ea580c' }
-                  }}
-                />
-                
-                <Tooltip content={<CustomTooltip />} />
-                
-                {/* YoY 100% 기준선 (점선) */}
-                <ReferenceLine 
-                  y={100} 
-                  yAxisId="yoy"
-                  stroke="#374151" 
-                  strokeDasharray="3 3"
-                  strokeWidth={1.5}
-                  label={{ 
-                    value: '100%', 
-                    position: 'right',
-                    fill: '#374151',
-                    fontSize: 11,
-                    offset: 5
-                  }}
-                />
-                
-                {/* 막대그래프: 실판매출 또는 평당매출 */}
-                <Bar
-                  yAxisId="left"
-                  dataKey="sales"
-                  fill="#93C5FD"
-                  radius={[4, 4, 0, 0]}
-                  shape={(props: any) => {
-                    const { fill, x, y, width, height, payload } = props;
-                    return (
-                      <rect
-                        x={x}
-                        y={y}
-                        width={width}
-                        height={height}
-                        fill={payload.color}
-                        rx={4}
-                        ry={4}
+                // 모바일: 가로형 Bar + YoY Dot + 세로 스크롤
+                <div style={{ height: displayData.length * 45 + 80, width: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart 
+                      data={displayData}
+                      layout="horizontal"
+                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                      
+                      {/* Y축: 매장명 (축약코드) */}
+                      <YAxis
+                        type="category"
+                        dataKey="shortCode"
+                        stroke="#6b7280"
+                        style={{ fontSize: '11px', fontWeight: 500 }}
+                        width={45}
+                        tick={{ fill: '#374151' }}
                       />
-                    );
-                  }}
-                />
-                
-                {/* 꺾은선: YoY% - clamped 데이터 사용 */}
-                <Line
-                  yAxisId="yoy"
-                  type="monotone"
-                  dataKey="yoy_clamped"
-                  stroke="#ea580c"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: '#ea580c', stroke: '#fff', strokeWidth: 2 }}
-                  connectNulls={false}
-                  strokeOpacity={0.7}
-                />
-              </ComposedChart>
+                      
+                      {/* Primary X축: 실판매출 */}
+                      <XAxis
+                        xAxisId="sales"
+                        type="number"
+                        stroke="#6b7280"
+                        style={{ fontSize: '11px' }}
+                        tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
+                        domain={[0, maxSales * 1.1]}
+                      />
+                      
+                      {/* Secondary X축: YoY (0~150%) */}
+                      <XAxis
+                        xAxisId="yoy"
+                        type="number"
+                        orientation="top"
+                        stroke="#ea580c"
+                        style={{ fontSize: '10px' }}
+                        tickFormatter={(value) => `${Math.round(value)}%`}
+                        domain={[0, 150]}
+                        ticks={[0, 50, 100, 150]}
+                        tick={{ fill: '#ea580c' }}
+                      />
+                      
+                      <Tooltip content={<CustomTooltip />} />
+                      
+                      {/* YoY 100% 기준선 (점선) */}
+                      <ReferenceLine 
+                        x={100}
+                        xAxisId="yoy"
+                        stroke="#000"
+                        strokeDasharray="3 3"
+                        strokeWidth={1}
+                        label={{ value: '100%', position: 'top', fontSize: 10, fill: '#666' }}
+                      />
+                      
+                      {/* 가로 막대: 실판매출 */}
+                      <Bar
+                        xAxisId="sales"
+                        dataKey="sales"
+                        radius={[0, 4, 4, 0]}
+                        barSize={32}
+                      >
+                        {displayData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                      
+                      {/* YoY Dot (점으로만 표시, Line 제거) */}
+                      <Scatter
+                        xAxisId="yoy"
+                        dataKey="yoy_clamped"
+                        fill="#ea580c"
+                        shape="circle"
+                      >
+                        {displayData.map((entry, index) => (
+                          <Cell 
+                            key={`dot-${index}`} 
+                            fill="#ea580c"
+                            r={4}
+                          />
+                        ))}
+                      </Scatter>
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
               ) : (
                 // 데스크톱: ResponsiveContainer 사용
