@@ -109,7 +109,7 @@ export default function SummaryCards({
       },
       k2: {
         label: t(language, 'yoy'),
-        value: `${yoy.toFixed(1)}%`,
+        value: `${yoy.toFixed(0)}%`,
       },
       k3: {
         label: t(language, 'progress'),

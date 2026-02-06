@@ -354,7 +354,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
                       <div className={`text-sm mt-1 font-semibold ${
                         data.header.sales_yoy_pct >= 100 ? 'text-blue-600' : 'text-red-600'
                       }`}>
-                        (YoY {data.header.sales_yoy_pct.toFixed(1)}%)
+                        (YoY {data.header.sales_yoy_pct.toFixed(0)}%)
                       </div>
                     )}
                   </div>

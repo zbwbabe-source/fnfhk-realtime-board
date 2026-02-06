@@ -261,6 +261,10 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
   };
 
   const formatPercent = (num: number) => {
+    return `${num.toFixed(0)}%`;
+  };
+
+  const formatProgress = (num: number) => {
     return `${num.toFixed(1)}%`;
   };
 
@@ -309,7 +313,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               <td className={`px-4 py-2 border-b border-gray-200 text-right ${
                 subtotalProgress < 80 ? 'text-red-600' : 'text-green-600'
               }`}>
-                {formatPercent(subtotalProgress)}
+                {formatProgress(subtotalProgress)}
               </td>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
                 {formatNumber(subtotalActualPy)}
@@ -400,7 +404,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${
           isClosed ? 'text-gray-400' : (progressValue < 80 ? 'text-red-600' : 'text-green-600')
         }`}>
-          {formatPercent(progressValue)}
+          {formatProgress(progressValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
           {formatNumber(actualPyValue)}

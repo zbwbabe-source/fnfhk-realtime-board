@@ -315,7 +315,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
 
   const formatYoY = (value: number | null) => {
     if (value === null) return 'N/A';
-    return `${value.toFixed(1)}%`;
+    return `${value.toFixed(0)}%`;
   };
 
   // Tooltip 커스텀 (원본 매장명 + 축약 코드 표시)
