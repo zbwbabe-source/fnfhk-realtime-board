@@ -440,7 +440,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
 
   // Y축 범위 계산
   const maxSales = Math.max(...displayData.map(d => d.sales));
-  const yoyValues = displayData.filter(d => d.yoy !== null).map(d => d.yoy as number);
+  const yoyValues = displayData.filter(d => d.yoy_raw !== null).map(d => d.yoy_raw as number);
   
   // YoY 범위: 최대 150%로 고정
   const maxYoY = 150;
