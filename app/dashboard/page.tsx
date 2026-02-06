@@ -6,7 +6,7 @@ import BrandSelect from './components/BrandSelect';
 import DateSelect from './components/DateSelect';
 import Section1Table from './components/Section1Table';
 import Section1Card from './components/Section1Card';
-import Section1MonthlyTrend from './components/Section1MonthlyTrend';
+import Section1StoreBarChart from './components/Section1StoreBarChart';
 import Section2Card from './components/Section2Card';
 import Section2Treemap from './components/Section2Treemap';
 import Section2SellThrough from './components/Section2SellThrough';
@@ -363,7 +363,7 @@ export default function DashboardPage() {
               language={language}
               brand={brand}
             />
-            <Section1MonthlyTrend
+            <Section1StoreBarChart
               region={region}
               brand={brand}
               date={date}

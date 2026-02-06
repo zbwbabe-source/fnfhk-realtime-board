@@ -4,6 +4,15 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import { type Language } from '@/lib/translations';
 import { getColorByLargeCategory } from '@/lib/category-utils';
+import { 
+  CardShell, 
+  CardHeader,
+  CardControls,
+  CardChartBody, 
+  ExpandButton,
+  compactButtonGroupClass,
+  compactButtonClass
+} from './common/CardShell';
 
 interface TreemapProps {
   region: string;
@@ -609,97 +618,94 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
   return (
     <>
       {/* ========== 기본 카드 (COMPACT 모드) ========== */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-[488px] flex flex-col relative">
-        {/* Loading overlay - shows while fetching but keeps existing data visible */}
+      <CardShell>
+        {/* Loading overlay */}
         {loading && data && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-lg">
-            <div className="bg-white px-4 py-2 rounded-md shadow-lg border border-gray-200">
-              <span className="text-sm text-gray-700">
+            <div className="bg-white px-3 py-1.5 rounded shadow-lg border border-gray-200">
+              <span className="text-xs text-gray-700">
                 {language === 'ko' ? '업데이트 중...' : 'Updating...'}
               </span>
             </div>
           </div>
         )}
-        {/* 헤더: 제목 + 당월/누적 버튼 + 확대 버튼 */}
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              {language === 'ko' ? '카테고리별 매출 구성' : 'Sales by Category'}
-            </h3>
-            {data && (
-              <div className="text-xs text-gray-500 mt-1">
+        
+        {/* 1단: 헤더 - 제목 + 기준일 */}
+        <CardHeader
+          title={language === 'ko' ? '카테고리별 매출 구성' : 'Sales by Category'}
+          subtitle={
+            data && (
+              <>
                 {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {/* 당월/누적 토글 */}
-            <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setMode('monthly')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  mode === 'monthly'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {language === 'ko' ? '당월' : 'Monthly'}
-              </button>
-              <button
-                onClick={() => setMode('ytd')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  mode === 'ytd'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {language === 'ko' ? '누적' : 'YTD'}
-              </button>
-            </div>
-            {/* 확대 버튼 */}
+              </>
+            )
+          }
+        />
+
+        {/* 2단: 컨트롤 - 당월/누적 토글 + 확대버튼 */}
+        <CardControls
+          expandButton={
             <button
               onClick={() => setIsModalOpen(true)}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-              title={language === 'ko' ? '확대' : 'Expand'}
+              className="group flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 transition-all duration-200 border border-blue-200 hover:border-blue-300"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-                />
+              <svg 
+                className="w-3 h-3 text-blue-600 group-hover:scale-110 transition-transform" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
               </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Breadcrumb */}
-        {currentPath.length > 0 && (
-          <div className="mb-2 flex items-center gap-2 text-sm">
-            <button
-              onClick={() => handleBreadcrumbClick(-1)}
-              className="text-blue-600 hover:text-blue-800 hover:underline"
-            >
-              {language === 'ko' ? '전체' : 'All'}
-            </button>
-            {currentPath.map((path, idx) => (
-              <span key={idx} className="flex items-center gap-2">
-                <span className="text-gray-400">&gt;</span>
-                <button
-                  onClick={() => handleBreadcrumbClick(idx)}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  {path}
-                </button>
+              <span className="text-[10px] font-medium text-blue-700 group-hover:text-blue-800 whitespace-nowrap">
+                {language === 'ko' ? '상세 보기' : 'View Details'}
               </span>
-            ))}
+            </button>
+          }
+        >
+          <div className={compactButtonGroupClass}>
+            <button
+              onClick={() => setMode('monthly')}
+              className={compactButtonClass(mode === 'monthly')}
+            >
+              {language === 'ko' ? '당월' : 'MTD'}
+            </button>
+            <button
+              onClick={() => setMode('ytd')}
+              className={compactButtonClass(mode === 'ytd')}
+            >
+              {language === 'ko' ? '누적' : 'YTD'}
+            </button>
           </div>
-        )}
 
-        {/* Treemap 차트 - COMPACT 모드 */}
-        <div 
-          className={`flex-1 transition-all duration-[160ms] ease-out ${
+          {/* Breadcrumb (컨트롤 라인에 통합) */}
+          {currentPath.length > 0 && (
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => handleBreadcrumbClick(-1)}
+                className="text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {language === 'ko' ? '전체' : 'All'}
+              </button>
+              {currentPath.map((path, idx) => (
+                <span key={idx} className="flex items-center gap-1.5">
+                  <span className="text-gray-400">&gt;</span>
+                  <button
+                    onClick={() => handleBreadcrumbClick(idx)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[80px]"
+                  >
+                    {path}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </CardControls>
+
+        {/* 3단: 차트 영역 - 남은 공간 전부 사용 */}
+        <CardChartBody 
+          className={`transition-all duration-[160ms] ease-out ${
             isTransitioning ? 'opacity-0 translate-y-1.5' : 'opacity-100 translate-y-0'
           }`}
         >
@@ -716,8 +722,8 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               <Tooltip content={<CustomTooltip />} />
             </Treemap>
           </ResponsiveContainer>
-        </div>
-      </div>
+        </CardChartBody>
+      </CardShell>
 
       {/* ========== 확대 모달 (DETAIL 모드) ========== */}
       {isModalOpen && (

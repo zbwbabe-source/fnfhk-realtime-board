@@ -149,6 +149,14 @@ export async function GET(request: NextRequest) {
             END
           ) AS mtd_act_pm,
           
+          /* MTD TAG (정가 기준) */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+              THEN TAG_SALE_AMT ELSE 0
+            END
+          ) AS mtd_tag,
+          
           /* YTD ACT */
           SUM(
             CASE
@@ -163,7 +171,15 @@ export async function GET(request: NextRequest) {
               WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
               THEN ACT_SALE_AMT ELSE 0
             END
-          ) AS ytd_act_py
+          ) AS ytd_act_py,
+          
+          /* YTD TAG (정가 기준) */
+          SUM(
+            CASE
+              WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+              THEN TAG_SALE_AMT ELSE 0
+            END
+          ) AS ytd_tag
           
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE
@@ -177,6 +193,7 @@ export async function GET(request: NextRequest) {
         mtd_act,
         mtd_act_py,
         mtd_act_pm,
+        mtd_tag,
         CASE
           WHEN mtd_act_py > 0
           THEN (mtd_act / mtd_act_py) * 100
@@ -189,6 +206,7 @@ export async function GET(request: NextRequest) {
         END AS mom,
         ytd_act,
         ytd_act_py,
+        ytd_tag,
         CASE
           WHEN ytd_act_py > 0
           THEN (ytd_act / ytd_act_py) * 100
@@ -199,11 +217,13 @@ export async function GET(request: NextRequest) {
     `;
 
     const rows = await executeSnowflakeQuery(query, [
-      date, date,           // MTD current
-      date, date,           // MTD PY
-      date, date,           // MTD PM (전월)
-      date, date,           // YTD current
-      date, date,           // YTD PY
+      date, date,           // MTD ACT current
+      date, date,           // MTD ACT PY
+      date, date,           // MTD ACT PM (전월)
+      date, date,           // MTD TAG current
+      date, date,           // YTD ACT current
+      date, date,           // YTD ACT PY
+      date, date,           // YTD TAG current
       brand,                // brand filter
       date, date            // date range filter
     ]);
@@ -240,13 +260,19 @@ export async function GET(request: NextRequest) {
       const mtd_act = parseFloat(row.MTD_ACT || 0);
       const mtd_act_py = parseFloat(row.MTD_ACT_PY || 0);
       const mtd_act_pm = parseFloat(row.MTD_ACT_PM || 0);
+      const mtd_tag = parseFloat(row.MTD_TAG || 0);
       const yoy = parseFloat(row.YOY || 0);
       const mom = parseFloat(row.MOM || 0);
       
       // YTD 데이터
       const ytd_act = parseFloat(row.YTD_ACT || 0);
       const ytd_act_py = parseFloat(row.YTD_ACT_PY || 0);
+      const ytd_tag = parseFloat(row.YTD_TAG || 0);
       const yoy_ytd = parseFloat(row.YOY_YTD || 0);
+      
+      // 할인율 계산: 1 - (ACT / TAG)
+      const discount_rate_mtd = mtd_tag > 0 ? (1 - (mtd_act / mtd_tag)) * 100 : 0;
+      const discount_rate_ytd = ytd_tag > 0 ? (1 - (ytd_act / ytd_tag)) * 100 : 0;
       
       // MTD 목표값 가져오기
       const targetInfo = targetsByStore[row.SHOP_CD];
@@ -279,6 +305,7 @@ export async function GET(request: NextRequest) {
         mom,
         monthEndProjection,
         projectedYoY,
+        discount_rate_mtd,
         
         // YTD 데이터
         ytd_target,
@@ -286,6 +313,7 @@ export async function GET(request: NextRequest) {
         progress_ytd,
         ytd_act_py,
         yoy_ytd,
+        discount_rate_ytd,
         
         forecast: null,
       };
