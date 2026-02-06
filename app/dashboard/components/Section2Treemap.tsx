@@ -293,7 +293,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               <tspan x={x + width / 2} dy="-0.5em" fontSize="14">
                 {name}
               </tspan>
-              <tspan x={x + 8} dy="1.5em" fontSize="13" textAnchor="start">
+              <tspan x={x + width / 2} dy="1.5em" fontSize="13" textAnchor="middle">
                 {yoy ? `YoY ${yoy.toFixed(0)}%` : 'N/A'}
               </tspan>
             </text>
@@ -304,11 +304,28 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
       // ========== DETAIL 모드: 모든 지표 표시 ==========
       const discountColor = discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
       const discountSymbol = discount_rate_diff > 0 ? '+' : '▼';
+      
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      const clipId = `clip-${x}-${y}-${width}-${height}`;
 
-      // 초대형 셀 (>180px): 모든 정보
-      if (width > 180 && height > 140) {
+      // 타일 크기에 따른 표시 레벨 결정
+      let displayLevel = 0;
+      if (width >= 170 && height >= 120) displayLevel = 6; // 풀 정보
+      else if (width >= 130 && height >= 90) displayLevel = 4; // 기본 정보  
+      else if (width >= 90 && height >= 60) displayLevel = 2; // 코드 + YoY
+      else if (width >= 50 && height >= 40) displayLevel = 1; // 코드만
+      else displayLevel = 0; // 텍스트 없음
+
+      // 초대형 셀 (>170px): 모든 정보
+      if (displayLevel === 6) {
         return (
           <g>
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={x} y={y} width={width} height={height} />
+              </clipPath>
+            </defs>
             <rect
               x={x}
               y={y}
@@ -324,56 +341,141 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 }
               }}
             />
-            <text
-              x={x + width / 2}
-              y={y + height / 2}
-              textAnchor="middle"
-              fill="#111"
-              stroke="none"
-              strokeWidth={0}
-              style={{ 
-                fontWeight: 500, 
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                textShadow: 'none', 
-                filter: 'none' 
-              }}
-            >
-              <tspan x={x + width / 2} dy="-4.5em" fontSize="18" fontWeight="600">
+            <g clipPath={`url(#${clipId})`}>
+              <text
+                x={cx}
+                y={cy - 48}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="18"
+                fontWeight="600"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 {name}
-              </tspan>
-              <tspan x={x + 10} dy="1.8em" fontSize="15" textAnchor="start">
+              </text>
+              <text
+                x={cx}
+                y={cy - 25}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="15"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 {language === 'ko' ? '택매출' : 'Tag'}: {formatSales(sales_tag || 0)}
-              </tspan>
-              <tspan x={x + 10} dy="1.5em" fontSize="15" textAnchor="start">
+              </text>
+              <text
+                x={cx}
+                y={cy - 7}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="15"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 {language === 'ko' ? '실판매출' : 'Actual'}: {formatSales(sales_act || 0)}
-              </tspan>
-              <tspan x={x + 10} dy="1.5em" fontSize="14" textAnchor="start">
+              </text>
+              <text
+                x={cx}
+                y={cy + 11}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="14"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
-              </tspan>
-              <tspan x={x + 10} dy="1.5em" fontSize="14" textAnchor="start">
+              </text>
+              <text
+                x={cx}
+                y={cy + 27}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="14"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 {language === 'ko' ? '할인율' : 'Discount'}: {discount_rate?.toFixed(1)}%
-              </tspan>
-              <tspan 
-                x={x + 10} 
-                dy="1.4em" 
+              </text>
+              <text
+                x={cx}
+                y={cy + 42}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={discountColor}
+                stroke="none"
+                strokeWidth={0}
                 fontSize="13"
-                fill={discountColor}
-                textAnchor="start"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
               >
                 ({discountSymbol}{Math.abs(discount_rate_diff || 0).toFixed(1)}%p)
-              </tspan>
-              <tspan x={x + 10} dy="1.5em" fontSize="14" textAnchor="start">
+              </text>
+              <text
+                x={cx}
+                y={cy + 57}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="14"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
                 {language === 'ko' ? '비중' : 'Share'}: {sales_pct?.toFixed(1)}%
-              </tspan>
-            </text>
+              </text>
+            </g>
           </g>
         );
       }
 
-      // 대형 셀 (120-180px): 핵심 정보
-      if (width > 120 && height > 90) {
+      // 대형 셀 (130-170px): 핵심 정보
+      if (displayLevel === 4) {
         return (
           <g>
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={x} y={y} width={width} height={height} />
+              </clipPath>
+            </defs>
             <rect
               x={x}
               y={y}
@@ -389,53 +491,155 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 }
               }}
             />
-            <text
-              x={x + width / 2}
-              y={y + height / 2}
-              textAnchor="middle"
-              fill="#111"
-              stroke="none"
-              strokeWidth={0}
-              style={{ 
-                fontWeight: 500, 
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                textShadow: 'none', 
-                filter: 'none' 
-              }}
-            >
-              <tspan x={x + width / 2} dy="-3em" fontSize="15" fontWeight="600">
-                {name}
-              </tspan>
-              <tspan x={x + 8} dy="1.5em" fontSize="13" textAnchor="start">
-                {language === 'ko' ? '택' : 'Tag'}: {formatSales(sales_tag || 0)}
-              </tspan>
-              <tspan x={x + 8} dy="1.3em" fontSize="13" textAnchor="start">
-                {language === 'ko' ? '실판' : 'Act'}: {formatSales(sales_act || 0)}
-              </tspan>
-              <tspan x={x + 8} dy="1.3em" fontSize="12" textAnchor="start">
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
-              </tspan>
-              <tspan x={x + 8} dy="1.2em" fontSize="12" textAnchor="start">
-                {language === 'ko' ? '할인' : 'Disc'}: {discount_rate?.toFixed(1)}%
-              </tspan>
-              <tspan 
-                x={x + 8} 
-                dy="1.2em" 
-                fontSize="11"
-                fill={discountColor}
-                textAnchor="start"
+            <g clipPath={`url(#${clipId})`}>
+              <text
+                x={cx}
+                y={cy - 32}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="15"
+                fontWeight="600"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
               >
-                ({discountSymbol}{Math.abs(discount_rate_diff || 0).toFixed(1)}%p)
-              </tspan>
-            </text>
+                {name}
+              </text>
+              <text
+                x={cx}
+                y={cy - 11}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="13"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                {language === 'ko' ? '택' : 'Tag'}: {formatSales(sales_tag || 0)}
+              </text>
+              <text
+                x={cx}
+                y={cy + 6}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="13"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                {language === 'ko' ? '실판' : 'Act'}: {formatSales(sales_act || 0)}
+              </text>
+              <text
+                x={cx}
+                y={cy + 23}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="12"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+              </text>
+            </g>
           </g>
         );
       }
 
-      // 중형 셀 (70-120px): 기본 정보
-      if (width > 70 && height > 60) {
+      // 중형 셀 (90-130px): 코드 + YoY
+      if (displayLevel === 2) {
         return (
           <g>
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={x} y={y} width={width} height={height} />
+              </clipPath>
+            </defs>
+            <rect
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              fill={fillColor}
+              stroke="#fff"
+              strokeWidth={1}
+              className="cursor-pointer"
+              onClick={() => {
+                if (currentPath.length < 1) {
+                  setCurrentPath([...currentPath, name]);
+                }
+              }}
+            />
+            <g clipPath={`url(#${clipId})`}>
+              <text
+                x={cx}
+                y={cy - 11}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="13"
+                fontWeight="600"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                {name}
+              </text>
+              <text
+                x={cx}
+                y={cy + 8}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="11"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
+              </text>
+            </g>
+          </g>
+        );
+      }
+
+      // 소형 셀 (50-90px): 코드만
+      if (displayLevel === 1) {
+        return (
+          <g>
+            <defs>
+              <clipPath id={clipId}>
+                <rect x={x} y={y} width={width} height={height} />
+              </clipPath>
+            </defs>
             <rect
               x={x}
               y={y}
@@ -452,81 +656,29 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               }}
             />
             <text
-              x={x + width / 2}
-              y={y + height / 2}
+              x={cx}
+              y={cy}
               textAnchor="middle"
+              dominantBaseline="middle"
               fill="#111"
               stroke="none"
               strokeWidth={0}
+              fontSize="11"
+              fontWeight="600"
+              clipPath={`url(#${clipId})`}
               style={{ 
-                fontWeight: 500, 
                 fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                textShadow: 'none', 
-                filter: 'none' 
+                textShadow: 'none',
+                filter: 'none'
               }}
             >
-              <tspan x={x + width / 2} dy="-2em" fontSize="13" fontWeight="600">
-                {name}
-              </tspan>
-              <tspan x={x + 6} dy="1.4em" fontSize="11" textAnchor="start">
-                {formatSales(sales_act || 0)}
-              </tspan>
-              <tspan x={x + 6} dy="1.2em" fontSize="10" textAnchor="start">
-                YoY: {yoy ? yoy.toFixed(0) : 'N/A'}%
-              </tspan>
-              <tspan x={x + 6} dy="1.2em" fontSize="10" textAnchor="start">
-                {discount_rate?.toFixed(1)}%
-              </tspan>
+              {name}
             </text>
           </g>
         );
       }
 
-      // 소형 셀 (40-70px): 이름과 YoY만
-      if (width > 40 && height > 35) {
-        return (
-          <g>
-            <rect
-              x={x}
-              y={y}
-              width={width}
-              height={height}
-              fill={fillColor}
-              stroke="#fff"
-              strokeWidth={2}
-              className="cursor-pointer"
-              onClick={() => {
-                if (currentPath.length < 1) {
-                  setCurrentPath([...currentPath, name]);
-                }
-              }}
-            />
-            <text
-              x={x + width / 2}
-              y={y + height / 2}
-              textAnchor="middle"
-              fill="#111"
-              stroke="none"
-              strokeWidth={0}
-              style={{ 
-                fontWeight: 500, 
-                fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                textShadow: 'none', 
-                filter: 'none' 
-              }}
-            >
-              <tspan x={x + width / 2} dy="-0.5em" fontSize="11">
-                {name}
-              </tspan>
-              <tspan x={x + 5} dy="1.3em" fontSize="10" textAnchor="start">
-                {yoy ? `${yoy.toFixed(0)}%` : 'N/A'}
-              </tspan>
-            </text>
-          </g>
-        );
-      }
-
-      // 극소형 셀: 텍스트 숨김
+      // 극소형 셀: 텍스트 없음
       return (
         <g>
           <rect
@@ -535,8 +687,8 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             width={width}
             height={height}
             fill={fillColor}
-            stroke="#fff"
-            strokeWidth={2}
+            stroke="none"
+            strokeWidth={0}
             className="cursor-pointer"
             onClick={() => {
               if (currentPath.length < 1) {
@@ -549,7 +701,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
     };
   }, [currentPath, language, data]);
 
-  // Custom Tooltip
+  // Custom Tooltip - 타일 크기와 무관하게 전체 정보 표시
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
 
@@ -564,26 +716,20 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
           <div>
             <span className="font-semibold">{language === 'ko' ? '택매출' : 'Tag Sales'}:</span>{' '}
             {formatSales(data.sales_tag || 0)}
-            {data.yoy && (
-              <span className="ml-2 text-blue-600">
-                (YoY {data.yoy.toFixed(0)}%)
-              </span>
-            )}
           </div>
           <div>
             <span className="font-semibold">{language === 'ko' ? '실판매출' : 'Actual Sales'}:</span>{' '}
             {formatSales(data.sales_act || 0)}
-            {data.yoy && (
-              <span className="ml-2 text-blue-600">
-                (YoY {data.yoy.toFixed(0)}%)
-              </span>
-            )}
+          </div>
+          <div>
+            <span className="font-semibold">YoY:</span>{' '}
+            {data.yoy ? `${data.yoy.toFixed(0)}%` : 'N/A'}
           </div>
           <div>
             <span className="font-semibold">{language === 'ko' ? '할인율' : 'Discount'}:</span>{' '}
             {data.discount_rate?.toFixed(1)}%
             <span style={{ color: discountColor, fontWeight: 'bold', marginLeft: '6px' }}>
-              ({discountSymbol}{data.discount_rate_diff?.toFixed(1)}%p)
+              ({discountSymbol}{Math.abs(data.discount_rate_diff || 0).toFixed(1)}%p)
             </span>
           </div>
           <div>
@@ -825,7 +971,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   isAnimationActive={false}
                   animationDuration={0}
                 >
-                  {/* 확대 모달에서는 툴팁 제거 - 정보가 블록 안에 직접 표시됨 */}
+                  <Tooltip content={<CustomTooltip />} />
                 </Treemap>
               </ResponsiveContainer>
             </div>

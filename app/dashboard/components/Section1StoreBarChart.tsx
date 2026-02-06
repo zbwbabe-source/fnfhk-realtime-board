@@ -427,7 +427,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold mb-4">
-          {language === 'ko' ? '매장별 실판매출' : 'Store Sales'}
+          {language === 'ko' ? '매장별 실판매출/평당매출' : 'Store Sales / Sales per Area'}
         </h3>
         <div className="h-[440px] flex items-center justify-center">
           <div className="text-gray-500 text-sm">
@@ -453,7 +453,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       <div className="px-4 pt-4 pb-2 flex items-start justify-between flex-shrink-0">
         <div>
           <h3 className="text-base font-semibold text-gray-900 leading-tight">
-            {language === 'ko' ? '매장별 실판매출' : 'Store Sales'}
+            {language === 'ko' ? '매장별 실판매출/평당매출' : 'Store Sales / Sales per Area'}
           </h3>
           {/* 2단: 기준일 표시 */}
           <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">
@@ -535,9 +535,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       )}
       
       {/* 4단: 차트 영역 - 남은 공간 전부 사용 (강제 높이 전달) */}
-      <div ref={chartRowRef} className="flex-1 min-h-0 w-full px-2 pb-2">
+      <div ref={chartRowRef} className="flex-1 min-h-0 w-full px-0 pb-2">
         {/* 범례 - 차트 외부 상단에 고정 */}
-        <div className="flex items-center gap-3 flex-wrap px-1 pb-1.5">
+        <div className="flex items-center gap-3 flex-wrap px-2 pb-1.5">
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
             <span className="text-[9px] text-gray-600">HK정상</span>
@@ -560,9 +560,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
           </div>
         </div>
         
-        <div className="w-full h-full min-h-0">
+        <div className="w-full h-full min-h-0 px-0">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={displayData} margin={{ top: 8, right: 40, left: 8, bottom: 8 }}>
+            <ComposedChart data={displayData} margin={{ top: 8, right: 4, left: 0, bottom: 12 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             
             {/* Legend 제거 - 차트 외부로 이동 */}
@@ -582,10 +582,10 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             <YAxis
               yAxisId="left"
               stroke="#6b7280"
-              style={{ fontSize: '10px' }}
+              style={{ fontSize: '9px' }}
               tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
               domain={[0, maxSales * 1.1]}
-              width={45}
+              width={42}
             />
             
             {/* 오른쪽 Y축: YoY% - 0~150% 고정 */}
@@ -593,11 +593,11 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
               yAxisId="yoy"
               orientation="right"
               stroke="#ea580c"
-              style={{ fontSize: '10px' }}
+              style={{ fontSize: '9px' }}
               tickFormatter={(value) => `${Math.round(value)}%`}
               domain={[0, 150]}
               allowDataOverflow={false}
-              width={40}
+              width={38}
             />
             
             <Tooltip content={<CustomTooltip />} />
@@ -660,21 +660,40 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     
     {/* ========== 확대 모달 ========== */}
     {isModalOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-auto">
-          {/* 모달 헤더 */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900">
-                {language === 'ko' ? '매장별 실판매출 (상세)' : 'Store Sales (Detail)'}
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                {language === 'ko' ? `기준일: ${date}` : `As of: ${date}`}
-              </p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 md:p-4">
+        <div className={`bg-white shadow-2xl w-full h-full flex flex-col ${
+          isMobile 
+            ? 'rounded-none' 
+            : 'rounded-lg max-w-6xl max-h-[90vh]'
+        }`}>
+          {/* 모달 헤더 - sticky */}
+          <div className="sticky top-0 bg-white border-b border-gray-200 z-10 flex-shrink-0">
+            <div className={`flex items-center justify-between ${isMobile ? 'p-3' : 'p-4'}`}>
+              <div>
+                <h3 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-xl'}`}>
+                  {language === 'ko' ? '매장별 실판매출/평당매출 (상세)' : 'Store Sales / Sales per Area (Detail)'}
+                </h3>
+                <p className={`text-gray-500 mt-0.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                  {language === 'ko' ? `기준일: ${date}` : `As of: ${date}`}
+                </p>
+              </div>
+              
+              {/* 닫기 버튼 */}
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                title={language === 'ko' ? '닫기' : 'Close'}
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
             
             {/* 모달 컨트롤 */}
-            <div className="flex items-center gap-3">
+            <div className={`flex items-center gap-2 border-t border-gray-100 ${
+              isMobile ? 'p-2 flex-wrap' : 'px-4 py-3'
+            }`}>
               {/* 드롭다운 1: 채널 선택 */}
               <select
                 value={selectedChannel}
@@ -684,7 +703,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                     setShowSalesPerArea(false);
                   }
                 }}
-                className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
                 <option value="전체">전체</option>
                 <option value="HK정상">HK정상</option>
@@ -697,7 +716,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
               <select
                 value={isYtdMode ? 'ytd' : 'mtd'}
                 onChange={(e) => setIsYtdMode(e.target.value === 'ytd')}
-                className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
                 <option value="mtd">{language === 'ko' ? '당월' : 'MTD'}</option>
                 <option value="ytd">{language === 'ko' ? '누적' : 'YTD'}</option>
@@ -708,31 +727,37 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 value={showSalesPerArea ? 'per_area' : 'sales'}
                 onChange={(e) => setShowSalesPerArea(e.target.value === 'per_area')}
                 disabled={!canShowSalesPerArea}
-                className={`px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   canShowSalesPerArea ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'
                 }`}
               >
                 <option value="sales">{language === 'ko' ? '실판매출' : 'Sales'}</option>
                 <option value="per_area">{language === 'ko' ? '평당매출/1일' : 'Sales/Area/Day'}</option>
               </select>
-
-              {/* 닫기 버튼 */}
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
-                title={language === 'ko' ? '닫기' : 'Close'}
-              >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
+            
+            {/* 모바일 스크롤 안내 */}
+            {isMobile && displayData.length > 5 && (
+              <div className="px-3 py-1.5 bg-blue-50 border-t border-blue-100">
+                <p className="text-[10px] text-blue-700 text-center">
+                  👈 {language === 'ko' ? '좌우로 스크롤하여 전체 매장 확인' : 'Scroll left/right to see all stores'} 👉
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* 모달 차트 */}
-          <div className="p-6">
-            <ResponsiveContainer width="100%" height={650}>
-              <ComposedChart data={displayData} margin={{ top: 10, right: 50, left: 10, bottom: 60 }}>
+          {/* 모달 차트 - 가로 스크롤 가능 */}
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className={isMobile ? 'p-2 min-w-max' : 'p-6'}>
+              {isMobile ? (
+                // 모바일: 동적 너비로 가로 스크롤
+                <div style={{ width: Math.max(displayData.length * 50, 320), height: '100%', minHeight: 400 }}>
+                  <ComposedChart 
+                    data={displayData} 
+                    width={Math.max(displayData.length * 50, 320)}
+                    height={400}
+                    margin={{ top: 10, right: 40, left: 10, bottom: 60 }}
+                  >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 
                 {/* X축: 매장 축약 코드 (모달에서는 30도 사선) */}
@@ -833,32 +858,135 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                   strokeOpacity={0.7}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+                </div>
+              ) : (
+                // 데스크톱: ResponsiveContainer 사용
+                <ResponsiveContainer width="100%" height={650}>
+                  <ComposedChart data={displayData} margin={{ top: 10, right: 50, left: 10, bottom: 60 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    
+                    <XAxis
+                      dataKey="shortCode"
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px', fontWeight: 500 }}
+                      angle={-30}
+                      textAnchor="end"
+                      height={70}
+                      interval={0}
+                    />
+                    
+                    <YAxis
+                      yAxisId="left"
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px' }}
+                      tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
+                      domain={[0, maxSales * 1.1]}
+                      label={{
+                        value: showSalesPerArea 
+                          ? (language === 'ko' ? '평당매출/1일 (HKD/평/일)' : 'Sales/Area/Day (HKD)')
+                          : (language === 'ko' ? '실판매출 (HKD)' : 'Sales (HKD)'),
+                        angle: -90,
+                        position: 'insideLeft',
+                        style: { fontSize: '12px', fill: '#6b7280' }
+                      }}
+                    />
+                    
+                    <YAxis
+                      yAxisId="yoy"
+                      orientation="right"
+                      stroke="#ea580c"
+                      style={{ fontSize: '12px' }}
+                      tickFormatter={(value) => `${Math.round(value)}%`}
+                      domain={[0, 150]}
+                      allowDataOverflow={false}
+                      label={{
+                        value: 'YoY (%)',
+                        angle: 90,
+                        position: 'insideRight',
+                        style: { fontSize: '12px', fill: '#ea580c' }
+                      }}
+                    />
+                    
+                    <Tooltip content={<CustomTooltip />} />
+                    
+                    <ReferenceLine 
+                      y={100} 
+                      yAxisId="yoy"
+                      stroke="#374151" 
+                      strokeDasharray="3 3"
+                      strokeWidth={1.5}
+                      label={{ 
+                        value: '100%', 
+                        position: 'right',
+                        fill: '#374151',
+                        fontSize: 11,
+                        offset: 5
+                      }}
+                    />
+                    
+                    <Bar
+                      yAxisId="left"
+                      dataKey="sales"
+                      fill="#93C5FD"
+                      radius={[4, 4, 0, 0]}
+                      shape={(props: any) => {
+                        const { fill, x, y, width, height, payload } = props;
+                        return (
+                          <rect
+                            x={x}
+                            y={y}
+                            width={width}
+                            height={height}
+                            fill={payload.color}
+                            rx={4}
+                            ry={4}
+                          />
+                        );
+                      }}
+                    />
+                    
+                    <Line
+                      yAxisId="yoy"
+                      type="monotone"
+                      dataKey="yoy_clamped"
+                      stroke="#ea580c"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: '#ea580c', stroke: '#fff', strokeWidth: 2 }}
+                      connectNulls={false}
+                      strokeOpacity={0.7}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
           
-          {/* 모달 하단 범례 */}
-          <div className="px-6 pb-6 flex items-center justify-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-              <span className="text-sm text-gray-700">HK정상</span>
+          {/* 모달 하단 범례 - 데스크톱만 */}
+          {!isMobile && (
+            <div className="px-6 pb-6 flex items-center justify-center gap-6 flex-wrap flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
+                <span className="text-sm text-gray-700">HK정상</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
+                <span className="text-sm text-gray-700">HK아울렛</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
+                <span className="text-sm text-gray-700">마카오</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
+                <span className="text-sm text-gray-700">HK온라인</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-0.5 bg-orange-600"></div>
+                <span className="text-sm text-gray-700">YoY %</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-              <span className="text-sm text-gray-700">HK아울렛</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-              <span className="text-sm text-gray-700">마카오</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-              <span className="text-sm text-gray-700">HK온라인</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-0.5 bg-orange-600"></div>
-              <span className="text-sm text-gray-700">YoY %</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     )}
