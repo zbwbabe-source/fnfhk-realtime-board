@@ -744,59 +744,61 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 // 모바일: 가로형 Bar + YoY Dot + 세로 스크롤
                 <div style={{ height: displayData.length * 50 + 120, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart 
+                    <ComposedChart
                       data={displayData}
-                      layout="horizontal"
-                      margin={{ top: 30, right: 40, left: 50, bottom: 20 }}
+                      layout="vertical" // ✅ 가로막대는 vertical
+                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }} // ✅ 마진 제거
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                      
-                      {/* Y축: 매장명 (축약코드) */}
+
+                      {/* Y축: 매장명 */}
                       <YAxis
+                        yAxisId="shops"
                         type="category"
                         dataKey="shortCode"
                         stroke="#6b7280"
                         style={{ fontSize: '11px', fontWeight: 500 }}
                         width={45}
                       />
-                      
-                      {/* Primary X축: 실판매출 (하단) */}
+
+                      {/* Primary X축: 실판매출 */}
                       <XAxis
                         xAxisId="sales"
                         type="number"
                         orientation="bottom"
                         stroke="#6b7280"
                         style={{ fontSize: '10px' }}
-                        tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
-                        domain={[0, 'auto']}
+                        tickFormatter={(v) => showSalesPerArea ? formatSalesPerArea(v) : formatSales(v)}
+                        domain={[0, 'dataMax']}
                       />
-                      
-                      {/* Secondary X축: YoY (상단, 0~150%) */}
+
+                      {/* Secondary X축: YoY */}
                       <XAxis
                         xAxisId="yoy"
                         type="number"
                         orientation="top"
                         stroke="#ea580c"
                         style={{ fontSize: '10px' }}
-                        tickFormatter={(value) => `${Math.round(value)}%`}
+                        tickFormatter={(v) => `${Math.round(v)}%`}
                         domain={[0, 150]}
                         ticks={[0, 50, 100, 150]}
                       />
-                      
+
                       <Tooltip content={<CustomTooltip />} />
-                      
-                      {/* YoY 100% 기준선 (점선) */}
-                      <ReferenceLine 
-                        x={100}
+
+                      {/* YoY 100% 기준선 */}
+                      <ReferenceLine
                         xAxisId="yoy"
+                        x={100}
                         stroke="#000"
                         strokeDasharray="3 3"
                         strokeWidth={1}
                       />
-                      
-                      {/* 가로 막대: 실판매출 (왼쪽에서 오른쪽으로) */}
+
+                      {/* 가로 막대: 실판매출 */}
                       <Bar
                         xAxisId="sales"
+                        yAxisId="shops"
                         dataKey="sales"
                         fill="#93c5fd"
                         radius={[0, 4, 4, 0]}
@@ -806,18 +808,16 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
-                      
-                      {/* YoY Dot (점으로만 표시) */}
+
+                      {/* YoY Dot */}
                       <Scatter
                         xAxisId="yoy"
+                        yAxisId="shops"
+                        data={displayData}
                         dataKey="yoy_clamped"
                         fill="#ea580c"
                         shape="circle"
-                      >
-                        {displayData.map((entry, index) => (
-                          <Cell key={`dot-${index}`} fill="#ea580c" />
-                        ))}
-                      </Scatter>
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
