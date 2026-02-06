@@ -742,12 +742,12 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             <div className={isMobile ? 'py-2' : 'p-6'}>
               {isMobile ? (
                 // 모바일: 가로형 Bar + YoY Dot + 세로 스크롤
-                <div style={{ height: displayData.length * 45 + 80, width: '100%' }}>
+                <div style={{ height: displayData.length * 45 + 100, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart 
                       data={displayData}
                       layout="horizontal"
-                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                      margin={{ top: 20, right: 10, left: 5, bottom: 10 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                       
@@ -761,17 +761,18 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         tick={{ fill: '#374151' }}
                       />
                       
-                      {/* Primary X축: 실판매출 */}
+                      {/* Primary X축: 실판매출 (하단) */}
                       <XAxis
                         xAxisId="sales"
                         type="number"
+                        orientation="bottom"
                         stroke="#6b7280"
-                        style={{ fontSize: '11px' }}
+                        style={{ fontSize: '10px' }}
                         tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
                         domain={[0, maxSales * 1.1]}
                       />
                       
-                      {/* Secondary X축: YoY (0~150%) */}
+                      {/* Secondary X축: YoY (상단, 0~150%) */}
                       <XAxis
                         xAxisId="yoy"
                         type="number"
@@ -800,6 +801,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                       <Bar
                         xAxisId="sales"
                         dataKey="sales"
+                        fill="#93c5fd"
                         radius={[0, 4, 4, 0]}
                         barSize={32}
                       >
@@ -811,15 +813,14 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                       {/* YoY Dot (점으로만 표시, Line 제거) */}
                       <Scatter
                         xAxisId="yoy"
+                        yAxisId="0"
                         dataKey="yoy_clamped"
                         fill="#ea580c"
-                        shape="circle"
                       >
                         {displayData.map((entry, index) => (
                           <Cell 
                             key={`dot-${index}`} 
                             fill="#ea580c"
-                            r={4}
                           />
                         ))}
                       </Scatter>
