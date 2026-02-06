@@ -225,6 +225,20 @@ export default function DashboardPage() {
     console.log('🔍 Fetching Executive Summary...');
     
     try {
+      // 1. 먼저 편집된 데이터가 있는지 확인
+      const editedResponse = await fetch(
+        `/api/insights/summary/edit?region=${region}&brand=${brand}&date=${date}`
+      );
+      const editedData = await editedResponse.json();
+      
+      if (editedData.edited && editedData.data) {
+        console.log('✅ Using edited summary from Redis');
+        setExecutiveSummary(editedData.data);
+        setSummaryLoading(false);
+        return;
+      }
+
+      // 2. 편집된 데이터가 없으면 AI 생성 요약 가져오기
       const response = await fetch('/api/insights/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -260,7 +274,7 @@ export default function DashboardPage() {
       }
 
       const data = await response.json();
-      console.log('✅ Executive Summary loaded:', data);
+      console.log('✅ Executive Summary loaded from AI');
       setExecutiveSummary(data);
     } catch (err: any) {
       console.error('❌ Executive summary fetch error:', err);
@@ -462,6 +476,9 @@ export default function DashboardPage() {
             isLoading={false}
             preloadedSummary={executiveSummary}
             preloadedError={summaryError}
+            onSummaryUpdated={(data) => {
+              setExecutiveSummary(data);
+            }}
           />
         )}
         

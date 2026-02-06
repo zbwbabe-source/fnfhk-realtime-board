@@ -12,6 +12,7 @@
     "convert-target": "node scripts/convert_target.js"
   },
   "dependencies": {
+    "@upstash/redis": "^1.36.2",
     "date-fns": "^3.3.1",
     "next": "^14.1.0",
     "openai": "^4.67.3",

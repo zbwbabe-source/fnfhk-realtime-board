@@ -38,6 +38,8 @@ FNF HKMC(홍콩+마카오) 리전의 매출 및 재고 판매율을 실시간으
 ### AI 요약
 - OpenAI 기반 AI 경영 요약 자동 생성
 - 한국어/영어 지원
+- **편집 기능**: AI 요약 내용을 수정하고 Upstash Redis에 저장
+- 편집된 요약은 30일간 유지되며 우선 표시됨
 
 ### 섹션 1: 매장별 매출 (ACT 기준)
 - HK/MC 매장별 MTD(Month-to-Date) 실적
@@ -137,6 +139,10 @@ SNOWFLAKE_ROLE=your_role
 # OpenAI API Key (for AI insights)
 OPENAI_API_KEY=sk-your-openai-api-key
 
+# Upstash Redis (for AI summary editing)
+UPSTASH_REDIS_REST_URL=https://your-redis-instance.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-redis-token
+
 # Vercel Cron Protection
 CRON_SECRET=your_random_secret_key_here
 
@@ -198,6 +204,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA SAP_FNF.DASH TO ROLE your_role;
 | `SNOWFLAKE_WAREHOUSE` | Warehouse | `COMPUTE_WH` |
 | `SNOWFLAKE_ROLE` | 역할 (선택) | `ANALYST` |
 | `OPENAI_API_KEY` | OpenAI API 키 | `sk-...` |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL | `https://...upstash.io` |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis 토큰 | `A...` |
 | `CRON_SECRET` | Cron 보안 키 | `random_secret_123` |
 
 ---
@@ -222,7 +230,7 @@ git push -u origin main
 3. GitHub Repository 연결
 4. "Import" 클릭
 
-### 3. 환경 변수 설정
+### 3. Vercel 환경 변수 설정
 
 Vercel 프로젝트 설정 → Environment Variables에서 추가:
 
@@ -234,6 +242,8 @@ Vercel 프로젝트 설정 → Environment Variables에서 추가:
 - `SNOWFLAKE_WAREHOUSE`
 - `SNOWFLAKE_ROLE` (선택)
 - `OPENAI_API_KEY`
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
 - `CRON_SECRET`
 
 ### 4. Vercel Cron 설정
