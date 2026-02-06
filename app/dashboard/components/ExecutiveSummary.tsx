@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { t, type Language } from '@/lib/translations';
 import ExecutiveSummaryEditModal from './ExecutiveSummaryEditModal';
 
@@ -45,25 +45,37 @@ export default function ExecutiveSummary({
   const [error, setError] = useState(preloadedError || '');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEdited, setIsEdited] = useState(false);
-  const [manuallyEdited, setManuallyEdited] = useState(false); // 수동 편집 플래그
+  const manuallyEditedRef = useRef(false); // ref로 변경 - 렌더링 사이클 문제 방지
+  const prevPreloadedSummaryRef = useRef<typeof preloadedSummary>(null);
 
-  // preloaded 데이터가 업데이트되면 state에 반영 (단, 수동 편집 중이 아닐 때만)
+  // preloaded 데이터가 실제로 변경되었을 때만 업데이트
   useEffect(() => {
     // 수동 편집 후라면 preloadedSummary로 덮어쓰지 않음
-    if (manuallyEdited) {
+    if (manuallyEditedRef.current) {
+      console.log('⏭️ Skipping preloadedSummary update (manually edited)');
       return;
     }
     
-    if (preloadedSummary) {
+    // 이전 값과 비교하여 실제로 변경되었는지 확인
+    const prevSummary = prevPreloadedSummaryRef.current;
+    const hasChanged = 
+      !prevSummary || 
+      !preloadedSummary ||
+      prevSummary.main_summary !== preloadedSummary.main_summary ||
+      JSON.stringify(prevSummary.key_insights) !== JSON.stringify(preloadedSummary.key_insights);
+    
+    if (preloadedSummary && hasChanged) {
+      console.log('📥 Updating from preloadedSummary (content changed):', preloadedSummary);
       setSummary(preloadedSummary);
       setError('');
+      prevPreloadedSummaryRef.current = preloadedSummary;
       // 편집된 데이터인지 확인
       checkIfEdited();
     }
     if (preloadedError) {
       setError(preloadedError);
     }
-  }, [preloadedSummary, preloadedError, manuallyEdited]);
+  }, [preloadedSummary, preloadedError]);
 
   // 편집된 데이터인지 확인
   const checkIfEdited = async () => {
@@ -80,7 +92,9 @@ export default function ExecutiveSummary({
 
   // region, brand, date가 변경되면 수동 편집 플래그 초기화
   useEffect(() => {
-    setManuallyEdited(false);
+    manuallyEditedRef.current = false;
+    prevPreloadedSummaryRef.current = null;
+    console.log('🔄 Filter changed, reset manual edit flag');
   }, [region, brand, date]);
 
   useEffect(() => {
@@ -209,11 +223,15 @@ export default function ExecutiveSummary({
   }
 
   const handleSave = (data: { main_summary: string; key_insights: string[] }) => {
+    console.log('🔄 handleSave called with data:', data);
     setSummary(data);
     setIsEdited(true);
-    setManuallyEdited(true); // 수동 편집 플래그 설정
+    manuallyEditedRef.current = true; // ref로 즉시 설정
+    prevPreloadedSummaryRef.current = data; // 이 데이터를 이전 값으로 저장
+    console.log('✅ Local summary updated, manuallyEdited set to true');
     if (onSummaryUpdated) {
       onSummaryUpdated(data);
+      console.log('✅ onSummaryUpdated callback called');
     }
   };
 
