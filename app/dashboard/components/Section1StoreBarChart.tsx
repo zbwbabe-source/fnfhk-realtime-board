@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell } from 'recharts';
+import { ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 import {
   calculateSalesPerAreaPerDay,
@@ -742,12 +742,12 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             <div className={isMobile ? 'py-2' : 'p-6'}>
               {isMobile ? (
                 // 모바일: 가로형 Bar + YoY Dot + 세로 스크롤
-                <div style={{ height: displayData.length * 45 + 100, width: '100%' }}>
+                <div style={{ height: displayData.length * 50 + 120, width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart 
                       data={displayData}
                       layout="horizontal"
-                      margin={{ top: 20, right: 10, left: 5, bottom: 10 }}
+                      margin={{ top: 30, right: 40, left: 50, bottom: 20 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                       
@@ -758,7 +758,6 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         stroke="#6b7280"
                         style={{ fontSize: '11px', fontWeight: 500 }}
                         width={45}
-                        tick={{ fill: '#374151' }}
                       />
                       
                       {/* Primary X축: 실판매출 (하단) */}
@@ -769,7 +768,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         stroke="#6b7280"
                         style={{ fontSize: '10px' }}
                         tickFormatter={(value) => showSalesPerArea ? formatSalesPerArea(value) : formatSales(value)}
-                        domain={[0, maxSales * 1.1]}
+                        domain={[0, 'auto']}
                       />
                       
                       {/* Secondary X축: YoY (상단, 0~150%) */}
@@ -782,7 +781,6 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         tickFormatter={(value) => `${Math.round(value)}%`}
                         domain={[0, 150]}
                         ticks={[0, 50, 100, 150]}
-                        tick={{ fill: '#ea580c' }}
                       />
                       
                       <Tooltip content={<CustomTooltip />} />
@@ -794,34 +792,30 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         stroke="#000"
                         strokeDasharray="3 3"
                         strokeWidth={1}
-                        label={{ value: '100%', position: 'top', fontSize: 10, fill: '#666' }}
                       />
                       
-                      {/* 가로 막대: 실판매출 */}
+                      {/* 가로 막대: 실판매출 (왼쪽에서 오른쪽으로) */}
                       <Bar
                         xAxisId="sales"
                         dataKey="sales"
                         fill="#93c5fd"
                         radius={[0, 4, 4, 0]}
-                        barSize={32}
+                        barSize={35}
                       >
                         {displayData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
                       
-                      {/* YoY Dot (점으로만 표시, Line 제거) */}
+                      {/* YoY Dot (점으로만 표시) */}
                       <Scatter
                         xAxisId="yoy"
-                        yAxisId="0"
                         dataKey="yoy_clamped"
                         fill="#ea580c"
+                        shape="circle"
                       >
                         {displayData.map((entry, index) => (
-                          <Cell 
-                            key={`dot-${index}`} 
-                            fill="#ea580c"
-                          />
+                          <Cell key={`dot-${index}`} fill="#ea580c" />
                         ))}
                       </Scatter>
                     </ComposedChart>
