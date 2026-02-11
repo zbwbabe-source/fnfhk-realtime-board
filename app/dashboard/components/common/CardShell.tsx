@@ -81,7 +81,7 @@ export function CardChartBody({ children, className = '' }: CardChartBodyProps) 
 /**
  * 컴팩트 드롭다운 스타일
  */
-export const compactSelectClass = "px-2.5 py-1.5 text-xs font-medium border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 h-[30px] min-w-[80px]";
+export const compactSelectClass = "px-2 py-1 text-[11px] font-medium border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-500 h-[28px] min-w-[70px]";
 
 /**
  * 컴팩트 버튼 그룹 스타일

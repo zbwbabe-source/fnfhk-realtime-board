@@ -79,6 +79,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
   const [showSalesPerArea, setShowSalesPerArea] = useState(false); // false: 실판매출, true: 평당매출
   const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, 마카오, HK온라인
   const [isModalOpen, setIsModalOpen] = useState(false); // 확대 모달 상태
+  const [yoyAxisMax, setYoyAxisMax] = useState<100 | 150 | 200 | 300 | 400 | 500>(150); // YoY 축 최대값
 
   // 반응형: 모바일 감지
   const [isMobile, setIsMobile] = useState(false);
@@ -206,9 +207,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       const actualSales = isYtdMode ? store.ytd_act : store.mtd_act;
       const yoyRaw = isYtdMode ? store.yoy_ytd : store.yoy;
       
-      // YoY clamp: 150% 초과 시 150%로 제한
+      // YoY clamp: yoyAxisMax 초과 시 제한
       const yoyClamped = yoyRaw !== null && yoyRaw !== undefined 
-        ? Math.min(yoyRaw, 150) 
+        ? Math.min(yoyRaw, yoyAxisMax) 
         : null;
 
       // 면적 정보 조회 (툴팁용)
@@ -267,7 +268,45 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     console.log('샘플:', sortedResult.slice(0, 3));
 
     return sortedResult;
-  }, [data, date, isYtdMode, showSalesPerArea, selectedChannel]);
+  }, [data, date, isYtdMode, showSalesPerArea, selectedChannel, yoyAxisMax]);
+
+  // 최적의 YoY 축 범위 자동 선택
+  const optimalYoyAxisMax = useMemo(() => {
+    if (chartData.length === 0) return 150; // 기본값
+
+    // 모든 매장의 yoy_raw 값 중 최대값 찾기
+    const maxYoy = Math.max(
+      ...chartData
+        .map(d => d.yoy_raw)
+        .filter((y): y is number => y !== null && y !== undefined)
+    );
+
+    // 최대 YoY 값이 없으면 기본값
+    if (!isFinite(maxYoy) || maxYoy <= 0) return 150;
+
+    // 최대값에 여유를 두고 적절한 범위 선택
+    if (maxYoy <= 90) return 100;
+    if (maxYoy <= 140) return 150;
+    if (maxYoy <= 180) return 200;
+    if (maxYoy <= 280) return 300;
+    if (maxYoy <= 380) return 400;
+    return 500;
+  }, [chartData]);
+
+  // 데이터가 변경될 때 yoyAxisMax를 자동으로 업데이트
+  useEffect(() => {
+    setYoyAxisMax(optimalYoyAxisMax);
+  }, [optimalYoyAxisMax]);
+
+  // YoY 축 ticks 계산 함수
+  const getYoyTicks = (max: 100 | 150 | 200 | 300 | 400 | 500) => {
+    if (max === 100) return [0, 25, 50, 75, 100];
+    if (max === 150) return [0, 50, 100, 150];
+    if (max === 200) return [0, 50, 100, 150, 200];
+    if (max === 300) return [0, 100, 200, 300];
+    if (max === 400) return [0, 100, 200, 300, 400];
+    return [0, 100, 200, 300, 400, 500];
+  };
 
   // 평당매출 모드 전환 시 온라인 채널 경고
   const canShowSalesPerArea = useMemo(() => {
@@ -482,8 +521,8 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       </div>
 
       {/* 3단: 컨트롤 - 드롭다운/토글 */}
-      <div className="px-4 pb-2 flex items-center gap-2 justify-between flex-shrink-0 flex-wrap md:flex-nowrap">
-        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
+      <div className="px-4 pb-2 flex items-center gap-1.5 justify-between flex-shrink-0 flex-wrap md:flex-nowrap">
+        <div className="flex items-center gap-1.5 flex-wrap md:flex-nowrap">
           <select
             value={selectedChannel}
             onChange={(e) => {
@@ -519,6 +558,20 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
           >
             <option value="sales">{language === 'ko' ? '실판매출' : 'Sales'}</option>
             <option value="per_area">{language === 'ko' ? '평당매출/1일' : 'Sales/Area/Day'}</option>
+          </select>
+
+          {/* YoY 축 범위 선택 드롭다운 */}
+          <select
+            value={yoyAxisMax}
+            onChange={(e) => setYoyAxisMax(Number(e.target.value) as 100 | 150 | 200 | 300 | 400 | 500)}
+            className={compactSelectClass}
+          >
+            <option value={100}>보조축: 100%</option>
+            <option value={150}>보조축: 150%</option>
+            <option value={200}>보조축: 200%</option>
+            <option value={300}>보조축: 300%</option>
+            <option value={400}>보조축: 400%</option>
+            <option value={500}>보조축: 500%</option>
           </select>
         </div>
       </div>
@@ -588,14 +641,15 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
               width={42}
             />
             
-            {/* 오른쪽 Y축: YoY% - 0~150% 고정 */}
+            {/* 오른쪽 Y축: YoY% - 동적 범위 */}
             <YAxis
               yAxisId="yoy"
               orientation="right"
               stroke="#ea580c"
               style={{ fontSize: '9px' }}
               tickFormatter={(value) => `${Math.round(value)}%`}
-              domain={[0, 150]}
+              domain={[0, yoyAxisMax]}
+              ticks={getYoyTicks(yoyAxisMax)}
               allowDataOverflow={false}
               width={38}
             />
@@ -734,6 +788,20 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 <option value="sales">{language === 'ko' ? '실판매출' : 'Sales'}</option>
                 <option value="per_area">{language === 'ko' ? '평당매출/1일' : 'Sales/Area/Day'}</option>
               </select>
+
+              {/* YoY 축 범위 선택 드롭다운 */}
+              <select
+                value={yoyAxisMax}
+                onChange={(e) => setYoyAxisMax(Number(e.target.value) as 100 | 150 | 200 | 300 | 400 | 500)}
+                className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              >
+                <option value={100}>보조축: 100%</option>
+                <option value={150}>보조축: 150%</option>
+                <option value={200}>보조축: 200%</option>
+                <option value={300}>보조축: 300%</option>
+                <option value={400}>보조축: 400%</option>
+                <option value={500}>보조축: 500%</option>
+              </select>
             </div>
           </div>
 
@@ -780,8 +848,8 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         stroke="#ea580c"
                         style={{ fontSize: '10px' }}
                         tickFormatter={(v) => `${Math.round(v)}%`}
-                        domain={[0, 150]}
-                        ticks={[0, 50, 100, 150]}
+                        domain={[0, yoyAxisMax]}
+                        ticks={getYoyTicks(yoyAxisMax)}
                       />
 
                       <Tooltip content={<CustomTooltip />} />
@@ -859,7 +927,8 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                       stroke="#ea580c"
                       style={{ fontSize: '12px' }}
                       tickFormatter={(value) => `${Math.round(value)}%`}
-                      domain={[0, 150]}
+                      domain={[0, yoyAxisMax]}
+                      ticks={getYoyTicks(yoyAxisMax)}
                       allowDataOverflow={false}
                       label={{
                         value: 'YoY (%)',

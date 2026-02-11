@@ -157,10 +157,10 @@ export default function DashboardPage() {
           asof_date: date,
           skip_cache: skipCache, // 캐시 건너뛰기 옵션
           section1: {
-            achievement_rate: section1Data.total_subtotal?.progress_ytd || 0,
-            yoy_ytd: section1Data.total_subtotal?.yoy_ytd || 0,
-            actual_sales_ytd: section1Data.total_subtotal?.ytd_act || 0,
-            target_ytd: section1Data.total_subtotal?.ytd_target || 0,
+            achievement_rate: isYtdMode ? (section1Data.total_subtotal?.progress_ytd || 0) : (section1Data.total_subtotal?.progress || 0),
+            yoy_ytd: isYtdMode ? (section1Data.total_subtotal?.yoy_ytd || 0) : (section1Data.total_subtotal?.yoy || 0),
+            actual_sales_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_act || 0) : (section1Data.total_subtotal?.mtd_act || 0),
+            target_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_target || 0) : (section1Data.total_subtotal?.target_mth || 0),
           },
           section2: {
             sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
@@ -169,9 +169,11 @@ export default function DashboardPage() {
             sales_yoy_pct: section2Data.header?.sales_yoy_pct || 100,
           },
           section3: {
-            sellthrough_rate: ((section3Data.summary?.total_base_stock || 0) - (section3Data.summary?.total_curr_stock || 0)) / (section3Data.summary?.total_base_stock || 1) * 100,
-            base_stock_amt: section3Data.summary?.total_base_stock || 0,
-            curr_stock_amt: section3Data.summary?.total_curr_stock || 0,
+            sellthrough_rate: section3Data.header?.base_stock_amt > 0 
+              ? ((section3Data.header.base_stock_amt - section3Data.header.curr_stock_amt) / section3Data.header.base_stock_amt * 100)
+              : 0,
+            base_stock_amt: section3Data.header?.base_stock_amt || 0,
+            curr_stock_amt: section3Data.header?.curr_stock_amt || 0,
           },
           language,
         }),
@@ -211,7 +213,7 @@ export default function DashboardPage() {
       setInsightsFailed(true);
       setInsightsLoading(false);
     }
-  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date, language]);
+  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date, language, isYtdMode]);
 
   // Executive Summary 미리 로드 (데이터 로딩 완료 시)
   const fetchExecutiveSummary = useCallback(async () => {
@@ -223,6 +225,9 @@ export default function DashboardPage() {
     setSummaryError('');
     
     console.log('🔍 Fetching Executive Summary...');
+    console.log('📊 Section1 Data:', section1Data?.total_subtotal);
+    console.log('📊 Section2 Data:', section2Data?.header);
+    console.log('📊 Section3 Data:', section3Data?.header);
     
     try {
       // 1. 먼저 편집된 데이터가 있는지 확인
@@ -246,11 +251,12 @@ export default function DashboardPage() {
           region,
           brand,
           asof_date: date,
+          skip_cache: true, // 항상 최신 데이터로 생성
           section1: {
-            achievement_rate: section1Data.total_subtotal?.progress_ytd || 0,
-            yoy_ytd: section1Data.total_subtotal?.yoy_ytd || 0,
-            actual_sales_ytd: section1Data.total_subtotal?.ytd_act || 0,
-            target_ytd: section1Data.total_subtotal?.ytd_target || 0,
+            achievement_rate: isYtdMode ? (section1Data.total_subtotal?.progress_ytd || 0) : (section1Data.total_subtotal?.progress || 0),
+            yoy_ytd: isYtdMode ? (section1Data.total_subtotal?.yoy_ytd || 0) : (section1Data.total_subtotal?.yoy || 0),
+            actual_sales_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_act || 0) : (section1Data.total_subtotal?.mtd_act || 0),
+            target_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_target || 0) : (section1Data.total_subtotal?.target_mth || 0),
           },
           section2: {
             sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
@@ -259,7 +265,9 @@ export default function DashboardPage() {
             sales_yoy_pct: section2Data.header?.sales_yoy_pct || 100,
           },
           section3: {
-            sellthrough_rate: ((section3Data.header?.base_stock_amt || 0) - (section3Data.header?.curr_stock_amt || 0)) / (section3Data.header?.base_stock_amt || 1) * 100,
+            sellthrough_rate: section3Data.header?.base_stock_amt > 0 
+              ? ((section3Data.header.base_stock_amt - section3Data.header.curr_stock_amt) / section3Data.header.base_stock_amt * 100)
+              : 0,
             base_stock_amt: section3Data.header?.base_stock_amt || 0,
             curr_stock_amt: section3Data.header?.curr_stock_amt || 0,
             stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
@@ -282,7 +290,7 @@ export default function DashboardPage() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date]);
+  }, [allDataLoaded, section1Data, section2Data, section3Data, region, brand, date, isYtdMode]);
 
   useEffect(() => {
     if (allDataLoaded) {
@@ -474,6 +482,7 @@ export default function DashboardPage() {
             section2Data={section2Data}
             section3Data={section3Data}
             isLoading={false}
+            isYtdMode={isYtdMode}
             preloadedSummary={executiveSummary}
             preloadedError={summaryError}
             onSummaryUpdated={(data) => {
