@@ -497,6 +497,11 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
           {/* 2단: 기준일 표시 */}
           <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">
             {language === 'ko' ? '기준일' : 'As of'}: {date}
+            {isYtdMode && (
+              <span className="ml-1 text-orange-600 font-medium">
+                * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -729,6 +734,11 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 </h3>
                 <p className={`text-gray-500 mt-0.5 ${isMobile ? 'text-xs' : 'text-sm'}`}>
                   {language === 'ko' ? `기준일: ${date}` : `As of: ${date}`}
+                  {isYtdMode && (
+                    <span className="ml-2 text-orange-600 font-medium">
+                      * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                    </span>
+                  )}
                 </p>
               </div>
               

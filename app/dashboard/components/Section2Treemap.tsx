@@ -787,6 +787,11 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
             {data && (
               <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">
                 {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
+                {mode === 'ytd' && (
+                  <span className="ml-1 text-orange-600 font-medium">
+                    * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -887,6 +892,11 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                 {data && (
                   <div className="text-sm text-gray-500 mt-1">
                     {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
+                    {mode === 'ytd' && (
+                      <span className="ml-2 text-orange-600 font-medium">
+                        * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

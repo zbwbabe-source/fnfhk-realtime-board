@@ -455,8 +455,8 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
             </button>
             {isYtdMode && date && (
-              <span className="text-xs text-gray-600">
-                ({new Date(date).getFullYear()}/1/1 ~ {date.replace(/-/g, '/')} {language === 'ko' ? '누적실적' : 'YTD Actual'})
+              <span className="text-xs text-orange-600 font-medium">
+                * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
               </span>
             )}
           </div>
