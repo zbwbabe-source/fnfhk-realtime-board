@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
 import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
+import { getApparelCategories } from '@/lib/category-utils.server';
+import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,7 @@ export const dynamic = 'force-dynamic';
  * - region: 'HKMC' or 'TW'
  * - brand: 'M' or 'X'
  * - date: 'YYYY-MM-DD' (asof_date)
+ * - category_filter: 'clothes' (의류만) or 'all' (전체 카테고리) - 기본값: 'clothes'
  * 
  * Response:
  * - header: { sesn, overall_sellthrough }
@@ -25,6 +28,7 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const categoryFilter = searchParams.get('category_filter') || 'clothes'; // 'clothes' or 'all'
 
     if (!date) {
       return NextResponse.json(
@@ -85,20 +89,49 @@ export async function GET(request: NextRequest) {
     const allStoreCodesStr = allStoreCodes.map(s => `'${s}'`).join(',');
     const salesStoreCodesStr = salesStoreCodes.map(s => `'${s}'`).join(',');
 
+    // 의류 카테고리 목록 가져오기 (CSV에서)
+    const apparelCategories = getApparelCategories();
+    const apparelCategoriesStr = apparelCategories.map(c => `'${c}'`).join(',');
+
     console.log('📊 Section2 Params:', {
       region,
       brand,
       date,
       sesn,
+      categoryFilter,
       startDate: startDateStr,
       periodInfo: `${startDateStr} ~ ${date}`,
       allStoresCount: allStoreCodes.length,
       salesStoresCount: salesStoreCodes.length,
+      apparelCategoriesCount: apparelCategories.length,
     });
+
+    // TW 리전일 때 환율 적용
+    // ⚠️ TY/LY 모두 ASOF Date 기준 환율 사용 (환율 변동 효과 제거)
+    const isTwRegion = region === 'TW';
+    const period = isTwRegion ? getPeriodFromDateString(date) : '';
+    console.log(`💱 Exchange rate: ${isTwRegion ? 'Applying TWD->HKD conversion for period ' + period + ' (same rate for TY & LY)' : 'No conversion (HKMC)'}`);
+
+    // 환율 적용 헬퍼 함수
+    const applyExchangeRate = (amount: number | null): number | null => {
+      if (amount === null) return null;
+      if (!isTwRegion) return amount;
+      return convertTwdToHkd(amount, period);
+    };
+
+    // 카테고리 필터 조건 구성
+    const productCategoryWhereClause = categoryFilter === 'clothes'
+      ? `AND SUBSTR(PART_CD, 3, 2) IN (${apparelCategoriesStr})`
+      : '';
+    
+    const productCategoryWhereClauseWithAlias = categoryFilter === 'clothes'
+      ? `AND SUBSTR(s.PART_CD, 3, 2) IN (${apparelCategoriesStr})`
+      : '';
 
     // =====================
     // 헤더용 SQL (TY + LY)
     // ⚠️ STOCK_DT가 없을 경우 가장 최근 데이터 사용
+    // ✅ 카테고리 필터 적용하여 YoY 계산
     // =====================
     const headerQuery = `
       WITH
@@ -110,6 +143,7 @@ export async function GET(request: NextRequest) {
           AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
+          ${productCategoryWhereClause}
       ),
       latest_stock_date_ty AS (
         SELECT MAX(STOCK_DT) AS stock_dt
@@ -127,6 +161,7 @@ export async function GET(request: NextRequest) {
           AND s.SESN = ?
           AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
           AND s.STOCK_DT = l.stock_dt
+          ${productCategoryWhereClauseWithAlias}
       ),
       -- LAST YEAR (LY)
       sales_ly AS (
@@ -136,6 +171,7 @@ export async function GET(request: NextRequest) {
           AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
+          ${productCategoryWhereClause}
       ),
       latest_stock_date_ly AS (
         SELECT MAX(STOCK_DT) AS stock_dt
@@ -153,6 +189,7 @@ export async function GET(request: NextRequest) {
           AND s.SESN = ?
           AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
           AND s.STOCK_DT = l.stock_dt
+          ${productCategoryWhereClauseWithAlias}
       )
       
       SELECT
@@ -199,32 +236,23 @@ export async function GET(request: NextRequest) {
     ]);
 
     const headerData = headerRows[0] || {};
-    const totalSales = parseFloat(headerData.SALES_TY || 0);
-    const totalStock = parseFloat(headerData.STOCK_TY || 0);
-    const totalInbound = parseFloat(headerData.INBOUND_TY || 0);
+    // 환율 적용하여 데이터 변환
+    const totalSales = applyExchangeRate(parseFloat(headerData.SALES_TY || 0)) || 0;
+    const totalStock = applyExchangeRate(parseFloat(headerData.STOCK_TY || 0)) || 0;
+    const totalInbound = applyExchangeRate(parseFloat(headerData.INBOUND_TY || 0)) || 0;
     const overall_sellthrough = headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
 
-    // LY data
-    const totalSalesLY = parseFloat(headerData.SALES_LY || 0);
-    const totalInboundLY = parseFloat(headerData.INBOUND_LY || 0);
+    // LY data (YoY 비교용, 환율 적용)
+    const totalSalesLY = applyExchangeRate(parseFloat(headerData.SALES_LY || 0)) || 0;
+    const totalInboundLY = applyExchangeRate(parseFloat(headerData.INBOUND_LY || 0)) || 0;
     const overall_sellthrough_ly = headerData.SELLTHROUGH_LY !== null ? parseFloat(headerData.SELLTHROUGH_LY) : null;
 
-    // YoY calculations
-    const sellthrough_yoy_pp = overall_sellthrough_ly !== null 
-      ? overall_sellthrough - overall_sellthrough_ly 
-      : null;
-    const sales_yoy_pct = totalSalesLY > 0 
-      ? (totalSales / totalSalesLY) * 100 
-      : null;
-    const inbound_yoy_pct = totalInboundLY > 0 
-      ? (totalInbound / totalInboundLY) * 100 
-      : null;
-
-    console.log('📊 Header Calculation:', {
+    console.log('📊 Header Query Result (for YoY comparison):', {
       params: {
         asof_date: date,
         sesn: sesn,
         start_date: startDateStr,
+        category_filter: categoryFilter,
       },
       ty: { 
         sales: totalSales, 
@@ -237,16 +265,11 @@ export async function GET(request: NextRequest) {
         sales: totalSalesLY,
         inbound: totalInboundLY,
         sellthrough: overall_sellthrough_ly
-      },
-      yoy: {
-        sellthrough_pp: sellthrough_yoy_pp,
-        sales_pct: sales_yoy_pct,
-        inbound_pct: inbound_yoy_pct
       }
     });
 
     // ⚠️ 품번별 데이터 조회 (테이블용)
-    // 헤더 YoY는 위의 headerQuery 결과 사용
+    // 동일한 카테고리 필터 적용
     const productQuery = `
       WITH 
       latest_stock_date AS (
@@ -270,6 +293,7 @@ export async function GET(request: NextRequest) {
           AND s.SESN = ?
           AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
           AND s.STOCK_DT = l.stock_dt
+          ${productCategoryWhereClauseWithAlias}
         GROUP BY s.PRDT_CD
       ),
       sales_agg AS (
@@ -284,6 +308,7 @@ export async function GET(request: NextRequest) {
           AND SESN = ?
           AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
           AND SALE_DT BETWEEN ? AND ?
+          ${productCategoryWhereClause}
         GROUP BY PRDT_CD
       )
       SELECT
@@ -370,12 +395,12 @@ export async function GET(request: NextRequest) {
     // stock_dt_used (실제 사용된 재고 날짜)
     const stockDtUsed = headerData.STOCK_DT_TY ? formatDateYYYYMMDD(new Date(headerData.STOCK_DT_TY)) : formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000));
 
-    // 전체 데이터 매핑
+    // 전체 데이터 매핑 (환율 적용)
     const allProducts = validRows.map((r: any) => ({
       prdt_cd: r.PRDT_CD,
       category: r.CATEGORY,
-      inbound_tag: parseFloat(r.INBOUND_TAG || 0),
-      sales_tag: parseFloat(r.SALES_TAG || 0),
+      inbound_tag: applyExchangeRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
+      sales_tag: applyExchangeRate(parseFloat(r.SALES_TAG || 0)) || 0,
       inbound_qty: parseInt(r.INBOUND_QTY || 0),
       sales_qty: parseInt(r.SALES_QTY || 0),
       sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
@@ -423,7 +448,7 @@ export async function GET(request: NextRequest) {
       sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
     }));
 
-    // 전체 합계 계산
+    // 전체 합계 계산 (필터링된 품번 기준)
     const category_total = {
       category: '전체',
       inbound_tag: categories.reduce((sum, c) => sum + c.inbound_tag, 0),
@@ -436,6 +461,35 @@ export async function GET(request: NextRequest) {
     category_total.sellthrough = category_total.inbound_tag > 0 
       ? (category_total.sales_tag / category_total.inbound_tag) * 100 
       : 0;
+
+    // 헤더 데이터를 필터링된 품번 집계로 재계산
+    const filteredTotalSales = category_total.sales_tag;
+    const filteredTotalStock = category_total.inbound_tag - category_total.sales_tag;
+    const filteredTotalInbound = category_total.inbound_tag;
+    const filteredSellthrough = category_total.sellthrough;
+
+    // YoY 계산
+    // ⚠️ 주의: headerQuery의 LY 값 대신 품번 집계 기준으로 통일
+    // headerQuery는 참고용으로만 사용
+    const sellthrough_yoy_pp = overall_sellthrough_ly !== null 
+      ? filteredSellthrough - overall_sellthrough_ly 
+      : null;
+    
+    // Sales YoY: TY/LY 모두 품번 집계 기준
+    // totalSalesLY는 headerQuery 결과 (참고용)
+    const sales_yoy_pct = totalSalesLY > 0 
+      ? (filteredTotalSales / totalSalesLY) * 100 
+      : null;
+    const inbound_yoy_pct = totalInboundLY > 0 
+      ? (filteredTotalInbound / totalInboundLY) * 100 
+      : null;
+
+    console.log('📊 YoY Calculation:', {
+      ty_sales: filteredTotalSales,
+      ly_sales: totalSalesLY,
+      sales_yoy_pct: sales_yoy_pct?.toFixed(1) + '%',
+      note: 'TY는 품번집계, LY는 헤더쿼리'
+    });
 
     console.log('📊 카테고리별 집계:', {
       categoriesCount: categories.length,
@@ -454,11 +508,12 @@ export async function GET(request: NextRequest) {
       stock_dt_used: stockDtUsed,
       region,
       brand,
+      category_filter: categoryFilter,
       header: {
         sesn,
-        overall_sellthrough: Math.round(overall_sellthrough * 100) / 100,
-        total_inbound: totalInbound,
-        total_sales: totalSales,
+        overall_sellthrough: Math.round(filteredSellthrough * 100) / 100,
+        total_inbound: filteredTotalInbound,
+        total_sales: filteredTotalSales,
         // LY values
         overall_sellthrough_ly: overall_sellthrough_ly !== null ? Math.round(overall_sellthrough_ly * 100) / 100 : null,
         total_inbound_ly: totalInboundLY,

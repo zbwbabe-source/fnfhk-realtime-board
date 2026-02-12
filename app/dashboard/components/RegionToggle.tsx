@@ -27,10 +27,8 @@ export default function RegionToggle({ value, onChange }: RegionToggleProps) {
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
           }`}
-          disabled
-          title="TW region coming soon"
         >
-          TW (예정)
+          TW
         </button>
       </div>
     </div>

@@ -18,6 +18,7 @@ export function getCategoryMapping(smallCode: string): CategoryMapping {
   };
 }
 
+
 /**
  * 대분류별 파스텔 컬러 반환
  */

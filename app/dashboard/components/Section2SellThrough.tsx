@@ -9,6 +9,8 @@ interface Section2Props {
   date: string;
   onDataChange?: (data: any) => void;
   language: Language;
+  categoryFilter: 'clothes' | 'all';
+  onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
 }
 
 interface ProductRow {
@@ -37,7 +39,7 @@ interface NoInboundRow {
   sales_tag: number;
 }
 
-export default function Section2SellThrough({ region, brand, date, onDataChange, language }: Section2Props) {
+export default function Section2SellThrough({ region, brand, date, onDataChange, language, categoryFilter, onCategoryFilterChange }: Section2Props) {
   const [expanded, setExpanded] = useState(true); // 기본 펼침
   const [showAllCategories, setShowAllCategories] = useState(false); // 전체 카테고리 토글
   const [showAllProducts, setShowAllProducts] = useState(false); // 전체 품번 토글
@@ -57,7 +59,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
       
       try {
         const res = await fetch(
-          `/api/section2/sellthrough?region=${region}&brand=${brand}&date=${date}`
+          `/api/section2/sellthrough?region=${region}&brand=${brand}&date=${date}&category_filter=${categoryFilter}`
         );
         
         if (!res.ok) {
@@ -80,7 +82,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
     }
 
     fetchData();
-  }, [region, brand, date, onDataChange]);
+  }, [region, brand, date, categoryFilter, onDataChange]);
 
   const formatNumber = (num: number) => {
     // 천 HKD 단위로 변환 (금액용)
@@ -276,7 +278,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
           className="flex items-center gap-2 hover:text-gray-700 transition-colors"
         >
           <h2 className="text-lg font-semibold text-gray-900">
-            {t(language, 'section2Header')}
+            {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
             {data?.header?.sesn && (
               <span className="ml-2 text-base text-blue-600 font-semibold">
                 ({data.header.sesn})
@@ -300,6 +302,33 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
             />
           </svg>
         </button>
+        
+        {/* 카테고리 필터 토글 버튼 */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">{t(language, 'filterCategory')}:</span>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
+            <button
+              onClick={() => onCategoryFilterChange('clothes')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-l-lg transition-colors ${
+                categoryFilter === 'clothes'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'clothesOnly')}
+            </button>
+            <button
+              onClick={() => onCategoryFilterChange('all')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-r-lg transition-colors ${
+                categoryFilter === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'allCategory')}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Content */}

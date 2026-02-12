@@ -3,6 +3,7 @@ import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
 import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
+import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,19 @@ export async function GET(request: NextRequest) {
 
     const salesStoreCodesStr = salesStoreCodes.map(s => `'${s}'`).join(',');
 
+    // TW 리전일 때 환율 적용
+    // ⚠️ TY/LY 모두 ASOF Date 기준 환율 사용 (환율 변동 효과 제거)
+    const isTwRegion = region === 'TW';
+    const period = isTwRegion ? getPeriodFromDateString(date) : '';
+    console.log(`💱 Exchange rate: ${isTwRegion ? 'Applying TWD->HKD conversion for period ' + period + ' (same rate for TY & LY)' : 'No conversion (HKMC)'}`);
+
+    // 환율 적용 헬퍼 함수
+    const applyExchangeRate = (amount: number | null): number | null => {
+      if (amount === null) return null;
+      if (!isTwRegion) return amount;
+      return convertTwdToHkd(amount, period);
+    };
+
     // SQL: 소분류별 TY와 LY 집계
     const query = `
       WITH 
@@ -131,7 +145,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           SUBSTR(PART_CD, 3, 2) AS category_small,
           SUM(TAG_SALE_AMT) AS sales_tag_ty,
-          SUM(VAT_EXC_ACT_SALE_AMT) AS sales_act_ty,
+          SUM(ACT_SALE_AMT) AS sales_act_ty,
           SUM(SALE_QTY) AS sales_qty_ty
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
@@ -146,7 +160,7 @@ export async function GET(request: NextRequest) {
         SELECT 
           SUBSTR(PART_CD, 3, 2) AS category_small,
           SUM(TAG_SALE_AMT) AS sales_tag_ly,
-          SUM(VAT_EXC_ACT_SALE_AMT) AS sales_act_ly,
+          SUM(ACT_SALE_AMT) AS sales_act_ly,
           SUM(SALE_QTY) AS sales_qty_ly
         FROM SAP_FNF.DW_HMD_SALE_D
         WHERE 
@@ -196,20 +210,42 @@ export async function GET(request: NextRequest) {
     console.log(`✅ Treemap: Retrieved ${rows.length} small categories`);
 
     // 소분류 데이터 처리
+    let isFirstCategory = true;
     const smallCategories = rows.map((row: any) => {
       const smallCode = row.CATEGORY_SMALL;
       const mapping = getCategoryMapping(smallCode);
-      const salesActTY = parseFloat(row.SALES_ACT_TY || 0);
-      const discountRateTY = parseFloat(row.DISCOUNT_RATE_TY || 0);
-      const discountRateLY = parseFloat(row.DISCOUNT_RATE_LY || 0);
-      const yoy = row.YOY !== null ? parseFloat(row.YOY) : null;
+      const salesTagTY = applyExchangeRate(parseFloat(row.SALES_TAG_TY || 0)) || 0;
+      const salesActTY = applyExchangeRate(parseFloat(row.SALES_ACT_TY || 0)) || 0;
+      const salesTagLY = applyExchangeRate(parseFloat(row.SALES_TAG_LY || 0)) || 0;
+      const salesActLY = applyExchangeRate(parseFloat(row.SALES_ACT_LY || 0)) || 0;
+      
+      // 할인율 재계산 (환율 적용 후)
+      const discountRateTY = salesTagTY > 0 ? ((salesTagTY - salesActTY) / salesTagTY) * 100 : 0;
+      const discountRateLY = salesTagLY > 0 ? ((salesTagLY - salesActLY) / salesTagLY) * 100 : 0;
+      
+      // YoY 재계산 (환율 적용 후)
+      const yoy = salesActLY > 0 ? (salesActTY / salesActLY) * 100 : null;
+
+      // 디버그: 첫 번째 카테고리만 로그
+      if (isFirstCategory && isTwRegion) {
+        console.log(`🔍 First category (${smallCode}):`, {
+          salesActTY_raw: row.SALES_ACT_TY,
+          salesActTY_converted: salesActTY,
+          salesActLY_raw: row.SALES_ACT_LY,
+          salesActLY_converted: salesActLY,
+          yoy_sql: row.YOY,
+          yoy_recalculated: yoy,
+        });
+        isFirstCategory = false;
+      }
 
       return {
         code: smallCode,
         large: mapping.large,
         middle: mapping.middle,
-        sales_tag: parseFloat(row.SALES_TAG_TY || 0),
+        sales_tag: salesTagTY,
         sales_act: salesActTY,
+        sales_act_ly: salesActLY,  // ✅ LY 실판매 추가
         discount_rate: discountRateTY,
         discount_rate_ly: discountRateLY,
         discount_rate_diff: discountRateTY - discountRateLY,
@@ -227,6 +263,7 @@ export async function GET(request: NextRequest) {
           large: item.large,
           sales_tag: 0,
           sales_act: 0,
+          sales_act_ly: 0,  // ✅ LY 실판매 추가
           discount_rate_weighted: 0,
           discount_rate_ly_weighted: 0,
           yoy_weighted: 0,
@@ -237,6 +274,7 @@ export async function GET(request: NextRequest) {
       const middleData = middleMap.get(key);
       middleData.sales_tag += item.sales_tag;
       middleData.sales_act += item.sales_act;
+      middleData.sales_act_ly += item.sales_act_ly;  // ✅ LY 실판매 집계
       middleData.discount_rate_weighted += item.discount_rate * item.sales_act;
       middleData.discount_rate_ly_weighted += item.discount_rate_ly * item.sales_act;
       if (item.yoy !== null) {
@@ -254,8 +292,9 @@ export async function GET(request: NextRequest) {
       const discount_rate_ly = middle.sales_act > 0 
         ? middle.discount_rate_ly_weighted / middle.sales_act 
         : 0;
-      const yoy = middle.total_sales_for_weight > 0
-        ? middle.yoy_weighted / middle.total_sales_for_weight
+      // ✅ YoY를 직접 계산 (가중평균 대신)
+      const yoy = middle.sales_act_ly > 0
+        ? (middle.sales_act / middle.sales_act_ly) * 100
         : null;
 
       return {
@@ -263,6 +302,7 @@ export async function GET(request: NextRequest) {
         large: middle.large,
         sales_tag: middle.sales_tag,
         sales_act: middle.sales_act,
+        sales_act_ly: middle.sales_act_ly,  // ✅ LY 전달
         sales_pct: 0, // Will be calculated later
         discount_rate,
         discount_rate_ly,
@@ -289,6 +329,7 @@ export async function GET(request: NextRequest) {
           name: middle.large,
           sales_tag: 0,
           sales_act: 0,
+          sales_act_ly: 0,  // ✅ LY 실판매 추가
           discount_rate_weighted: 0,
           discount_rate_ly_weighted: 0,
           yoy_weighted: 0,
@@ -299,6 +340,7 @@ export async function GET(request: NextRequest) {
       const largeData = largeMap.get(middle.large);
       largeData.sales_tag += middle.sales_tag;
       largeData.sales_act += middle.sales_act;
+      largeData.sales_act_ly += middle.sales_act_ly;  // ✅ LY 실판매 집계
       largeData.discount_rate_weighted += middle.discount_rate * middle.sales_act;
       largeData.discount_rate_ly_weighted += middle.discount_rate_ly * middle.sales_act;
       if (middle.yoy !== null) {
@@ -321,8 +363,9 @@ export async function GET(request: NextRequest) {
         const discount_rate_ly = large.sales_act > 0 
           ? large.discount_rate_ly_weighted / large.sales_act 
           : 0;
-        const yoy = large.total_sales_for_weight > 0
-          ? large.yoy_weighted / large.total_sales_for_weight
+        // ✅ YoY를 직접 계산 (가중평균 대신)
+        const yoy = large.sales_act_ly > 0
+          ? (large.sales_act / large.sales_act_ly) * 100
           : null;
 
         // 중분류에 대분류 내 비율 계산

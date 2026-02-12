@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell } from 'recharts';
+import { ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell, Text } from 'recharts';
 import { t, type Language } from '@/lib/translations';
+import { isNewStore, getYoYForChart } from '@/lib/new-store-utils';
 import {
   calculateSalesPerAreaPerDay,
   getMtdDays,
@@ -67,6 +68,7 @@ interface ChartDataPoint {
   color: string; // 막대 색상
   area: number | null; // 면적 (평) - 툴팁용
   discountRate: number; // 할인율 (%) - 툴팁용
+  py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
 export default function Section1StoreBarChart({ region, brand, date, language }: StoreBarChartProps) {
@@ -77,7 +79,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
   // 상태 관리
   const [isYtdMode, setIsYtdMode] = useState(false); // false: 당월(MTD), true: 누적(YTD)
   const [showSalesPerArea, setShowSalesPerArea] = useState(false); // false: 실판매출, true: 평당매출
-  const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, 마카오, HK온라인
+  const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, 마카오, HK온라인, TW정상, TW아울렛, TW온라인
   const [isModalOpen, setIsModalOpen] = useState(false); // 확대 모달 상태
   const [yoyAxisMax, setYoyAxisMax] = useState<100 | 150 | 200 | 300 | 400 | 500>(150); // YoY 축 최대값
 
@@ -93,6 +95,11 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Region 변경 시 채널 필터 리셋
+  useEffect(() => {
+    setSelectedChannel('전체');
+  }, [region]);
 
   console.log('📊 Section1StoreBarChart rendered:', { region, brand, date, isYtdMode, showSalesPerArea, selectedChannel, isMobile });
 
@@ -138,6 +145,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     'HK아울렛': '#FCA5A5',
     '마카오': '#86EFAC',
     'HK온라인': '#C4B5FD',
+    'TW정상': '#FDE047',
+    'TW아울렛': '#FDA4AF',
+    'TW온라인': '#D8B4FE',
   };
 
   // 차트 데이터 준비
@@ -157,6 +167,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       ...(data.mc_normal || []),
       ...(data.mc_outlet || []),
       ...(data.mc_online || []),
+      ...(data.tw_normal || []),
+      ...(data.tw_outlet || []),
+      ...(data.tw_online || []),
     ];
 
     console.log('📦 전체 매장 데이터:', {
@@ -166,6 +179,9 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       mc_normal: data.mc_normal?.length || 0,
       mc_outlet: data.mc_outlet?.length || 0,
       mc_online: data.mc_online?.length || 0,
+      tw_normal: data.tw_normal?.length || 0,
+      tw_outlet: data.tw_outlet?.length || 0,
+      tw_online: data.tw_online?.length || 0,
       total: allStores.length,
     });
 
@@ -174,10 +190,17 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     
     if (selectedChannel !== '전체') {
       filteredStores = allStores.filter(store => {
-        // 채널명 매핑: 마카오는 국가명만, HK는 국가+채널
+        // 채널명 매핑
         let storeChannel = '';
         if (store.country === 'MC') {
           storeChannel = '마카오'; // 마카오는 정상/아울렛 구분 없이 '마카오'로 통합
+        } else if (store.country === 'TW') {
+          // TW의 경우
+          if (store.channel === '온라인') {
+            storeChannel = 'TW온라인';
+          } else {
+            storeChannel = `TW${store.channel}`; // TW정상 또는 TW아울렛
+          }
         } else {
           // HK의 경우
           if (store.channel === '온라인') {
@@ -200,16 +223,38 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
         return actualSales > 0;
       })
       .map(store => {
-      const storeChannel = store.country === 'MC' ? '마카오' : `HK${store.channel}`;
+      // 채널명 매핑
+      let storeChannel = '';
+      if (store.country === 'MC') {
+        storeChannel = '마카오';
+      } else if (store.country === 'TW') {
+        if (store.channel === '온라인') {
+          storeChannel = 'TW온라인';
+        } else {
+          storeChannel = `TW${store.channel}`;
+        }
+      } else {
+        // HK
+        if (store.channel === '온라인') {
+          storeChannel = 'HK온라인';
+        } else {
+          storeChannel = `HK${store.channel}`;
+        }
+      }
+      
       const color = channelColors[storeChannel] || '#9CA3AF';
 
       // 실판매출
       const actualSales = isYtdMode ? store.ytd_act : store.mtd_act;
+      const actualPyValue = isYtdMode ? store.ytd_act_py : store.mtd_act_py;
       const yoyRaw = isYtdMode ? store.yoy_ytd : store.yoy;
       
+      // 신규 매장은 YoY를 null로 처리 (전년 매출 기준)
+      const yoyRawAdjusted = getYoYForChart(actualPyValue, yoyRaw);
+      
       // YoY clamp: yoyAxisMax 초과 시 제한
-      const yoyClamped = yoyRaw !== null && yoyRaw !== undefined 
-        ? Math.min(yoyRaw, yoyAxisMax) 
+      const yoyClamped = yoyRawAdjusted !== null && yoyRawAdjusted !== undefined 
+        ? Math.min(yoyRawAdjusted, yoyAxisMax) 
         : null;
 
       // 면적 정보 조회 (툴팁용)
@@ -240,11 +285,12 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
         shortCode,
         shop_cd: store.shop_cd,
         sales,
-        yoy_raw: yoyRaw !== null && yoyRaw !== undefined ? yoyRaw : null,
+        yoy_raw: yoyRawAdjusted,
         yoy_clamped: yoyClamped,
         color,
         area,
         discountRate,
+        py_value: actualPyValue, // 전년 매출 추가 (신규 매장 판별용)
       };
     }).filter((item): item is ChartDataPoint => item !== null); // null 제거
 
@@ -254,15 +300,21 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     const hkOutlet = result.filter(r => r.color === channelColors['HK아울렛']);
     const macao = result.filter(r => r.color === channelColors['마카오']);
     const hkOnline = result.filter(r => r.color === channelColors['HK온라인']);
+    const twNormal = result.filter(r => r.color === channelColors['TW정상']);
+    const twOutlet = result.filter(r => r.color === channelColors['TW아울렛']);
+    const twOnline = result.filter(r => r.color === channelColors['TW온라인']);
 
     // 2. 각 채널 내에서 매출 높은 순으로 정렬
     hkNormal.sort((a, b) => b.sales - a.sales);
     hkOutlet.sort((a, b) => b.sales - a.sales);
     macao.sort((a, b) => b.sales - a.sales);
     hkOnline.sort((a, b) => b.sales - a.sales);
+    twNormal.sort((a, b) => b.sales - a.sales);
+    twOutlet.sort((a, b) => b.sales - a.sales);
+    twOnline.sort((a, b) => b.sales - a.sales);
 
     // 3. 채널 순서대로 합치기
-    const sortedResult = [...hkNormal, ...hkOutlet, ...macao, ...hkOnline];
+    const sortedResult = [...hkNormal, ...hkOutlet, ...macao, ...hkOnline, ...twNormal, ...twOutlet, ...twOnline];
 
     console.log('📊 차트 데이터 생성 완료:', sortedResult.length, '개');
     console.log('샘플:', sortedResult.slice(0, 3));
@@ -310,7 +362,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
 
   // 평당매출 모드 전환 시 온라인 채널 경고
   const canShowSalesPerArea = useMemo(() => {
-    if (selectedChannel === 'HK온라인') {
+    if (selectedChannel === 'HK온라인' || selectedChannel === 'TW온라인') {
       return false;
     }
     return true;
@@ -352,7 +404,7 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
     return value.toFixed(0);
   };
 
-  const formatYoY = (value: number | null) => {
+  const formatYoYPercent = (value: number | null) => {
     if (value === null) return 'N/A';
     return `${value.toFixed(0)}%`;
   };
@@ -388,9 +440,12 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                   data.yoy_raw === null ? 'text-gray-400' : 
                   data.yoy_raw >= 100 ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {formatYoY(data.yoy_raw)}
-                  {data.yoy_raw !== null && data.yoy_raw > 150 && (
-                    <span className="text-xs ml-1 text-orange-500">(차트: 150%)</span>
+                  {isNewStore(data.py_value) 
+                    ? <span className="text-blue-600">{language === 'ko' ? '신규' : 'New'}</span>
+                    : formatYoYPercent(data.yoy_raw)
+                  }
+                  {data.yoy_raw !== null && data.yoy_raw > yoyAxisMax && !isNewStore(data.py_value) && (
+                    <span className="text-xs ml-1 text-orange-500">(차트: {yoyAxisMax}%)</span>
                   )}
                 </span>
               </div>
@@ -419,9 +474,12 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                   data.yoy_raw === null ? 'text-gray-400' : 
                   data.yoy_raw >= 100 ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {formatYoY(data.yoy_raw)}
-                  {data.yoy_raw !== null && data.yoy_raw > 150 && (
-                    <span className="text-xs ml-1 text-orange-500">(차트: 150%)</span>
+                  {isNewStore(data.py_value) 
+                    ? <span className="text-blue-600">{language === 'ko' ? '신규' : 'New'}</span>
+                    : formatYoYPercent(data.yoy_raw)
+                  }
+                  {data.yoy_raw !== null && data.yoy_raw > yoyAxisMax && !isNewStore(data.py_value) && (
+                    <span className="text-xs ml-1 text-orange-500">(차트: {yoyAxisMax}%)</span>
                   )}
                 </span>
               </div>
@@ -532,17 +590,27 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             value={selectedChannel}
             onChange={(e) => {
               setSelectedChannel(e.target.value);
-              if (e.target.value === 'HK온라인' && showSalesPerArea) {
+              if ((e.target.value === 'HK온라인' || e.target.value === 'TW온라인') && showSalesPerArea) {
                 setShowSalesPerArea(false);
               }
             }}
             className={compactSelectClass}
           >
             <option value="전체">전체</option>
-            <option value="HK정상">HK정상</option>
-            <option value="HK아울렛">HK아울렛</option>
-            <option value="마카오">마카오</option>
-            <option value="HK온라인">HK온라인</option>
+            {region === 'HKMC' ? (
+              <>
+                <option value="HK정상">HK정상</option>
+                <option value="HK아울렛">HK아울렛</option>
+                <option value="마카오">마카오</option>
+                <option value="HK온라인">HK온라인</option>
+              </>
+            ) : (
+              <>
+                <option value="TW정상">TW정상</option>
+                <option value="TW아울렛">TW아울렛</option>
+                <option value="TW온라인">TW온라인</option>
+              </>
+            )}
           </select>
 
           <select
@@ -594,24 +662,43 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       
       {/* 4단: 차트 영역 - 남은 공간 전부 사용 (강제 높이 전달) */}
       <div ref={chartRowRef} className="flex-1 min-h-0 w-full px-0 pb-2">
-        {/* 범례 - 차트 외부 상단에 고정 */}
+        {/* 범례 - 차트 외부 상단에 고정 (Region별 동적 표시) */}
         <div className="flex items-center gap-3 flex-wrap px-2 pb-1.5">
-          <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-            <span className="text-[9px] text-gray-600">HK정상</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-            <span className="text-[9px] text-gray-600">HK아울렛</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-            <span className="text-[9px] text-gray-600">마카오</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-            <span className="text-[9px] text-gray-600">온라인</span>
-          </div>
+          {region === 'HKMC' ? (
+            <>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
+                <span className="text-[9px] text-gray-600">HK정상</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
+                <span className="text-[9px] text-gray-600">HK아울렛</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
+                <span className="text-[9px] text-gray-600">마카오</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
+                <span className="text-[9px] text-gray-600">HK온라인</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FDE047' }}></div>
+                <span className="text-[9px] text-gray-600">TW정상</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FDA4AF' }}></div>
+                <span className="text-[9px] text-gray-600">TW아울렛</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#D8B4FE' }}></div>
+                <span className="text-[9px] text-gray-600">TW온라인</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-0.5 bg-orange-600"></div>
             <span className="text-[9px] text-gray-600">YoY</span>
@@ -706,7 +793,26 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
               dataKey="yoy_clamped"
               stroke="#ea580c"
               strokeWidth={2}
-              dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
+              dot={(props: any) => {
+                const { cx, cy, payload } = props;
+                if (isNewStore(payload.py_value)) {
+                  // 신규 매장은 "신규" 텍스트 표시
+                  return (
+                    <text
+                      x={cx}
+                      y={cy - 10}
+                      textAnchor="middle"
+                      fill="#2563eb"
+                      fontSize={8}
+                      fontWeight={600}
+                    >
+                      {language === 'ko' ? '신규' : 'NEW'}
+                    </text>
+                  );
+                }
+                // 일반 매장은 기본 점
+                return <circle cx={cx} cy={cy} r={3} fill="#ea580c" />;
+              }}
               activeDot={{ r: 5, fill: '#ea580c', stroke: '#fff', strokeWidth: 2 }}
               connectNulls={false}
               strokeOpacity={0.7}
@@ -763,17 +869,27 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 value={selectedChannel}
                 onChange={(e) => {
                   setSelectedChannel(e.target.value);
-                  if (e.target.value === 'HK온라인' && showSalesPerArea) {
+                  if ((e.target.value === 'HK온라인' || e.target.value === 'TW온라인') && showSalesPerArea) {
                     setShowSalesPerArea(false);
                   }
                 }}
                 className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
                 <option value="전체">전체</option>
-                <option value="HK정상">HK정상</option>
-                <option value="HK아울렛">HK아울렛</option>
-                <option value="마카오">마카오</option>
-                <option value="HK온라인">HK온라인</option>
+                {region === 'HKMC' ? (
+                  <>
+                    <option value="HK정상">HK정상</option>
+                    <option value="HK아울렛">HK아울렛</option>
+                    <option value="마카오">마카오</option>
+                    <option value="HK온라인">HK온라인</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="TW정상">TW정상</option>
+                    <option value="TW아울렛">TW아울렛</option>
+                    <option value="TW온라인">TW온라인</option>
+                  </>
+                )}
               </select>
 
               {/* 드롭다운 2: 당월/누적 */}
@@ -992,7 +1108,26 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                       dataKey="yoy_clamped"
                       stroke="#ea580c"
                       strokeWidth={2}
-                      dot={{ r: 3, fill: '#ea580c', strokeWidth: 0 }}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        if (isNewStore(payload.py_value)) {
+                          // 신규 매장은 "신규" 텍스트 표시
+                          return (
+                            <text
+                              x={cx}
+                              y={cy - 10}
+                              textAnchor="middle"
+                              fill="#2563eb"
+                              fontSize={10}
+                              fontWeight={600}
+                            >
+                              {language === 'ko' ? '신규' : 'NEW'}
+                            </text>
+                          );
+                        }
+                        // 일반 매장은 기본 점
+                        return <circle cx={cx} cy={cy} r={3} fill="#ea580c" />;
+                      }}
                       activeDot={{ r: 5, fill: '#ea580c', stroke: '#fff', strokeWidth: 2 }}
                       connectNulls={false}
                       strokeOpacity={0.7}
@@ -1003,25 +1138,44 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             </div>
           </div>
           
-          {/* 모달 하단 범례 - 데스크톱만 */}
+          {/* 모달 하단 범례 - 데스크톱만 (Region별 동적 표시) */}
           {!isMobile && (
             <div className="px-6 pb-6 flex items-center justify-center gap-6 flex-wrap flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-                <span className="text-sm text-gray-700">HK정상</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-                <span className="text-sm text-gray-700">HK아울렛</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-                <span className="text-sm text-gray-700">마카오</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-                <span className="text-sm text-gray-700">HK온라인</span>
-              </div>
+              {region === 'HKMC' ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
+                    <span className="text-sm text-gray-700">HK정상</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
+                    <span className="text-sm text-gray-700">HK아울렛</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
+                    <span className="text-sm text-gray-700">마카오</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
+                    <span className="text-sm text-gray-700">HK온라인</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FDE047' }}></div>
+                    <span className="text-sm text-gray-700">TW정상</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FDA4AF' }}></div>
+                    <span className="text-sm text-gray-700">TW아울렛</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#D8B4FE' }}></div>
+                    <span className="text-sm text-gray-700">TW온라인</span>
+                  </div>
+                </>
+              )}
               <div className="flex items-center gap-2">
                 <div className="w-3 h-0.5 bg-orange-600"></div>
                 <span className="text-sm text-gray-700">YoY %</span>

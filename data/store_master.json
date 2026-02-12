@@ -233,296 +233,255 @@
     },
     {
       "store_code": "T01",
-      "store_name": "",
+      "store_name": "ZHONGXIAO",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T02",
-      "store_name": "",
+      "store_name": "MITSUKOSHI NANJING",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T03",
-      "store_name": "",
+      "store_name": "TAIPEI 101",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T04",
-      "store_name": "",
+      "store_name": "MITSUKOSHI A11",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T05",
-      "store_name": "",
+      "store_name": "MITSUKOSHI TAICHUNG",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T06",
-      "store_name": "",
+      "store_name": "CHUNGYO",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T07",
-      "store_name": "",
+      "store_name": "BIG CITY",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T08",
-      "store_name": "",
+      "store_name": "HANSHIN ARENA",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T09",
-      "store_name": "",
+      "store_name": "ESLITE TC",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T10",
-      "store_name": "",
+      "store_name": "MAGA CITY BANQIAO",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T11",
-      "store_name": "",
+      "store_name": "TS MALL",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T12",
-      "store_name": "",
+      "store_name": "TAIMALL",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T13",
-      "store_name": "",
+      "store_name": "SKM Tainan",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "TU1",
-      "store_name": "",
+      "store_name": "MK TC Outlet",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "TU2",
-      "store_name": "",
+      "store_name": "LINKOU",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "T14",
-      "store_name": "",
+      "store_name": "METROWALK",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T15",
-      "store_name": "",
+      "store_name": "ESLITE XINDIAN",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T16",
-      "store_name": "",
+      "store_name": "SOGO ZHONGXIAO",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "TU3",
-      "store_name": "",
+      "store_name": "GLORIA OUTLET",
       "brand": "M",
       "country": "TW",
       "channel": "아울렛"
     },
     {
       "store_code": "T17",
-      "store_name": "",
+      "store_name": "NANGANG LALAPORT",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "T18",
-      "store_name": "",
+      "store_name": "TAICHUNG LALAPORT",
       "brand": "M",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D01",
-      "store_name": "",
+      "store_name": "MITSUKOSHI A11 DISCOVERY",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D02",
-      "store_name": "",
+      "store_name": "TC LALAPORT　DISCOVERY",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D03",
-      "store_name": "",
+      "store_name": "MITSUKOSHI TAICHUNG DISCOVERY",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D04",
-      "store_name": "",
+      "store_name": "SOGO GARDEN CITY",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "D05",
-      "store_name": "",
+      "store_name": "Taimall",
       "brand": "X",
       "country": "TW",
       "channel": "정상"
     },
     {
       "store_code": "DE1",
-      "store_name": "",
+      "store_name": "MOMO",
       "brand": "X",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "DE2",
-      "store_name": "",
+      "store_name": "Official Online",
       "brand": "X",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE1",
-      "store_name": "",
+      "store_name": "MOMO",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE2",
-      "store_name": "",
+      "store_name": "Official Online",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE3",
-      "store_name": "",
+      "store_name": "SHOPEE",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "TE4",
-      "store_name": "",
+      "store_name": "LINE GIFT",
       "brand": "M",
       "country": "TW",
       "channel": "온라인"
     },
     {
       "store_code": "DTE",
-      "store_name": "",
+      "store_name": "WAREHOUSE EC",
       "brand": "X",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "DTM",
-      "store_name": "",
+      "store_name": "WAREHOUSE Main",
       "brand": "X",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "WTE",
-      "store_name": "",
+      "store_name": "WAREHOUSE EC",
       "brand": "M",
       "country": "TW",
       "channel": "Warehouse"
     },
     {
       "store_code": "WTM",
-      "store_name": "",
+      "store_name": "WAREHOUSE Main",
       "brand": "M",
       "country": "TW",
       "channel": "Warehouse"
     }
-  ],
-  "hkmc_stores_non_wh": [
-    "M18",
-    "M10",
-    "M01",
-    "M14",
-    "M11",
-    "M17",
-    "M05",
-    "M02",
-    "M22",
-    "M09",
-    "M16",
-    "M19",
-    "M07",
-    "M21",
-    "M15",
-    "M13",
-    "M08",
-    "M12",
-    "MC1",
-    "MC3",
-    "MC2",
-    "MC4",
-    "HE1",
-    "HE2",
-    "X01",
-    "XE1",
-    "M03",
-    "M06",
-    "M20"
-  ],
-  "hkmc_wh_stores": [
-    "WMM",
-    "XHM",
-    "WHM",
-    "MC3DGM"
-  ],
-  "main_wh_mapping": {
-    "M": "WHM",
-    "X": "XHM"
-  }
+  ]
 }

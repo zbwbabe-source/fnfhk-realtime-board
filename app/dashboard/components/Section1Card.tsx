@@ -8,9 +8,10 @@ interface Section1CardProps {
   section1Data: any;
   language: Language;
   brand: string;
+  region: string;
 }
 
-export default function Section1Card({ isYtdMode, section1Data, language, brand }: Section1CardProps) {
+export default function Section1Card({ isYtdMode, section1Data, language, brand, region }: Section1CardProps) {
 
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
@@ -83,6 +84,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand 
   };
 
   const kpis = calculateKPIs();
+  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg shadow-md p-6 border-l-4 border-blue-600">
@@ -92,6 +94,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand 
         <div>
           <h3 className="text-lg font-bold text-gray-900">{t(language, 'section1Title')}</h3>
           <p className="text-xs text-gray-600">{t(language, 'section1Subtitle')}</p>
+          <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
         </div>
       </div>
 

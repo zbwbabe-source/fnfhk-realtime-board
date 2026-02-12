@@ -5,12 +5,13 @@
 
 // 1) 고정 매핑 (canonicalKey -> shortCode)
 const shortCodeMap: Record<string, string> = {
+  // HK/MC 매장
   ISQUARE: 'ISQ',
   YOHO: 'YHO',
   TIMESSQUARE: 'TSQ',
   HYSANPLACE: 'HSN',
   CITYGATEO: 'CTY',
-  CITYGATE: 'CTY', // CITYGATE도 CTY로
+  CITYGATE: 'CTY',
   MONGKOK: 'MKK',
   MOKO: 'MOK',
   MEGAMALL: 'MGM',
@@ -30,6 +31,37 @@ const shortCodeMap: Record<string, string> = {
   SHEUNGSHUI: 'SSH',
   YUENLONG: 'YUL',
   SENADO: 'SEN',
+  
+  // TW 매장 - 간단한 이름은 그대로 사용
+  ZHONGXIAO: 'ZXO',
+  NANJING: 'NJG',
+  '101': '101',
+  A11: 'A11',
+  TAICHUNG: 'TCH',
+  CHUNGYO: 'CYO',
+  BIGCITY: 'BCT',
+  HANSHINARENA: 'HAN',
+  ESLITETC: 'ETC',
+  MAGACITYBANQIAO: 'MCB',
+  TSMALL: 'TSM',
+  TAIMALL: 'TAI',
+  SKMTAINAN: 'SKM',
+  MKTCOUTLET: 'MKO',
+  LINKOU: 'LKO',
+  METROWALK: 'MTW',
+  ESLITEXINDIAN: 'EXD',
+  SOGOZHONGXIAO: 'SGZ',
+  GLORIAOUTLET: 'GLR',
+  NANGANGLALAPORT: 'NGL',
+  TAICHUNGLALAPORT: 'TCL',
+  MITSUKOSHIA11DISCOVERY: 'MA11',
+  TCLALAPORTDISCOVERY: 'TCD',
+  MITSUKOSHITAICHUNGDISCOVERY: 'MTC',
+  SOGOGARDENCITY: 'SGC',
+  MOMO: 'MMO',
+  OFFICIALONLINE: 'OLN',
+  SHOPEE: 'SPE',
+  LINEGIFT: 'LGF',
 };
 
 // 2) Alias 규칙 (로컬 표기 -> 영문)
@@ -46,6 +78,7 @@ const aliasMap: Record<string, string> = {
 
 // 3) 부분 매칭 규칙 (포함 검사용)
 const partialMatchRules: Array<{ pattern: string; replacement: string }> = [
+  // HK/MC
   { pattern: 'TIMESSQUARE', replacement: 'TIMESSQUARE' },
   { pattern: 'HYSANPLACE', replacement: 'HYSANPLACE' },
   { pattern: 'CITYGATE', replacement: 'CITYGATE' },
@@ -58,6 +91,28 @@ const partialMatchRules: Array<{ pattern: string; replacement: string }> = [
   { pattern: 'LANGHAM', replacement: 'LANGHAM' },
   { pattern: 'SHEUNGSHUI', replacement: 'SHEUNGSHUI' },
   { pattern: 'YUENLONG', replacement: 'YUENLONG' },
+  
+  // TW - MITSUKOSHI 계열
+  { pattern: 'MITSUKOSHIA11DISCOVERY', replacement: 'MITSUKOSHIA11DISCOVERY' },
+  { pattern: 'MITSUKOSHITAICHUNGDISCOVERY', replacement: 'MITSUKOSHITAICHUNGDISCOVERY' },
+  { pattern: 'MITSUKOSHIA11', replacement: 'A11' },
+  { pattern: 'MITSUKOSHITAICHUNG', replacement: 'TAICHUNG' },
+  { pattern: 'MITSUKOSHINANJING', replacement: 'NANJING' },
+  
+  // TW - 기타
+  { pattern: 'NANGANGLALAPORT', replacement: 'NANGANGLALAPORT' },
+  { pattern: 'TAICHUNGLALAPORT', replacement: 'TAICHUNGLALAPORT' },
+  { pattern: 'TCLALAPORTDISCOVERY', replacement: 'TCLALAPORTDISCOVERY' },
+  { pattern: 'HANSHINARENA', replacement: 'HANSHINARENA' },
+  { pattern: 'MAGACITYBANQIAO', replacement: 'MAGACITYBANQIAO' },
+  { pattern: 'SOGOGARDENCITY', replacement: 'SOGOGARDENCITY' },
+  { pattern: 'SOGOZHONGXIAO', replacement: 'SOGOZHONGXIAO' },
+  { pattern: 'GLORIAOUTLET', replacement: 'GLORIAOUTLET' },
+  { pattern: 'ESLITEXINDIAN', replacement: 'ESLITEXINDIAN' },
+  { pattern: 'ESLITETC', replacement: 'ESLITETC' },
+  { pattern: 'MKTCOUTLET', replacement: 'MKTCOUTLET' },
+  { pattern: 'OFFICIALONLINE', replacement: 'OFFICIALONLINE' },
+  { pattern: 'LINEGIFT', replacement: 'LINEGIFT' },
 ];
 
 /**

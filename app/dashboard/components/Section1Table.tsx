@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { formatYoY, isNewStore } from '@/lib/new-store-utils';
 
 interface Section1TableProps {
   region: string;
@@ -51,6 +52,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
     'mc_normal': false,
     'mc_outlet': false,
     'mc_online': false,
+    'tw_normal': false,
+    'tw_outlet': false,
+    'tw_online': false,
   });
   const [sortConfig, setSortConfig] = useState<{
     key: string;
@@ -151,6 +155,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       'mc_normal': true,
       'mc_outlet': true,
       'mc_online': true,
+      'tw_normal': true,
+      'tw_outlet': true,
+      'tw_online': true,
     });
   };
 
@@ -162,6 +169,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       'mc_normal': false,
       'mc_outlet': false,
       'mc_online': false,
+      'tw_normal': false,
+      'tw_outlet': false,
+      'tw_online': false,
     });
   };
 
@@ -412,7 +422,11 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${
           isClosed ? 'text-gray-400' : (yoyValue < 80 ? 'text-red-600' : 'text-green-600')
         }`}>
-          {formatPercent(yoyValue)}
+          {isNewStore(actualPyValue) ? (
+            <span className="text-blue-600 font-medium">{language === 'ko' ? '신규' : 'New'}</span>
+          ) : (
+            formatPercent(yoyValue)
+          )}
         </td>
         {isYtdMode ? (
           <>
@@ -428,7 +442,11 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             <td className={`px-4 py-2 border-b border-gray-200 text-right ${
               isClosed ? 'text-gray-400' : (row.projectedYoY < 80 ? 'text-red-600' : 'text-green-600')
             }`}>
-              {formatPercent(row.projectedYoY)}
+              {isNewStore(actualPyValue) ? (
+                <span className="text-blue-600 font-medium">{language === 'ko' ? '신규' : 'New'}</span>
+              ) : (
+                formatPercent(row.projectedYoY)
+              )}
             </td>
           </>
         )}
@@ -587,63 +605,92 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             </tr>
           </thead>
           <tbody>
-            {/* HK 정상 */}
-            {renderChannelSection('hk_normal', 'HK - 정상', data.hk_normal, data.hk_normal_subtotal)}
-
-            {/* HK 아울렛 */}
-            {renderChannelSection('hk_outlet', 'HK - 아울렛', data.hk_outlet, data.hk_outlet_subtotal)}
-
-            {/* HK 온라인 */}
-            {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
-
-            {/* HK 전체 합계 */}
-            {data.hk_subtotal && (
+            {/* Region 분기: HKMC vs TW */}
+            {region === 'TW' ? (
               <>
-                <tr className="h-2"></tr>
-                <tr className="bg-yellow-50">
-                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    {language === 'ko' ? 'HK 전체 합계' : 'HK Total'}
-                  </td>
-                </tr>
-                {renderRow(data.hk_subtotal, true)}
+                {/* TW 정상 */}
+                {renderChannelSection('tw_normal', 'TW - 정상', data.tw_normal, data.tw_normal_subtotal)}
+
+                {/* TW 아울렛 */}
+                {renderChannelSection('tw_outlet', 'TW - 아울렛', data.tw_outlet, data.tw_outlet_subtotal)}
+
+                {/* TW 온라인 */}
+                {renderChannelSection('tw_online', 'TW - 온라인', data.tw_online, data.tw_online_subtotal)}
+
+                {/* TW 전체 합계 */}
+                {data.tw_subtotal && (
+                  <>
+                    <tr className="h-2"></tr>
+                    <tr className="bg-yellow-50">
+                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                        {language === 'ko' ? 'TW 전체 합계' : 'TW Total'}
+                      </td>
+                    </tr>
+                    {renderRow(data.tw_subtotal, true)}
+                  </>
+                )}
               </>
-            )}
-
-            {/* HK와 MC 사이 간격 */}
-            <tr className="h-4"></tr>
-
-            {/* MC 정상 */}
-            {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
-
-            {/* MC 아울렛 */}
-            {renderChannelSection('mc_outlet', 'MC - 아울렛', data.mc_outlet, data.mc_outlet_subtotal)}
-
-            {/* MC 온라인 */}
-            {renderChannelSection('mc_online', 'MC - 온라인', data.mc_online, data.mc_online_subtotal)}
-
-            {/* MC 전체 합계 */}
-            {data.mc_subtotal && (
+            ) : (
               <>
-                <tr className="h-2"></tr>
-                <tr className="bg-yellow-50">
-                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    {language === 'ko' ? 'MC 전체 합계' : 'MC Total'}
-                  </td>
-                </tr>
-                {renderRow(data.mc_subtotal, true)}
-              </>
-            )}
+                {/* HK 정상 */}
+                {renderChannelSection('hk_normal', 'HK - 정상', data.hk_normal, data.hk_normal_subtotal)}
 
-            {/* HKMC 전체 합계 */}
-            {data.total_subtotal && (
-              <>
+                {/* HK 아울렛 */}
+                {renderChannelSection('hk_outlet', 'HK - 아울렛', data.hk_outlet, data.hk_outlet_subtotal)}
+
+                {/* HK 온라인 */}
+                {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
+
+                {/* HK 전체 합계 */}
+                {data.hk_subtotal && (
+                  <>
+                    <tr className="h-2"></tr>
+                    <tr className="bg-yellow-50">
+                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                        {language === 'ko' ? 'HK 전체 합계' : 'HK Total'}
+                      </td>
+                    </tr>
+                    {renderRow(data.hk_subtotal, true)}
+                  </>
+                )}
+
+                {/* HK와 MC 사이 간격 */}
                 <tr className="h-4"></tr>
-                <tr className="bg-indigo-50">
-                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                    {language === 'ko' ? 'HKMC 전체 합계' : 'HKMC Total'}
-                  </td>
-                </tr>
-                {renderRow(data.total_subtotal, true)}
+
+                {/* MC 정상 */}
+                {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
+
+                {/* MC 아울렛 */}
+                {renderChannelSection('mc_outlet', 'MC - 아울렛', data.mc_outlet, data.mc_outlet_subtotal)}
+
+                {/* MC 온라인 */}
+                {renderChannelSection('mc_online', 'MC - 온라인', data.mc_online, data.mc_online_subtotal)}
+
+                {/* MC 전체 합계 */}
+                {data.mc_subtotal && (
+                  <>
+                    <tr className="h-2"></tr>
+                    <tr className="bg-yellow-50">
+                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                        {language === 'ko' ? 'MC 전체 합계' : 'MC Total'}
+                      </td>
+                    </tr>
+                    {renderRow(data.mc_subtotal, true)}
+                  </>
+                )}
+
+                {/* HKMC 전체 합계 */}
+                {data.total_subtotal && (
+                  <>
+                    <tr className="h-4"></tr>
+                    <tr className="bg-indigo-50">
+                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                        {language === 'ko' ? 'HKMC 전체 합계' : 'HKMC Total'}
+                      </td>
+                    </tr>
+                    {renderRow(data.total_subtotal, true)}
+                  </>
+                )}
               </>
             )}
           </tbody>

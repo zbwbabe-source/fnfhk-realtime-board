@@ -40,6 +40,7 @@ export const translations = {
     // Section 1
     section1Header: '섹션 1: 매장별 매출',
     unit: '단위: HKD',
+    unitWithExchange: '단위: HKD (환율적용)',
     ytdToggle: '연누적',
     expandAll: '전체 펼치기',
     collapseAll: '전체 접기',
@@ -59,6 +60,8 @@ export const translations = {
     
     // Section 2
     section2Header: '섹션 2: 당시즌 판매율',
+    section2HeaderClothes: '섹션 2: 당시즌 의류 판매율',
+    section2HeaderAll: '섹션 2: 당시즌 전체 판매율',
     inSeason: '당시즌',
     sellthrough: '판매율',
     cumulativeSales: '누적판매',
@@ -84,6 +87,9 @@ export const translations = {
     filterCategory: '필터',
     allCategories: '전체 카테고리',
     productCode: '품번',
+    clothesOnly: '의류만',
+    allCategory: '악세포함',
+    tagBasis: '(택가기준)',
     
     // Section 3
     section3Header: '섹션3. 과시즌 재고 소진현황',
@@ -158,6 +164,7 @@ export const translations = {
     // Section 1
     section1Header: 'Section 1: Store Sales',
     unit: 'Unit: HKD',
+    unitWithExchange: 'Unit: HKD (Exch. Applied)',
     ytdToggle: 'YTD',
     expandAll: 'Expand All',
     collapseAll: 'Collapse All',
@@ -177,6 +184,8 @@ export const translations = {
     
     // Section 2
     section2Header: 'Section 2: In-season Sell-through',
+    section2HeaderClothes: 'Section 2: In-season Apparel Sell-through',
+    section2HeaderAll: 'Section 2: In-season Total Sell-through',
     inSeason: 'In-season',
     sellthrough: 'Sell-through',
     cumulativeSales: 'Cumulative Sales',
@@ -202,6 +211,9 @@ export const translations = {
     filterCategory: 'Filter',
     allCategories: 'All Categories',
     productCode: 'SKU',
+    clothesOnly: 'Apparel Only',
+    allCategory: 'w/ ACC',
+    tagBasis: '(TAG Basis)',
     
     // Section 3
     section3Header: 'Section 3: Old-season Inventory Clearance',

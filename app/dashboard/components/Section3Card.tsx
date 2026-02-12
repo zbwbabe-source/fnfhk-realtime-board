@@ -6,9 +6,10 @@ import { t, type Language } from '@/lib/translations';
 interface Section3CardProps {
   section3Data: any;
   language: Language;
+  region: string;
 }
 
-export default function Section3Card({ section3Data, language }: Section3CardProps) {
+export default function Section3Card({ section3Data, language, region }: Section3CardProps) {
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
@@ -59,6 +60,7 @@ export default function Section3Card({ section3Data, language }: Section3CardPro
 
   const kpis = calculateKPIs();
   const seasonType = getSection3SeasonType();
+  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
 
   return (
     <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-lg shadow-md p-6 border-l-4 border-orange-600">
@@ -71,6 +73,7 @@ export default function Section3Card({ section3Data, language }: Section3CardPro
             {seasonType && <span className="ml-2 text-sm text-purple-600">({seasonType})</span>}
           </h3>
           <p className="text-xs text-gray-600">{t(language, 'section3Subtitle')}</p>
+          <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
         </div>
       </div>
 

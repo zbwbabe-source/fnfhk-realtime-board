@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
-import { normalizeBrand } from '@/lib/store-utils';
+import { normalizeBrand, getAllStoresByRegionBrand } from '@/lib/store-utils';
+import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,22 +38,35 @@ export async function GET(request: NextRequest) {
       ? "(CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = 'M'" 
       : "BRD_CD = 'X'";
     
-    // 홍콩/마카오 매장 리스트 (HKMC 지역만 해당)
-    const shopListCTE = region === 'HKMC' ? `
-hk_mc_shop AS (
+    // 모든 매장 코드 가져오기 (region, brand 기반, warehouse 포함)
+    const allStores = getAllStoresByRegionBrand(region, brand);
+    
+    if (allStores.length === 0) {
+      return NextResponse.json({
+        asof_date: date,
+        base_stock_date: null,
+        period_start_date: null,
+        season_type: null,
+        region,
+        brand,
+        header: null,
+        years: [],
+        categories: [],
+        skus: [],
+      });
+    }
+    
+    // 매장 리스트 CTE 동적 생성
+    const shopValues = allStores.map(code => `('${code}')`).join(',\n    ');
+    const shopListCTE = `
+region_shop AS (
   SELECT column1 AS local_shop_cd
   FROM VALUES
-    ('HE1'),('HE2'),
-    ('M01'),('M02'),('M03'),('M05'),('M06'),('M07'),('M08'),('M09'),
-    ('M10'),('M11'),('M12'),('M13'),('M14'),('M15'),('M16'),('M17'),
-    ('M18'),('M19'),('M20'),('M21'),('M22'),
-    ('MC1'),('MC2'),('MC3'),('MC3DGM'),('MC4'),
-    ('WHM'),('WMM'),
-    ('X01'),('XE1'),('XHM')
+    ${shopValues}
 ),
-` : '';
+`;
     
-    const shopFilter = region === 'HKMC' ? 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM hk_mc_shop)' : '';
+    const shopFilter = 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM region_shop)';
     
     /*
      * 예시:
@@ -513,6 +527,18 @@ ORDER BY
       }))
     });
 
+    // TW 리전일 때 환율 적용
+    const isTwRegion = region === 'TW';
+    const period = isTwRegion ? getPeriodFromDateString(date) : '';
+    console.log(`💱 Exchange rate: ${isTwRegion ? 'Applying TWD->HKD conversion for period ' + period : 'No conversion (HKMC)'}`);
+
+    // 환율 적용 헬퍼 함수
+    const applyExchangeRate = (amount: number | null): number | null => {
+      if (amount === null) return null;
+      if (!isTwRegion) return amount;
+      return convertTwdToHkd(amount, period);
+    };
+
     // 레벨별로 데이터 분리
     const header = rows.find((r: any) => r.ROW_LEVEL === 'HEADER');
     const yearRows = rows.filter((r: any) => r.ROW_LEVEL === 'YEAR');
@@ -572,10 +598,10 @@ ORDER BY
       brand,
       header: header ? {
         year_bucket: header.YEAR_BUCKET,
-        base_stock_amt: parseFloat(header.BASE_STOCK_AMT || 0),
-        curr_stock_amt: parseFloat(header.CURR_STOCK_AMT || 0),
-        stagnant_stock_amt: parseFloat(header.STAGNANT_STOCK_AMT || 0),
-        depleted_stock_amt: parseFloat(header.DEPLETED_STOCK_AMT || 0),
+        base_stock_amt: applyExchangeRate(parseFloat(header.BASE_STOCK_AMT || 0)) || 0,
+        curr_stock_amt: applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0,
+        stagnant_stock_amt: applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0,
+        depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
         discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
         inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
         inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
@@ -584,10 +610,10 @@ ORDER BY
         year_bucket: row.YEAR_BUCKET,
         season_code: getYearBucketSeasonCode(row.YEAR_BUCKET),
         sesn: row.SESN,
-        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
-        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
-        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
-        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
+        base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
+        curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+        stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+        depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
         discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
         inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
         inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
@@ -596,10 +622,10 @@ ORDER BY
       categories: catRows.map((row: any) => ({
         year_bucket: row.YEAR_BUCKET,
         cat2: row.CAT2,
-        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
-        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
-        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
-        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
+        base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
+        curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+        stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+        depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
         discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
         inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
         inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
@@ -610,12 +636,12 @@ ORDER BY
         sesn: row.SESN,
         cat2: row.CAT2,
         prdt_cd: row.PRDT_CD,
-        base_stock_amt: parseFloat(row.BASE_STOCK_AMT || 0),
-        curr_stock_amt: parseFloat(row.CURR_STOCK_AMT || 0),
-        stagnant_stock_amt: parseFloat(row.STAGNANT_STOCK_AMT || 0),
-        depleted_stock_amt: parseFloat(row.DEPLETED_STOCK_AMT || 0),
-        period_tag_sales: parseFloat(row.PERIOD_TAG_SALES || 0),
-        period_act_sales: parseFloat(row.PERIOD_ACT_SALES || 0),
+        base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
+        curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+        stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+        depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
+        period_tag_sales: applyExchangeRate(parseFloat(row.PERIOD_TAG_SALES || 0)) || 0,
+        period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,
       })),
     };
 

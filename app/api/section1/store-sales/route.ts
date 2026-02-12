@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
 import { loadWeightDataServer, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
+import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import targetData from '@/data/target.json';
 
 export const dynamic = 'force-dynamic';
@@ -241,6 +242,17 @@ export async function GET(request: NextRequest) {
       totalYtdActPy: rows.reduce((sum, r) => sum + parseFloat(r.YTD_ACT_PY || 0), 0),
     });
 
+    // TW 리전일 때 환율 적용
+    const isTwRegion = region === 'TW';
+    const period = isTwRegion ? getPeriodFromDateString(date) : '';
+    console.log(`💱 Exchange rate: ${isTwRegion ? 'Applying TWD->HKD conversion for period ' + period : 'No conversion (HKMC)'}`);
+
+    // 환율 적용 헬퍼 함수
+    const applyExchangeRate = (amount: number): number => {
+      if (!isTwRegion) return amount;
+      return convertTwdToHkd(amount, period) || 0;
+    };
+
     // Store master 맵 생성
     const storeMap = new Map(targetStores.map(s => [s.store_code, s]));
 
@@ -251,36 +263,43 @@ export async function GET(request: NextRequest) {
     const mc_normal: any[] = [];
     const mc_outlet: any[] = [];
     const mc_online: any[] = [];
+    const tw_normal: any[] = [];
+    const tw_outlet: any[] = [];
+    const tw_online: any[] = [];
 
-    rows.forEach((row: any) => {
-      const storeInfo = storeMap.get(row.SHOP_CD);
-      if (!storeInfo) return;
+    // SQL 결과를 Map으로 변환 (빠른 조회용)
+    const rowMap = new Map(rows.map((row: any) => [row.SHOP_CD, row]));
 
-      // MTD 데이터
-      const mtd_act = parseFloat(row.MTD_ACT || 0);
-      const mtd_act_py = parseFloat(row.MTD_ACT_PY || 0);
-      const mtd_act_pm = parseFloat(row.MTD_ACT_PM || 0);
-      const mtd_tag = parseFloat(row.MTD_TAG || 0);
-      const yoy = parseFloat(row.YOY || 0);
-      const mom = parseFloat(row.MOM || 0);
+    // 모든 targetStores를 순회하며 데이터 생성 (데이터 없으면 0으로)
+    targetStores.forEach((storeInfo) => {
+      const row = rowMap.get(storeInfo.store_code);
+
+      // 데이터가 있으면 실제 값, 없으면 0
+      const mtd_act = row ? applyExchangeRate(parseFloat(row.MTD_ACT || 0)) : 0;
+      const mtd_act_py = row ? applyExchangeRate(parseFloat(row.MTD_ACT_PY || 0)) : 0;
+      const mtd_act_pm = row ? applyExchangeRate(parseFloat(row.MTD_ACT_PM || 0)) : 0;
+      const mtd_tag = row ? applyExchangeRate(parseFloat(row.MTD_TAG || 0)) : 0;
+      const yoy = row ? parseFloat(row.YOY || 0) : 0;
+      const mom = row ? parseFloat(row.MOM || 0) : 0;
       
-      // YTD 데이터
-      const ytd_act = parseFloat(row.YTD_ACT || 0);
-      const ytd_act_py = parseFloat(row.YTD_ACT_PY || 0);
-      const ytd_tag = parseFloat(row.YTD_TAG || 0);
-      const yoy_ytd = parseFloat(row.YOY_YTD || 0);
+      // YTD 데이터 (환율 적용)
+      const ytd_act = row ? applyExchangeRate(parseFloat(row.YTD_ACT || 0)) : 0;
+      const ytd_act_py = row ? applyExchangeRate(parseFloat(row.YTD_ACT_PY || 0)) : 0;
+      const ytd_tag = row ? applyExchangeRate(parseFloat(row.YTD_TAG || 0)) : 0;
+      const yoy_ytd = row ? parseFloat(row.YOY_YTD || 0) : 0;
       
       // 할인율 계산: 1 - (ACT / TAG)
       const discount_rate_mtd = mtd_tag > 0 ? (1 - (mtd_act / mtd_tag)) * 100 : 0;
       const discount_rate_ytd = ytd_tag > 0 ? (1 - (ytd_act / ytd_tag)) * 100 : 0;
       
-      // MTD 목표값 가져오기
-      const targetInfo = targetsByStore[row.SHOP_CD];
-      const target_mth = targetInfo ? targetInfo.target_mth : 0;
+      // MTD 목표값 가져오기 (환율 적용)
+      const targetInfo = targetsByStore[storeInfo.store_code];
+      const target_mth = targetInfo ? applyExchangeRate(targetInfo.target_mth) : 0;
       const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
 
-      // YTD 목표 계산 (매장별)
-      const ytd_target = calculateYtdTargetForStore(row.SHOP_CD, year, month, asofDate.getDate(), targetData);
+      // YTD 목표 계산 (매장별, 환율 적용)
+      const ytd_target_original = calculateYtdTargetForStore(storeInfo.store_code, year, month, asofDate.getDate(), targetData);
+      const ytd_target = applyExchangeRate(ytd_target_original);
       const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
 
       // 월말환산 계산 (MTD 기준)
@@ -290,8 +309,8 @@ export async function GET(request: NextRequest) {
       const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
 
       const record = {
-        shop_cd: row.SHOP_CD,
-        shop_name: storeInfo.store_name || row.SHOP_CD,
+        shop_cd: storeInfo.store_code,
+        shop_name: storeInfo.store_name || storeInfo.store_code,
         country: storeInfo.country,
         channel: storeInfo.channel,
         
@@ -326,6 +345,10 @@ export async function GET(request: NextRequest) {
         if (storeInfo.channel === '정상') mc_normal.push(record);
         else if (storeInfo.channel === '아울렛') mc_outlet.push(record);
         else if (storeInfo.channel === '온라인') mc_online.push(record);
+      } else if (storeInfo.country === 'TW') {
+        if (storeInfo.channel === '정상') tw_normal.push(record);
+        else if (storeInfo.channel === '아울렛') tw_outlet.push(record);
+        else if (storeInfo.channel === '온라인') tw_online.push(record);
       }
     });
 
@@ -343,6 +366,9 @@ export async function GET(request: NextRequest) {
     mc_normal.sort(sortByClosedStatus);
     mc_outlet.sort(sortByClosedStatus);
     mc_online.sort(sortByClosedStatus);
+    tw_normal.sort(sortByClosedStatus);
+    tw_outlet.sort(sortByClosedStatus);
+    tw_online.sort(sortByClosedStatus);
 
     // 채널별 합계 계산 함수
     const calculateSubtotal = (stores: any[], name: string, country: string, channel: string) => {
@@ -416,9 +442,25 @@ export async function GET(request: NextRequest) {
     const mc_all_stores = [...mc_normal, ...mc_outlet, ...mc_online];
     const mc_subtotal = calculateSubtotal(mc_all_stores, 'MC 전체', 'MC', '전체');
 
-    // HKMC 전체 합계
-    const all_stores = [...hk_normal, ...hk_outlet, ...hk_online, ...mc_normal, ...mc_outlet, ...mc_online];
-    const total_subtotal = calculateSubtotal(all_stores, 'HKMC 전체', 'HKMC', '전체');
+    // TW 채널별 합계
+    const tw_normal_subtotal = calculateSubtotal(tw_normal, 'TW 정상 합계', 'TW', '정상');
+    const tw_outlet_subtotal = calculateSubtotal(tw_outlet, 'TW 아울렛 합계', 'TW', '아울렛');
+    const tw_online_subtotal = calculateSubtotal(tw_online, 'TW 온라인 합계', 'TW', '온라인');
+
+    // TW 전체 합계
+    const tw_all_stores = [...tw_normal, ...tw_outlet, ...tw_online];
+    const tw_subtotal = calculateSubtotal(tw_all_stores, 'TW 전체', 'TW', '전체');
+
+    // 전체 합계 (리전별 분기)
+    let all_stores, total_subtotal;
+    if (region === 'TW') {
+      all_stores = tw_all_stores;
+      total_subtotal = calculateSubtotal(all_stores, 'TW 전체', 'TW', '전체');
+    } else {
+      // HKMC 전체 합계
+      all_stores = [...hk_normal, ...hk_outlet, ...hk_online, ...mc_normal, ...mc_outlet, ...mc_online];
+      total_subtotal = calculateSubtotal(all_stores, 'HKMC 전체', 'HKMC', '전체');
+    }
 
     const response = {
       asof_date: date,
@@ -438,6 +480,13 @@ export async function GET(request: NextRequest) {
       mc_online,
       mc_online_subtotal,
       mc_subtotal,
+      tw_normal,
+      tw_normal_subtotal,
+      tw_outlet,
+      tw_outlet_subtotal,
+      tw_online,
+      tw_online_subtotal,
+      tw_subtotal,
       total_subtotal,
     };
 

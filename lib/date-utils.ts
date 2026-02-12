@@ -58,17 +58,14 @@ export function getSeasonStartDate(date: Date): Date {
 }
 
 /**
- * 섹션2 계산용 시작일 (시즌 시작일 - 6개월)
+ * 섹션2 계산용 시작일 (시즌 시작일)
  * 
  * 예시:
- * - 2026-01-31 선택 -> 시즌 25F (2025-09-01) -> 계산 시작: 2025-03-01
- * - 2026-05-15 선택 -> 시즌 26S (2026-03-01) -> 계산 시작: 2025-09-01
+ * - 2026-01-31 선택 -> 25F 시즌 시작: 2025-09-01
+ * - 2026-05-15 선택 -> 26S 시즌 시작: 2026-03-01
  */
 export function getSection2StartDate(date: Date): Date {
-  const seasonStart = getSeasonStartDate(date);
-  const startDate = new Date(seasonStart);
-  startDate.setMonth(startDate.getMonth() - 6);
-  return startDate;
+  return getSeasonStartDate(date);
 }
 
 /**

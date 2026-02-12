@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeMerge } from '@/lib/snowflake';
 import { getStoresByRegionBrandChannel, getWarehouseStores } from '@/lib/store-utils';
-import { getYesterday, formatDateYYYYMMDD, getSeasonCode } from '@/lib/date-utils';
+import { getYesterday, formatDateYYYYMMDD, getSeasonCode, getSection2StartDate } from '@/lib/date-utils';
+import { getApparelCategories } from '@/lib/category-utils.server';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -13,7 +14,7 @@ import * as path from 'path';
  * 
  * 작업 내용:
  * 1. 섹션1: 매장별 MTD 매출 집계 (HKMC)
- * 2. 섹션2: 당시즌 판매율 집계 (HKMC)
+ * 2. 섹션2: 당시즌 의류 판매율 집계 (HKMC)
  */
 export async function GET(request: NextRequest) {
   // CRON_SECRET 검증
@@ -98,9 +99,9 @@ export async function GET(request: NextRequest) {
     results.section1.status = 'completed';
 
     // ========================================
-    // 섹션2: 당시즌 판매율 집계
+    // 섹션2: 당시즌 의류 판매율 집계
     // ========================================
-    console.log('\n📈 Section 2: Season Sell-through');
+    console.log('\n📈 Section 2: Season Sell-through (Apparel Only)');
     
     const sesn = getSeasonCode(yesterday);
     console.log(`  Season: ${sesn}`);
@@ -121,16 +122,26 @@ export async function GET(request: NextRequest) {
         const sqlPath = path.join(process.cwd(), 'sql', 'merge_section2_sellthrough.sql');
         let sqlTemplate = fs.readFileSync(sqlPath, 'utf-8');
 
+        // start_date 계산 (섹션2 시작일: 시즌 시작일 - 6개월)
+        const startDate = getSection2StartDate(yesterday);
+        const startDateStr = formatDateYYYYMMDD(startDate);
+
+        // 의류 카테고리 목록 가져오기
+        const apparelCategories = getApparelCategories();
+        const apparelCategoriesStr = apparelCategories.map(c => `'${c}'`).join(',');
+
         // 파라미터 바인딩
         const warehouseCodesStr = warehouseCodes.map(c => `'${c}'`).join(',');
         const storeCodesStr = storeCodes.map(c => `'${c}'`).join(',');
         const sql = sqlTemplate
           .replace(/:asof_date/g, `'${asofDate}'`)
+          .replace(/:start_date/g, `'${startDateStr}'`)
           .replace(/:region/g, `'${region}'`)
           .replace(/:brand/g, `'${brand}'`)
           .replace(/:sesn/g, `'${sesn}'`)
-          .replace(/IN \(:warehouse_codes\)/g, `IN (${warehouseCodesStr})`)
-          .replace(/IN \(:store_codes\)/g, `IN (${storeCodesStr})`);
+          .replace(/IN \(:all_store_codes\)/g, `IN (${warehouseCodesStr})`)
+          .replace(/IN \(:store_codes\)/g, `IN (${storeCodesStr})`)
+          .replace(/IN \(:apparel_categories\)/g, `IN (${apparelCategoriesStr})`);
 
         const result = await executeSnowflakeMerge(sql);
         

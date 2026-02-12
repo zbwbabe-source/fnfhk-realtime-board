@@ -1,7 +1,7 @@
 -- ============================================================
 -- 섹션2: DASH_SEASON_SELLTHROUGH MERGE 쿼리 (참고용)
 -- ============================================================
--- Purpose: 당시즌 판매율 집계 (TAG 기준)
+-- Purpose: 당시즌 의류 판매율 집계 (TAG 기준)
 -- ⚠️ 주의: 현재 API는 DASH 테이블을 사용하지 않고 직접 SELECT를 실행합니다.
 --          이 파일은 향후 배치 작업 참고용입니다.
 -- 
@@ -13,6 +13,7 @@
 --   :sesn - 시즌 코드 (예: '25F', '26S')
 --   :all_store_codes - HKMC 전체 매장 코드 리스트 (warehouse 포함)
 --   :store_codes - 일반 매장 코드 리스트 (warehouse 제외)
+--   :apparel_categories - 의류 카테고리 소분류 코드 리스트 ('DP','LG','PT',...)
 -- ============================================================
 -- ⚠️ 핵심 로직: 
 -- 1. 판매율 = 판매 / (판매 + 재고) × 100
@@ -20,6 +21,7 @@
 -- 3. 판매 SALE_DT = asof_date (영업일 기준, +1 금지)
 -- 4. SESN 필터 유지 (해당 시즌만)
 -- 5. 판매 기간: 시즌 시작일 - 6개월 ~ asof_date
+-- 6. 카테고리 필터: 의류만 (category.csv 기준)
 -- ============================================================
 
 MERGE INTO SAP_FNF.DASH.DASH_SEASON_SELLTHROUGH AS target
@@ -70,6 +72,7 @@ USING (
     FULL OUTER JOIN ending_stock e 
         ON s.PRDT_CD = e.PRDT_CD
     WHERE COALESCE(s.PRDT_CD, e.PRDT_CD) IS NOT NULL
+        AND SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) IN (:apparel_categories)
 ) AS source
 ON target.asof_date = source.asof_date 
    AND target.region = source.region 

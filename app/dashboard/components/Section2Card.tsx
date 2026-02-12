@@ -6,9 +6,19 @@ import { t, type Language } from '@/lib/translations';
 interface Section2CardProps {
   section2Data: any;
   language: Language;
+  categoryFilter: 'clothes' | 'all';
+  onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
+  region: string;
 }
 
-export default function Section2Card({ section2Data, language }: Section2CardProps) {
+export default function Section2Card({ section2Data, language, categoryFilter, onCategoryFilterChange, region }: Section2CardProps) {
+  // 디버깅용 로그
+  console.log('Section2Card received data:', {
+    total_sales: section2Data?.header?.total_sales,
+    total_inbound: section2Data?.header?.total_inbound,
+    sellthrough: section2Data?.header?.overall_sellthrough,
+  });
+
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
@@ -57,18 +67,50 @@ export default function Section2Card({ section2Data, language }: Section2CardPro
 
   const kpis = calculateKPIs();
   const season = getSection2Season();
+  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-lg shadow-md p-6 border-l-4 border-green-600">
-      {/* 제목 */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-2xl">📊</span>
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">
-            {t(language, 'section2Title')}
-            {season && <span className="ml-2 text-sm text-purple-600">({season})</span>}
-          </h3>
-          <p className="text-xs text-gray-600">{t(language, 'section2Subtitle')}</p>
+      {/* 제목 및 필터 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">📊</span>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">
+              {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
+              {season && <span className="ml-2 text-sm text-purple-600">({season})</span>}
+              <span className="ml-2 text-xs text-gray-500">{t(language, 'tagBasis')}</span>
+            </h3>
+            <p className="text-xs text-gray-600">{t(language, 'section2Subtitle')}</p>
+            <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
+          </div>
+        </div>
+        
+        {/* 카테고리 필터 토글 버튼 */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600">{t(language, 'filterCategory')}:</span>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
+            <button
+              onClick={() => onCategoryFilterChange('clothes')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-l-lg transition-colors ${
+                categoryFilter === 'clothes'
+                  ? 'bg-green-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'clothesOnly')}
+            </button>
+            <button
+              onClick={() => onCategoryFilterChange('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-r-lg transition-colors ${
+                categoryFilter === 'all'
+                  ? 'bg-green-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'allCategory')}
+            </button>
+          </div>
         </div>
       </div>
 
