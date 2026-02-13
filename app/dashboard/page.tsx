@@ -245,6 +245,21 @@ export default function DashboardPage() {
       }
 
       // 2. 편집된 데이터가 없으면 AI 생성 요약 가져오기
+      // 경과일수 계산
+      const asofDate = new Date(date);
+      const elapsedDays = asofDate.getDate();
+      const year = asofDate.getFullYear();
+      const month = asofDate.getMonth();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      
+      console.log('📅 [page.tsx] Date calculation:', {
+        date,
+        asofDate: asofDate.toISOString(),
+        elapsedDays,
+        totalDays,
+        formula: `${elapsedDays}일 / ${totalDays}일`
+      });
+      
       const response = await fetch('/api/insights/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -258,6 +273,8 @@ export default function DashboardPage() {
             yoy_ytd: isYtdMode ? (section1Data.total_subtotal?.yoy_ytd || 0) : (section1Data.total_subtotal?.yoy || 0),
             actual_sales_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_act || 0) : (section1Data.total_subtotal?.mtd_act || 0),
             target_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_target || 0) : (section1Data.total_subtotal?.target_mth || 0),
+            elapsed_days: elapsedDays,
+            total_days: totalDays,
           },
           section2: {
             sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
