@@ -51,7 +51,7 @@ export const translations = {
     ytdTarget: '목표(연누적)',
     monthlyActual: '당월실적',
     ytdActual: '연누적실적',
-    progress: '달성률',
+    progress: '진척률',
     lastYearSame: '전년동월',
     lastYearYtd: '전년연누적',
     yoy: 'YoY',
