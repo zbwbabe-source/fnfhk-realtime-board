@@ -772,16 +772,32 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
               radius={[4, 4, 0, 0]}
               shape={(props: any) => {
                 const { fill, x, y, width, height, payload } = props;
+                const isNew = isNewStore(payload.py_value);
+                
                 return (
-                  <rect
-                    x={x}
-                    y={y}
-                    width={width}
-                    height={height}
-                    fill={payload.color}
-                    rx={4}
-                    ry={4}
-                  />
+                  <g>
+                    <rect
+                      x={x}
+                      y={y}
+                      width={width}
+                      height={height}
+                      fill={payload.color}
+                      rx={4}
+                      ry={4}
+                    />
+                    {isNew && (
+                      <text
+                        x={x + width / 2}
+                        y={y - 5}
+                        textAnchor="middle"
+                        fill="#2563eb"
+                        fontSize={9}
+                        fontWeight={700}
+                      >
+                        {language === 'ko' ? '신규' : 'NEW'}
+                      </text>
+                    )}
+                  </g>
                 );
               }}
             />
@@ -997,6 +1013,37 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                         fill="#93c5fd"
                         radius={[0, 4, 4, 0]}
                         barSize={35}
+                        shape={(props: any) => {
+                          const { fill, x, y, width, height, payload } = props;
+                          const isNew = isNewStore(payload.py_value);
+                          
+                          return (
+                            <g>
+                              <rect
+                                x={x}
+                                y={y}
+                                width={width}
+                                height={height}
+                                fill={payload.color}
+                                rx={4}
+                                ry={4}
+                              />
+                              {isNew && (
+                                <text
+                                  x={x + width + 5}
+                                  y={y + height / 2}
+                                  textAnchor="start"
+                                  dominantBaseline="middle"
+                                  fill="#2563eb"
+                                  fontSize={10}
+                                  fontWeight={700}
+                                >
+                                  {language === 'ko' ? '신규' : 'NEW'}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        }}
                       >
                         {displayData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
@@ -1088,16 +1135,32 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                       radius={[4, 4, 0, 0]}
                       shape={(props: any) => {
                         const { fill, x, y, width, height, payload } = props;
+                        const isNew = isNewStore(payload.py_value);
+                        
                         return (
-                          <rect
-                            x={x}
-                            y={y}
-                            width={width}
-                            height={height}
-                            fill={payload.color}
-                            rx={4}
-                            ry={4}
-                          />
+                          <g>
+                            <rect
+                              x={x}
+                              y={y}
+                              width={width}
+                              height={height}
+                              fill={payload.color}
+                              rx={4}
+                              ry={4}
+                            />
+                            {isNew && (
+                              <text
+                                x={x + width / 2}
+                                y={y - 5}
+                                textAnchor="middle"
+                                fill="#2563eb"
+                                fontSize={11}
+                                fontWeight={700}
+                              >
+                                {language === 'ko' ? '신규' : 'NEW'}
+                              </text>
+                            )}
+                          </g>
                         );
                       }}
                     />
