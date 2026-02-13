@@ -98,6 +98,13 @@ export default function ExecutiveSummary({
       setError('');
 
       try {
+        // 경과일수 계산
+        const asofDate = new Date(date);
+        const elapsedDays = asofDate.getDate();
+        const year = asofDate.getFullYear();
+        const month = asofDate.getMonth();
+        const totalDays = new Date(year, month + 1, 0).getDate();
+
         const response = await fetch('/api/insights/summary', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -111,6 +118,8 @@ export default function ExecutiveSummary({
               yoy_ytd: section1Data.total_subtotal?.yoy || 0,
               actual_sales_ytd: section1Data.total_subtotal?.mtd_act || 0,
               target_ytd: section1Data.total_subtotal?.target_mth || 0,
+              elapsed_days: elapsedDays,
+              total_days: totalDays,
             },
             section2: {
               sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
@@ -125,6 +134,7 @@ export default function ExecutiveSummary({
               stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
                 ? ((section3Data.header?.stagnant_stock_amt || 0) / section3Data.header.curr_stock_amt * 100)
                 : 0,
+              prev_month_stagnant_ratio: section3Data.header?.prev_month_stagnant_ratio || 0,
             }
           })
         });
@@ -226,6 +236,13 @@ export default function ExecutiveSummary({
       }
 
       // 2. AI 재생성 요청
+      // 경과일수 계산
+      const asofDate = new Date(date);
+      const elapsedDays = asofDate.getDate();
+      const year = asofDate.getFullYear();
+      const month = asofDate.getMonth();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+
       const response = await fetch('/api/insights/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -240,6 +257,8 @@ export default function ExecutiveSummary({
             yoy_ytd: section1Data.total_subtotal?.yoy || 0,
             actual_sales_ytd: section1Data.total_subtotal?.mtd_act || 0,
             target_ytd: section1Data.total_subtotal?.target_mth || 0,
+            elapsed_days: elapsedDays,
+            total_days: totalDays,
           },
           section2: {
             sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
@@ -256,6 +275,7 @@ export default function ExecutiveSummary({
             stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
               ? ((section3Data.header?.stagnant_stock_amt || 0) / section3Data.header.curr_stock_amt * 100)
               : 0,
+            prev_month_stagnant_ratio: section3Data.header?.prev_month_stagnant_ratio || 0,
           }
         })
       });

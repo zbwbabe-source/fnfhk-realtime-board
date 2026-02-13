@@ -42,13 +42,40 @@ function buildDetailedData(input: any) {
   const s2 = input.section2 ?? {};
   const s3 = input.section3 ?? {};
 
+  // 날짜 단순환산 월말 진척률 계산
+  const elapsedDays = s1.elapsed_days || 1;
+  const totalDays = s1.total_days || 30;
+  const currentProgress = s1.achievement_rate || 0;
+  const projectedProgress = Math.round((currentProgress / elapsedDays) * totalDays);
+
+  // ASOFDATE에서 월/일 추출
+  const asofDate = input.asof_date || '';
+  const dateObj = new Date(asofDate);
+  const month = dateObj.getMonth() + 1;
+  const day = dateObj.getDate();
+  const asofDateFormatted = `${month}월 ${day}일`;
+
+  // 정체재고비중 전월말 대비 증감
+  const stagnantRatio = parseFloat(s3.stagnant_ratio || 0);
+  const prevStagnantRatio = (s3.prev_month_stagnant_ratio || 0) * 100;
+  const stagnantRatioChange = stagnantRatio - prevStagnantRatio;
+  const stagnantRatioChangeText = stagnantRatioChange > 0 
+    ? `${stagnantRatioChange.toFixed(1)}%p 증가`
+    : stagnantRatioChange < 0 
+    ? `${Math.abs(stagnantRatioChange).toFixed(1)}%p 감소`
+    : '변동 없음';
+
   return {
     section1: {
       actual_sales: formatCurrency(s1.actual_sales_ytd || 0),
       actual_sales_raw: Math.round(s1.actual_sales_ytd || 0),
-      achievement_rate: Math.round(s1.achievement_rate || 0),
+      achievement_rate: Math.round(currentProgress),
       yoy: Math.round(s1.yoy_ytd || 0),
       target: formatCurrency(s1.target_ytd || 0),
+      asof_date: asofDateFormatted,
+      elapsed_days: elapsedDays,
+      total_days: totalDays,
+      projected_progress: projectedProgress,
     },
     section2: {
       sellthrough_rate: Math.round(s2.sellthrough_rate || 0),
@@ -63,7 +90,8 @@ function buildDetailedData(input: any) {
       base_stock: formatCurrency(s3.base_stock_amt || 0),
       curr_stock: formatCurrency(s3.curr_stock_amt || 0),
       curr_stock_raw: Math.round(s3.curr_stock_amt || 0),
-      stagnant_ratio: s3.stagnant_ratio ? s3.stagnant_ratio.toFixed(1) : '0.0',
+      stagnant_ratio: stagnantRatio.toFixed(1),
+      stagnant_ratio_change: stagnantRatioChangeText,
     }
   };
 }
@@ -107,44 +135,48 @@ export async function POST(req: Request) {
 입력 데이터:
 섹션1 (매장별 매출):
 - 당월실적: ${detailedData.section1.actual_sales} HKD
-- 현재 진척률: ${detailedData.section1.achievement_rate}% (목표 대비 현재까지 진척도)
+- ASOFDATE: ${detailedData.section1.asof_date}
+- 현재 진척률: ${detailedData.section1.achievement_rate}%
+- 날짜 단순환산 월말 진척률: ${detailedData.section1.projected_progress}% (${detailedData.section1.elapsed_days}일 진척 ÷ ${detailedData.section1.elapsed_days}일 × ${detailedData.section1.total_days}일)
 - YoY: ${detailedData.section1.yoy}%
 - 목표: ${detailedData.section1.target} HKD
 
 섹션2 (당시즌 판매):
 - 당시즌판매율: ${detailedData.section2.sellthrough_rate}%
-- 누적판매: ${detailedData.section2.sales_amt} HKD
+- 누적판매: ${detailedData.section2.sales_amt} HKD (최초 입고시점부터)
 - 누적입고: ${detailedData.section2.inbound_amt} HKD
 - 판매YoY: ${detailedData.section2.sales_yoy}%
 
 섹션3 (과시즌 재고):
 - 현재재고: ${detailedData.section3.curr_stock} HKD
 - 소진율: ${detailedData.section3.sellthrough_rate}% (10/1 대비)
-- 정체재고비중: ${detailedData.section3.stagnant_ratio}%
+- 정체재고비중: ${detailedData.section3.stagnant_ratio}% (전월말 대비 ${detailedData.section3.stagnant_ratio_change})
 
-출력 형식:
+출력 형식 (반드시 아래 형식을 따를 것):
 {
-  "main_summary": "매장별 매출은 당월실적 [수치]를 기록하며 현재 진척률 [%]. 당시즌 판매는 판매율 [%]로 [재고회전 평가], 누적판매 [수치] 달성. 과시즌 재고는 현재 [수치] 잔존, 소진율 [%]로 [관리 평가]. [종합평가].",
+  "main_summary": "매장별 매출은 당월실적 ${detailedData.section1.actual_sales} HKD를 기록하며 ${detailedData.section1.asof_date} 현재 진척률 ${detailedData.section1.achievement_rate}%임. 날짜로 단순환산시, 월말일 진척률은 ${detailedData.section1.projected_progress}%임. 당시즌 판매는 판매율 ${detailedData.section2.sellthrough_rate}%로 [재고회전 평가]를 받고 있으며, 최초 입고시점부터 누적판매 ${detailedData.section2.sales_amt} HKD 달성함. 과시즌 재고는 현재 ${detailedData.section3.curr_stock} HKD 잔존하며, 소진율 ${detailedData.section3.sellthrough_rate}%로 [소진율 평가]. 정체재고비중 ${detailedData.section3.stagnant_ratio}%로 전월말 대비 ${detailedData.section3.stagnant_ratio_change}.",
   "key_insights": [
-    "당월실적 ${detailedData.section1.actual_sales} HKD 기록, 현재 진척률 ${detailedData.section1.achievement_rate}%",
+    "당월실적 ${detailedData.section1.actual_sales} HKD 기록, ${detailedData.section1.asof_date} 현재 진척률 ${detailedData.section1.achievement_rate}%",
     "전년 대비 YoY ${detailedData.section1.yoy}%로 [성장세 평가]",
     "당시즌판매율 ${detailedData.section2.sellthrough_rate}%로 재고회전 [평가]",
     "누적판매 ${detailedData.section2.sales_amt} 대비 누적입고 ${detailedData.section2.inbound_amt}로 [효율 평가]",
     "과시즌재고 ${detailedData.section3.curr_stock} HKD 잔존, 10/1 대비 소진율 ${detailedData.section3.sellthrough_rate}%",
-    "정체재고비중 ${detailedData.section3.stagnant_ratio}%로 [리스크 평가]",
+    "정체재고비중 ${detailedData.section3.stagnant_ratio}%로 [리스크 평가], 전월말 대비 ${detailedData.section3.stagnant_ratio_change}",
     "[전반적 종합 평가]"
   ]
 }
 
 중요 규칙:
-1. 지표명은 반드시 입력 데이터에 표시된 명칭 그대로 사용
-2. **"현재 진척률"은 월중 진행 상황일 뿐이므로 "관리 필요" 같은 평가를 하지 말 것**
-3. 모든 수치는 반드시 명시 (HKD, %, K/M 단위 포함)
-4. 추측/가정/전망 금지
-5. 보고서체 사용 (~임, ~하고 있음)
-6. main_summary는 4-5문장, 300자 이내
+1. 반드시 위의 출력 형식을 따를 것 (수치와 날짜 모두 포함)
+2. [평가] 부분만 적절한 평가 문구로 대체할 것
+   - 재고회전 평가: 안정적/양호/우수 등
+   - 소진율 평가: 관리 필요/양호/주의 필요 등
+   - 리스크 평가: 안정적/주의 필요 등
+3. 모든 수치는 반드시 명시된 대로 사용 (HKD, %, K/M 단위 포함)
+4. 추측/가정/전망 금지 (단, 날짜 단순환산은 허용)
+5. 보고서체 사용 (~임, ~함)
+6. main_summary는 300자 이내
 7. key_insights는 5-7개 불릿, 각 불릿 80자 이내
-8. 평가는 명확하게 (양호함/안정적임/우수함 등), 단 진척률에 대해서는 평가하지 말 것
 
 출력은 JSON 형식만 사용.
 `.trim();
