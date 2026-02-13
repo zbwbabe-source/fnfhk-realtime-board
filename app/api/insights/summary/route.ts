@@ -46,7 +46,19 @@ function buildDetailedData(input: any) {
   const elapsedDays = s1.elapsed_days || 1;
   const totalDays = s1.total_days || 30;
   const currentProgress = s1.achievement_rate || 0;
-  const projectedProgress = Math.round((currentProgress / elapsedDays) * totalDays);
+  
+  // 안전 장치: elapsed_days가 비정상적으로 작으면 환산하지 않음
+  const projectedProgress = (elapsedDays >= 3) 
+    ? Math.round((currentProgress / elapsedDays) * totalDays)
+    : 0; // 3일 미만은 환산 의미 없음
+
+  console.log('📊 Projection calculation:', {
+    elapsedDays,
+    totalDays,
+    currentProgress,
+    projectedProgress,
+    formula: `(${currentProgress}% / ${elapsedDays}일) × ${totalDays}일 = ${projectedProgress}%`
+  });
 
   // ASOFDATE에서 월/일 추출
   const asofDate = input.asof_date || '';
@@ -137,7 +149,7 @@ export async function POST(req: Request) {
 - 당월실적: ${detailedData.section1.actual_sales} HKD
 - ASOFDATE: ${detailedData.section1.asof_date}
 - 현재 진척률: ${detailedData.section1.achievement_rate}%
-- 날짜 단순환산 월말 진척률: ${detailedData.section1.projected_progress}% (${detailedData.section1.elapsed_days}일 진척 ÷ ${detailedData.section1.elapsed_days}일 × ${detailedData.section1.total_days}일)
+- 날짜 단순환산 월말 진척률: ${detailedData.section1.projected_progress > 0 ? `${detailedData.section1.projected_progress}% (${detailedData.section1.elapsed_days}일 진척 ÷ ${detailedData.section1.elapsed_days}일 × ${detailedData.section1.total_days}일)` : '계산 불가 (경과일수 부족)'}
 - YoY: ${detailedData.section1.yoy}%
 - 목표: ${detailedData.section1.target} HKD
 
@@ -154,7 +166,7 @@ export async function POST(req: Request) {
 
 출력 형식 (반드시 아래 형식을 따를 것):
 {
-  "main_summary": "매장별 매출은 당월실적 ${detailedData.section1.actual_sales} HKD를 기록하며 ${detailedData.section1.asof_date} 현재 진척률 ${detailedData.section1.achievement_rate}%임. 날짜로 단순환산시, 월말일 진척률은 ${detailedData.section1.projected_progress}%임. 당시즌 판매는 판매율 ${detailedData.section2.sellthrough_rate}%로 [재고회전 평가]를 받고 있으며, 최초 입고시점부터 누적판매 ${detailedData.section2.sales_amt} HKD 달성함. 과시즌 재고는 현재 ${detailedData.section3.curr_stock} HKD 잔존하며, 소진율 ${detailedData.section3.sellthrough_rate}%로 [소진율 평가]. 정체재고비중 ${detailedData.section3.stagnant_ratio}%로 전월말 대비 ${detailedData.section3.stagnant_ratio_change}.",
+  "main_summary": "매장별 매출은 당월실적 ${detailedData.section1.actual_sales} HKD를 기록하며 ${detailedData.section1.asof_date} 현재 진척률 ${detailedData.section1.achievement_rate}%임. ${detailedData.section1.projected_progress > 0 ? `날짜로 단순환산시, 월말일 진척률은 ${detailedData.section1.projected_progress}%임.` : '날짜로 단순환산은 경과일수 부족으로 생략.'} 당시즌 판매는 판매율 ${detailedData.section2.sellthrough_rate}%로 [재고회전 평가]를 받고 있으며, 최초 입고시점부터 누적판매 ${detailedData.section2.sales_amt} HKD 달성함. 과시즌 재고는 현재 ${detailedData.section3.curr_stock} HKD 잔존하며, 소진율 ${detailedData.section3.sellthrough_rate}%로 [소진율 평가]. 정체재고비중 ${detailedData.section3.stagnant_ratio}%로 전월말 대비 ${detailedData.section3.stagnant_ratio_change}.",
   "key_insights": [
     "당월실적 ${detailedData.section1.actual_sales} HKD 기록, ${detailedData.section1.asof_date} 현재 진척률 ${detailedData.section1.achievement_rate}%",
     "전년 대비 YoY ${detailedData.section1.yoy}%로 [성장세 평가]",
