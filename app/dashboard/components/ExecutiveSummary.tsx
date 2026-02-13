@@ -106,10 +106,11 @@ export default function ExecutiveSummary({
             brand,
             asof_date: date,
             section1: {
-              achievement_rate: section1Data.total_subtotal?.progress_ytd || 0,
-              yoy_ytd: section1Data.total_subtotal?.yoy_ytd || 0,
-              actual_sales_ytd: section1Data.total_subtotal?.ytd_act || 0,
-              target_ytd: section1Data.total_subtotal?.ytd_target || 0,
+              // AI 요약은 항상 당월(MTD) 데이터 사용
+              achievement_rate: section1Data.total_subtotal?.progress || 0,
+              yoy_ytd: section1Data.total_subtotal?.yoy || 0,
+              actual_sales_ytd: section1Data.total_subtotal?.mtd_act || 0,
+              target_ytd: section1Data.total_subtotal?.target_mth || 0,
             },
             section2: {
               sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
@@ -234,10 +235,11 @@ export default function ExecutiveSummary({
           asof_date: date,
           skip_cache: true,
           section1: {
-            achievement_rate: isYtdMode ? (section1Data.total_subtotal?.progress_ytd || 0) : (section1Data.total_subtotal?.progress || 0),
-            yoy_ytd: isYtdMode ? (section1Data.total_subtotal?.yoy_ytd || 0) : (section1Data.total_subtotal?.yoy || 0),
-            actual_sales_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_act || 0) : (section1Data.total_subtotal?.mtd_act || 0),
-            target_ytd: isYtdMode ? (section1Data.total_subtotal?.ytd_target || 0) : (section1Data.total_subtotal?.target_mth || 0),
+            // AI 요약은 항상 당월(MTD) 데이터 사용
+            achievement_rate: section1Data.total_subtotal?.progress || 0,
+            yoy_ytd: section1Data.total_subtotal?.yoy || 0,
+            actual_sales_ytd: section1Data.total_subtotal?.mtd_act || 0,
+            target_ytd: section1Data.total_subtotal?.target_mth || 0,
           },
           section2: {
             sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
