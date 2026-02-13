@@ -42,28 +42,13 @@ function buildDetailedData(input: any) {
   const s2 = input.section2 ?? {};
   const s3 = input.section3 ?? {};
 
-  // 월말 환산 계산 (단순 일할 계산)
-  const elapsedDays = s1.elapsed_days || 1;
-  const totalDays = s1.total_days || 30;
-  const actualSales = s1.actual_sales_ytd || 0;
-  const target = s1.target_ytd || 1;
-  
-  // 월말 환산 실적 = (현재 실적 / 경과 일수) × 월 총 일수
-  const projectedSales = (actualSales / elapsedDays) * totalDays;
-  // 월말 환산 달성률 = (월말 환산 실적 / 목표) × 100
-  const projectedAchievementRate = Math.round((projectedSales / target) * 100);
-
   return {
     section1: {
-      actual_sales: formatCurrency(actualSales),
-      actual_sales_raw: Math.round(actualSales),
+      actual_sales: formatCurrency(s1.actual_sales_ytd || 0),
+      actual_sales_raw: Math.round(s1.actual_sales_ytd || 0),
       achievement_rate: Math.round(s1.achievement_rate || 0),
       yoy: Math.round(s1.yoy_ytd || 0),
-      target: formatCurrency(target),
-      // 월말 환산 정보 추가
-      elapsed_days: elapsedDays,
-      total_days: totalDays,
-      projected_achievement_rate: projectedAchievementRate,
+      target: formatCurrency(s1.target_ytd || 0),
     },
     section2: {
       sellthrough_rate: Math.round(s2.sellthrough_rate || 0),
@@ -122,8 +107,7 @@ export async function POST(req: Request) {
 입력 데이터:
 섹션1 (매장별 매출):
 - 당월실적: ${detailedData.section1.actual_sales} HKD
-- 경과일수: ${detailedData.section1.elapsed_days}일 / 월총일수: ${detailedData.section1.total_days}일
-- 월말환산 달성률: ${detailedData.section1.projected_achievement_rate}% (단순환산: ${detailedData.section1.elapsed_days}일 실적을 ${detailedData.section1.total_days}일로 환산)
+- 현재 진척률: ${detailedData.section1.achievement_rate}% (목표 대비 현재까지 진척도)
 - YoY: ${detailedData.section1.yoy}%
 - 목표: ${detailedData.section1.target} HKD
 
@@ -140,9 +124,9 @@ export async function POST(req: Request) {
 
 출력 형식:
 {
-  "main_summary": "매장별 매출은 당월실적 [수치]를 기록하며 월말 단순 환산 시 목표 대비 [%] 예상. 당시즌 판매는 판매율 [%]로 [재고회전 평가], 누적판매 [수치] 달성. 과시즌 재고는 현재 [수치] 잔존, 소진율 [%]로 [관리 평가]. [종합평가].",
+  "main_summary": "매장별 매출은 당월실적 [수치]를 기록하며 현재 진척률 [%]. 당시즌 판매는 판매율 [%]로 [재고회전 평가], 누적판매 [수치] 달성. 과시즌 재고는 현재 [수치] 잔존, 소진율 [%]로 [관리 평가]. [종합평가].",
   "key_insights": [
-    "당월실적 ${detailedData.section1.actual_sales} HKD 기록, 목표달성률 ${detailedData.section1.achievement_rate}%로 [평가]",
+    "당월실적 ${detailedData.section1.actual_sales} HKD 기록, 현재 진척률 ${detailedData.section1.achievement_rate}%",
     "전년 대비 YoY ${detailedData.section1.yoy}%로 [성장세 평가]",
     "당시즌판매율 ${detailedData.section2.sellthrough_rate}%로 재고회전 [평가]",
     "누적판매 ${detailedData.section2.sales_amt} 대비 누적입고 ${detailedData.section2.inbound_amt}로 [효율 평가]",
@@ -154,14 +138,13 @@ export async function POST(req: Request) {
 
 중요 규칙:
 1. 지표명은 반드시 입력 데이터에 표시된 명칭 그대로 사용
-2. **월중에는 목표달성률이 아닌 "월말 단순 환산" 달성률을 사용하여 관리 필요성 판단**
-3. 환산 방식: "${detailedData.section1.elapsed_days}일 실적 ÷ ${detailedData.section1.elapsed_days}일 × ${detailedData.section1.total_days}일 = 월말 예상 실적"
-4. 모든 수치는 반드시 명시 (HKD, %, K/M 단위 포함)
-5. 추측/가정/전망 금지 (단, 월말 환산은 단순 산술 계산이므로 허용)
-6. 보고서체 사용 (~임, ~하고 있음)
-7. main_summary는 4-5문장, 300자 이내
-8. key_insights는 5-7개 불릿, 각 불릿 80자 이내
-9. 평가는 명확하게 (양호함/안정적임/우수함/관리 필요함/주의 필요함 등)
+2. **"현재 진척률"은 월중 진행 상황일 뿐이므로 "관리 필요" 같은 평가를 하지 말 것**
+3. 모든 수치는 반드시 명시 (HKD, %, K/M 단위 포함)
+4. 추측/가정/전망 금지
+5. 보고서체 사용 (~임, ~하고 있음)
+6. main_summary는 4-5문장, 300자 이내
+7. key_insights는 5-7개 불릿, 각 불릿 80자 이내
+8. 평가는 명확하게 (양호함/안정적임/우수함 등), 단 진척률에 대해서는 평가하지 말 것
 
 출력은 JSON 형식만 사용.
 `.trim();
