@@ -79,6 +79,10 @@ ${shopListCTE}
 PARAM AS (
   SELECT
     CAST(? AS DATE) AS ASOF_DATE,
+    -- 전월말 날짜
+    LAST_DAY(DATEADD(MONTH, -1, CAST(? AS DATE))) AS PREV_MONTH_END_DT,
+    -- 당월 1일
+    DATE_TRUNC('MONTH', CAST(? AS DATE)) AS CURRENT_MONTH_START_DT,
     -- 현재 시즌 타입 판단 (9~2월=FW, 3~8월=SS)
     CASE WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN 'F' ELSE 'S' END AS CUR_TYP,
     -- 현재 시즌 연도(YY)
@@ -298,6 +302,77 @@ MONTHLY_SALES AS (
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
+-- 전월말 재고 날짜 결정 (fallback)
+PREV_MONTH_STOCK_DT_RESOLVED AS (
+  SELECT 
+    PA.PREV_MONTH_END_DT,
+    COALESCE(
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT = DATEADD(day, 1, PA.PREV_MONTH_END_DT)),
+      (SELECT MAX(STOCK_DT) FROM SAP_FNF.DW_HMD_STOCK_SNAP_D WHERE STOCK_DT <= DATEADD(day, 1, PA.PREV_MONTH_END_DT))
+    ) AS EFFECTIVE_PREV_MONTH_STOCK_DT
+  FROM PARAM PA
+),
+
+-- 전월말 재고 스냅샷 (과시즌 재고만)
+PREV_MONTH_STOCK_RAW AS (
+  SELECT
+    ST.SESN,
+    ST.PRDT_CD,
+    SUM(ST.TAG_STOCK_AMT) AS PREV_CURR_STOCK_AMT
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+  CROSS JOIN PARAM PA
+  CROSS JOIN PREV_MONTH_STOCK_DT_RESOLVED PMSD
+  WHERE ${brandFilter}
+    AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
+    ${shopFilter}
+    AND ST.STOCK_DT = PMSD.EFFECTIVE_PREV_MONTH_STOCK_DT
+  GROUP BY ST.SESN, ST.PRDT_CD
+),
+
+-- 전월말 재고에 연차 버킷 매핑
+PREV_MONTH_STOCK AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    PMS.SESN,
+    PMS.PRDT_CD,
+    PMS.PREV_CURR_STOCK_AMT
+  FROM PREV_MONTH_STOCK_RAW PMS
+  INNER JOIN SEASON_BUCKETS SB ON PMS.SESN = SB.SESN
+  WHERE SB.YEAR_BUCKET IS NOT NULL
+),
+
+-- 전월말 정체재고 계산 (최근 1개월 판매가 전월말 기준)
+PREV_MONTH_MONTHLY_SALES AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    S.SESN,
+    S.PRDT_CD,
+    SUM(S.TAG_SALE_AMT) AS PREV_MONTHLY_TAG_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON S.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND S.SALE_DT BETWEEN DATEADD(day, -30, PA.PREV_MONTH_END_DT) AND PA.PREV_MONTH_END_DT
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
+),
+
+-- 당월 판매 (월초~ASOFDATE)
+CURRENT_MONTH_SALES AS (
+  SELECT
+    SB.YEAR_BUCKET,
+    S.SESN,
+    S.PRDT_CD,
+    SUM(S.TAG_SALE_AMT) AS CURRENT_MONTH_TAG_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN PARAM PA
+  INNER JOIN SEASON_BUCKETS SB ON S.SESN = SB.SESN
+  WHERE ${brandFilter}
+    AND S.SALE_DT BETWEEN PA.CURRENT_MONTH_START_DT AND PA.ASOF_DATE
+    ${shopFilter}
+  GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
+),
+
 -- SKU 레벨 (제품 단위)
 SKU_LEVEL AS (
   SELECT
@@ -473,7 +548,27 @@ HEADER_LEVEL AS (
       ELSE NULL
     END AS INV_DAYS,
     0 AS IS_OVER_1Y,
-    MAX(PERIOD_DAYS) AS PERIOD_DAYS
+    MAX(PERIOD_DAYS) AS PERIOD_DAYS,
+    -- 전월말 재고 관련
+    (SELECT SUM(PREV_CURR_STOCK_AMT) FROM PREV_MONTH_STOCK) AS PREV_CURR_STOCK_AMT,
+    (SELECT SUM(
+      CASE
+        WHEN PMS.PREV_CURR_STOCK_AMT > 0
+          AND (
+            COALESCE(PMMS.PREV_MONTHLY_TAG_SALES, 0) = 0
+            OR COALESCE(PMMS.PREV_MONTHLY_TAG_SALES, 0) < (PMS.PREV_CURR_STOCK_AMT * 0.001)
+          )
+        THEN PMS.PREV_CURR_STOCK_AMT
+        ELSE 0
+      END
+    ) FROM PREV_MONTH_STOCK PMS
+    LEFT JOIN PREV_MONTH_MONTHLY_SALES PMMS
+      ON PMS.YEAR_BUCKET = PMMS.YEAR_BUCKET
+      AND PMS.SESN = PMMS.SESN
+      AND PMS.PRDT_CD = PMMS.PRDT_CD
+    ) AS PREV_STAGNANT_STOCK_AMT,
+    -- 당월 소진재고액
+    (SELECT SUM(CURRENT_MONTH_TAG_SALES) FROM CURRENT_MONTH_SALES) AS CURRENT_MONTH_DEPLETED_AMT
   FROM SKU_LEVEL
 )
 
@@ -481,13 +576,14 @@ SELECT
   SORT_LEVEL, ROW_LEVEL, YEAR_BUCKET, SESN, CAT2, PRDT_CD,
   BASE_STOCK_AMT, CURR_STOCK_AMT, STAGNANT_STOCK_AMT, DEPLETED_STOCK_AMT,
   PERIOD_TAG_SALES, PERIOD_ACT_SALES,
-  DISCOUNT_RATE, INV_DAYS_RAW, INV_DAYS, IS_OVER_1Y, PERIOD_DAYS
+  DISCOUNT_RATE, INV_DAYS_RAW, INV_DAYS, IS_OVER_1Y, PERIOD_DAYS,
+  PREV_CURR_STOCK_AMT, PREV_STAGNANT_STOCK_AMT, CURRENT_MONTH_DEPLETED_AMT
 FROM (
-  SELECT * FROM SKU_LEVEL
+  SELECT *, NULL AS PREV_CURR_STOCK_AMT, NULL AS PREV_STAGNANT_STOCK_AMT, NULL AS CURRENT_MONTH_DEPLETED_AMT FROM SKU_LEVEL
   UNION ALL
-  SELECT * FROM CAT_LEVEL
+  SELECT *, NULL AS PREV_CURR_STOCK_AMT, NULL AS PREV_STAGNANT_STOCK_AMT, NULL AS CURRENT_MONTH_DEPLETED_AMT FROM CAT_LEVEL
   UNION ALL
-  SELECT * FROM YEAR_LEVEL
+  SELECT *, NULL AS PREV_CURR_STOCK_AMT, NULL AS PREV_STAGNANT_STOCK_AMT, NULL AS CURRENT_MONTH_DEPLETED_AMT FROM YEAR_LEVEL
   UNION ALL
   SELECT * FROM HEADER_LEVEL
 )
@@ -504,8 +600,8 @@ ORDER BY
   PRDT_CD NULLS FIRST
 `;
 
-    // 파라미터 바인딩 (date를 여러 번 반복) - 윤년 계산 포함 28개
-    const params = Array(28).fill(date);
+    // 파라미터 바인딩 (date를 여러 번 반복) - 윤년 계산 포함, 전월말/당월 계산 추가 31개
+    const params = Array(31).fill(date);
 
     console.log('🔍 API Section3 - Executing query with params:', params.slice(0, 3));
 
@@ -600,8 +696,18 @@ ORDER BY
         year_bucket: header.YEAR_BUCKET,
         base_stock_amt: applyExchangeRate(parseFloat(header.BASE_STOCK_AMT || 0)) || 0,
         curr_stock_amt: applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0,
+        prev_month_curr_stock_amt: applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0,
+        curr_stock_change: (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0) - (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0),
         stagnant_stock_amt: applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0,
+        prev_month_stagnant_stock_amt: applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0,
+        stagnant_ratio: (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0) > 0
+          ? (applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0)
+          : 0,
+        prev_month_stagnant_ratio: (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0) > 0
+          ? (applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0)
+          : 0,
         depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
+        current_month_depleted: applyExchangeRate(parseFloat(header.CURRENT_MONTH_DEPLETED_AMT || 0)) || 0,
         discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
         inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
         inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
