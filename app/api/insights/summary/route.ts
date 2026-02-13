@@ -68,8 +68,8 @@ function buildDetailedData(input: any) {
   const asofDateFormatted = `${month}월 ${day}일`;
 
   // 정체재고비중 전월말 대비 증감
-  const stagnantRatio = parseFloat(s3.stagnant_ratio || 0);
-  const prevStagnantRatio = (s3.prev_month_stagnant_ratio || 0) * 100;
+  const stagnantRatio = (s3.stagnant_ratio || 0) * 100; // 비율 → 퍼센트
+  const prevStagnantRatio = (s3.prev_month_stagnant_ratio || 0) * 100; // 비율 → 퍼센트
   const stagnantRatioChange = stagnantRatio - prevStagnantRatio;
   const stagnantRatioChangeText = stagnantRatioChange > 0 
     ? `${stagnantRatioChange.toFixed(1)}%p 증가`
