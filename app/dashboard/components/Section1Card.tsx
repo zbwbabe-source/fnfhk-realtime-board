@@ -84,7 +84,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
   };
 
   const kpis = calculateKPIs();
-  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
+  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg shadow-md p-6 border-l-4 border-blue-600">

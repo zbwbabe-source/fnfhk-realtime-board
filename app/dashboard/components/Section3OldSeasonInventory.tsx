@@ -406,7 +406,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         )}
       </h2>
       <div className="flex items-center gap-4 mb-4">
-        <p className="text-sm text-gray-600">{language === 'ko' ? '단위: HKD' : 'Unit: HKD'}</p>
+        <p className="text-sm text-gray-600">{language === 'ko' ? '단위: 1k HKD' : 'Unit: 1k HKD'}</p>
         <div className="flex items-center gap-1.5 text-sm text-orange-600">
           <span className="font-bold text-base">ⓘ</span>
           <span>{t(language, 'stagnantStockInfo')}</span>

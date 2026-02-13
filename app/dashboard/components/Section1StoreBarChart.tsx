@@ -599,10 +599,10 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             <option value="전체">전체</option>
             {region === 'HKMC' ? (
               <>
-                <option value="HK정상">HK정상</option>
-                <option value="HK아울렛">HK아울렛</option>
-                <option value="마카오">마카오</option>
-                <option value="HK온라인">HK온라인</option>
+            <option value="HK정상">HK정상</option>
+            <option value="HK아울렛">HK아울렛</option>
+            <option value="마카오">마카오</option>
+            <option value="HK온라인">HK온라인</option>
               </>
             ) : (
               <>
@@ -666,22 +666,22 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
         <div className="flex items-center gap-3 flex-wrap px-2 pb-1.5">
           {region === 'HKMC' ? (
             <>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-                <span className="text-[9px] text-gray-600">HK정상</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-                <span className="text-[9px] text-gray-600">HK아울렛</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-                <span className="text-[9px] text-gray-600">마카오</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
+            <span className="text-[9px] text-gray-600">HK정상</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
+            <span className="text-[9px] text-gray-600">HK아울렛</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
+            <span className="text-[9px] text-gray-600">마카오</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
                 <span className="text-[9px] text-gray-600">HK온라인</span>
-              </div>
+          </div>
             </>
           ) : (
             <>
@@ -878,10 +878,10 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
                 <option value="전체">전체</option>
                 {region === 'HKMC' ? (
                   <>
-                    <option value="HK정상">HK정상</option>
-                    <option value="HK아울렛">HK아울렛</option>
-                    <option value="마카오">마카오</option>
-                    <option value="HK온라인">HK온라인</option>
+                <option value="HK정상">HK정상</option>
+                <option value="HK아울렛">HK아울렛</option>
+                <option value="마카오">마카오</option>
+                <option value="HK온라인">HK온라인</option>
                   </>
                 ) : (
                   <>
@@ -1143,22 +1143,22 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
             <div className="px-6 pb-6 flex items-center justify-center gap-6 flex-wrap flex-shrink-0">
               {region === 'HKMC' ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-                    <span className="text-sm text-gray-700">HK정상</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-                    <span className="text-sm text-gray-700">HK아울렛</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-                    <span className="text-sm text-gray-700">마카오</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-                    <span className="text-sm text-gray-700">HK온라인</span>
-                  </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
+                <span className="text-sm text-gray-700">HK정상</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
+                <span className="text-sm text-gray-700">HK아울렛</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
+                <span className="text-sm text-gray-700">마카오</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
+                <span className="text-sm text-gray-700">HK온라인</span>
+              </div>
                 </>
               ) : (
                 <>

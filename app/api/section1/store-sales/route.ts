@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * 매장별 YTD 목표 계산 함수
- * ytd_target = Σ TARGET_AMT(1월~직전월) + TARGET_AMT(당월) * (당일/당월말일)
+ * ytd_target = Σ TARGET_AMT(1월~당월)
  */
 function calculateYtdTargetForStore(
   shopCd: string, 
@@ -20,28 +20,14 @@ function calculateYtdTargetForStore(
 ): number {
   let ytdTarget = 0;
   
-  // 1월부터 직전월까지의 목표 합산
-  for (let m = 1; m < currentMonth; m++) {
+  // 1월부터 당월까지의 전체 목표 합산 (일할 계산 제거)
+  for (let m = 1; m <= currentMonth; m++) {
     const periodKey = `${year}-${String(m).padStart(2, '0')}`;
     const periodData = targetData[periodKey] || {};
     const storeTarget = periodData[shopCd];
     if (storeTarget) {
       ytdTarget += storeTarget.target_mth || 0;
     }
-  }
-  
-  // 당월 목표 비례 계산
-  const currentPeriodKey = `${year}-${String(currentMonth).padStart(2, '0')}`;
-  const currentPeriodData = targetData[currentPeriodKey] || {};
-  const currentStoreTarget = currentPeriodData[shopCd];
-  
-  if (currentStoreTarget) {
-    // 당월 말일 계산
-    const daysInMonth = new Date(year, currentMonth, 0).getDate();
-    const ratio = currentDay / daysInMonth;
-    
-    // 당월 목표 × 비율
-    ytdTarget += (currentStoreTarget.target_mth || 0) * ratio;
   }
   
   return ytdTarget;

@@ -23,6 +23,8 @@ export const translations = {
     section3Title: '섹션3: 과시즌 재고 소진',
     section3Subtitle: 'Old-season Clearance',
     analyzing: '분석 중...',
+    cardUnit: '단위: HKD',
+    cardUnitWithExchange: '단위: HKD (환율적용)',
     
     // Executive Summary
     executiveSummaryTitle: '주요내용',
@@ -39,8 +41,8 @@ export const translations = {
     
     // Section 1
     section1Header: '섹션 1: 매장별 매출',
-    unit: '단위: HKD',
-    unitWithExchange: '단위: HKD (환율적용)',
+    unit: '단위: 1k HKD',
+    unitWithExchange: '단위: 1k HKD (환율적용)',
     ytdToggle: '연누적',
     expandAll: '전체 펼치기',
     collapseAll: '전체 접기',
@@ -60,8 +62,8 @@ export const translations = {
     
     // Section 2
     section2Header: '섹션 2: 당시즌 판매율',
-    section2HeaderClothes: '섹션 2: 당시즌 의류 판매율',
-    section2HeaderAll: '섹션 2: 당시즌 전체 판매율',
+    section2HeaderClothes: '섹션2: 당시즌 판매율',
+    section2HeaderAll: '섹션2: 당시즌 판매율',
     inSeason: '당시즌',
     sellthrough: '판매율',
     cumulativeSales: '누적판매',
@@ -147,6 +149,8 @@ export const translations = {
     section3Title: 'Section 3: Old-season Clearance',
     section3Subtitle: 'Old-season Clearance',
     analyzing: 'Analyzing...',
+    cardUnit: 'Unit: HKD',
+    cardUnitWithExchange: 'Unit: HKD (Exch. Applied)',
     
     // Executive Summary
     executiveSummaryTitle: 'Executive Summary',
@@ -163,8 +167,8 @@ export const translations = {
     
     // Section 1
     section1Header: 'Section 1: Store Sales',
-    unit: 'Unit: HKD',
-    unitWithExchange: 'Unit: HKD (Exch. Applied)',
+    unit: 'Unit: 1k HKD',
+    unitWithExchange: 'Unit: 1k HKD (Exch. Applied)',
     ytdToggle: 'YTD',
     expandAll: 'Expand All',
     collapseAll: 'Collapse All',
@@ -184,8 +188,8 @@ export const translations = {
     
     // Section 2
     section2Header: 'Section 2: In-season Sell-through',
-    section2HeaderClothes: 'Section 2: In-season Apparel Sell-through',
-    section2HeaderAll: 'Section 2: In-season Total Sell-through',
+    section2HeaderClothes: 'Section 2: In-season Sell-through',
+    section2HeaderAll: 'Section 2: In-season Sell-through',
     inSeason: 'In-season',
     sellthrough: 'Sell-through',
     cumulativeSales: 'Cumulative Sales',

@@ -60,7 +60,7 @@ export default function Section3Card({ section3Data, language, region }: Section
 
   const kpis = calculateKPIs();
   const seasonType = getSection3SeasonType();
-  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
+  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
     <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-lg shadow-md p-6 border-l-4 border-orange-600">

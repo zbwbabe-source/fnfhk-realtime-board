@@ -123,14 +123,6 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             bValue = isYtdMode ? b.yoy_ytd : b.yoy;
           }
           break;
-        case 'monthEndProjection':
-          aValue = a.monthEndProjection;
-          bValue = b.monthEndProjection;
-          break;
-        case 'projectedYoY':
-          aValue = a.projectedYoY;
-          bValue = b.projectedYoY;
-          break;
         default:
           return 0;
       }
@@ -333,27 +325,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               }`}>
                 {formatPercent(subtotalYoy)}
               </td>
-              {isYtdMode ? (
-                <>
-                  {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
-                  <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
-                  <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
-                </>
-              ) : (
-                <>
-                  <td className="px-4 py-2 border-b border-gray-200 text-right">
-                    {formatNumber(subtotal.monthEndProjection)}
-                  </td>
-                  <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-                    subtotal.projectedYoY < 80 ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {formatPercent(subtotal.projectedYoY)}
-                  </td>
-                </>
-              )}
             </>
           ) : (
-            <td colSpan={8} className="px-4 py-2 border-b border-gray-200"></td>
+            <td colSpan={6} className="px-4 py-2 border-b border-gray-200"></td>
           )}
         </tr>
         {isExpanded && sortedStores.map((row: StoreRow) => renderRow(row))}
@@ -428,28 +402,6 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             formatPercent(yoyValue)
           )}
         </td>
-        {isYtdMode ? (
-          <>
-            {/* YTD 모드일 때 빈 셀 2개로 레이아웃 유지 */}
-            <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
-            <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-300">-</td>
-          </>
-        ) : (
-          <>
-            <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-              {formatNumber(row.monthEndProjection)}
-            </td>
-            <td className={`px-4 py-2 border-b border-gray-200 text-right ${
-              isClosed ? 'text-gray-400' : (row.projectedYoY < 80 ? 'text-red-600' : 'text-green-600')
-            }`}>
-              {isNewStore(actualPyValue) ? (
-                <span className="text-blue-600 font-medium">{language === 'ko' ? '신규' : 'New'}</span>
-              ) : (
-                formatPercent(row.projectedYoY)
-              )}
-            </td>
-          </>
-        )}
       </tr>
     );
   };
@@ -474,7 +426,7 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             </button>
             {isYtdMode && date && (
               <span className="text-xs text-orange-600 font-medium">
-                * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                * {language === 'ko' ? '1/1~누적' : 'Year-to-Date (1/1~)'}
               </span>
             )}
           </div>
@@ -496,8 +448,6 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
             <col style={{ width: '100px' }} /> {/* 목표대비 */}
             <col style={{ width: '120px' }} /> {/* 전년 */}
             <col style={{ width: '100px' }} /> {/* YoY */}
-            <col style={{ width: '120px' }} /> {/* 월말환산 or - */}
-            <col style={{ width: '100px' }} /> {/* 환산YoY or - */}
           </colgroup>
           <thead className="bg-gray-100">
             <tr>
@@ -517,6 +467,16 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 <div className="flex items-center justify-end">
                   {t(language, isYtdMode ? 'ytdTarget' : 'monthlyTarget')}
                   {getSortIcon('target')}
+                  {isYtdMode && (
+                    <span className="ml-1 text-xs text-gray-500 cursor-help relative group">
+                      ⓘ
+                      <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-gray-800 text-white text-xs rounded py-2 px-3 w-48 z-50 shadow-lg whitespace-normal">
+                        {language === 'ko' 
+                          ? '1월~해당월까지 월별 목표의 단순 합계'
+                          : 'Sum of monthly targets from Jan to current month'}
+                      </div>
+                    </span>
+                  )}
                 </div>
               </th>
               <th 
@@ -527,6 +487,16 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                   <div className="flex items-center">
                     {t(language, isYtdMode ? 'ytdActual' : 'monthlyActual')}
                     {getSortIcon('actual')}
+                    {isYtdMode && (
+                      <span className="ml-1 text-xs text-gray-500 cursor-help relative group">
+                        ⓘ
+                        <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-gray-800 text-white text-xs rounded py-2 px-3 w-48 z-50 shadow-lg whitespace-normal">
+                          {language === 'ko' 
+                            ? '1월 1일~ASOFDATE까지 실판매출'
+                            : 'Actual sales from Jan 1 to ASOFDATE'}
+                        </div>
+                      </span>
+                    )}
                   </div>
                   {date && (
                     <div className="text-xs font-normal text-blue-600 mt-0.5">
@@ -551,6 +521,16 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                 <div className="flex items-center justify-end">
                   {t(language, isYtdMode ? 'lastYearYtd' : 'lastYearSame')}
                   {getSortIcon('actual_py')}
+                  {isYtdMode && (
+                    <span className="ml-1 text-xs text-gray-500 cursor-help relative group">
+                      ⓘ
+                      <div className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-gray-800 text-white text-xs rounded py-2 px-3 w-52 z-50 shadow-lg whitespace-normal">
+                        {language === 'ko' 
+                          ? '전년 1/1~전년 동일 ASOFDATE까지 실판매출'
+                          : 'Last year actual sales (1/1 ~ same ASOFDATE)'}
+                      </div>
+                    </span>
+                  )}
                 </div>
               </th>
               <th 
@@ -562,46 +542,6 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
                   {getSortIcon('yoy')}
                 </div>
               </th>
-              {isYtdMode ? (
-                <>
-                  {/* YTD 모드일 때 빈 헤더 2개로 레이아웃 유지 */}
-                  <th className="px-4 py-2 text-right font-medium text-gray-700 text-gray-300">-</th>
-                  <th className="px-4 py-2 text-right font-medium text-gray-700 text-gray-300">-</th>
-                </>
-              ) : (
-                <>
-                  <th 
-                    className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200 relative group"
-                    onClick={() => handleSort('monthEndProjection')}
-                  >
-                    <div className="flex items-center justify-end">
-                      {t(language, 'monthEndForecast')}
-                      {getSortIcon('monthEndProjection')}
-                      <span className="ml-1 text-xs text-gray-500 cursor-help">ⓘ</span>
-                    </div>
-                    <div className="absolute hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 -top-16 right-0 w-64 z-10 shadow-lg">
-                      {language === 'ko' 
-                        ? '과거 2개년치 휴일/평일 일별 매출을 근거로 일자별 가중치를 계산함.'
-                        : 'Calculated using weighted daily sales from past 2 years (holidays/weekdays).'}
-                      <br/>
-                      <span className="text-gray-300 italic">
-                        {language === 'ko' 
-                          ? 'MTD × (월전체가중치/누적가중치)'
-                          : 'MTD × (Month Weight / YTD Weight)'}
-                      </span>
-                    </div>
-                  </th>
-                  <th 
-                    className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-gray-200"
-                    onClick={() => handleSort('projectedYoY')}
-                  >
-                    <div className="flex items-center justify-end">
-                      {t(language, 'forecastYoy')}
-                      {getSortIcon('projectedYoY')}
-                    </div>
-                  </th>
-                </>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -632,63 +572,63 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
               </>
             ) : (
               <>
-                {/* HK 정상 */}
-                {renderChannelSection('hk_normal', 'HK - 정상', data.hk_normal, data.hk_normal_subtotal)}
+            {/* HK 정상 */}
+            {renderChannelSection('hk_normal', 'HK - 정상', data.hk_normal, data.hk_normal_subtotal)}
 
-                {/* HK 아울렛 */}
-                {renderChannelSection('hk_outlet', 'HK - 아울렛', data.hk_outlet, data.hk_outlet_subtotal)}
+            {/* HK 아울렛 */}
+            {renderChannelSection('hk_outlet', 'HK - 아울렛', data.hk_outlet, data.hk_outlet_subtotal)}
 
-                {/* HK 온라인 */}
-                {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
+            {/* HK 온라인 */}
+            {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
 
-                {/* HK 전체 합계 */}
-                {data.hk_subtotal && (
-                  <>
-                    <tr className="h-2"></tr>
-                    <tr className="bg-yellow-50">
-                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                        {language === 'ko' ? 'HK 전체 합계' : 'HK Total'}
-                      </td>
-                    </tr>
-                    {renderRow(data.hk_subtotal, true)}
-                  </>
-                )}
+            {/* HK 전체 합계 */}
+            {data.hk_subtotal && (
+              <>
+                <tr className="h-2"></tr>
+                <tr className="bg-yellow-50">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                    {language === 'ko' ? 'HK 전체 합계' : 'HK Total'}
+                  </td>
+                </tr>
+                {renderRow(data.hk_subtotal, true)}
+              </>
+            )}
 
-                {/* HK와 MC 사이 간격 */}
+            {/* HK와 MC 사이 간격 */}
+            <tr className="h-4"></tr>
+
+            {/* MC 정상 */}
+            {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
+
+            {/* MC 아울렛 */}
+            {renderChannelSection('mc_outlet', 'MC - 아울렛', data.mc_outlet, data.mc_outlet_subtotal)}
+
+            {/* MC 온라인 */}
+            {renderChannelSection('mc_online', 'MC - 온라인', data.mc_online, data.mc_online_subtotal)}
+
+            {/* MC 전체 합계 */}
+            {data.mc_subtotal && (
+              <>
+                <tr className="h-2"></tr>
+                <tr className="bg-yellow-50">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                    {language === 'ko' ? 'MC 전체 합계' : 'MC Total'}
+                  </td>
+                </tr>
+                {renderRow(data.mc_subtotal, true)}
+              </>
+            )}
+
+            {/* HKMC 전체 합계 */}
+            {data.total_subtotal && (
+              <>
                 <tr className="h-4"></tr>
-
-                {/* MC 정상 */}
-                {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
-
-                {/* MC 아울렛 */}
-                {renderChannelSection('mc_outlet', 'MC - 아울렛', data.mc_outlet, data.mc_outlet_subtotal)}
-
-                {/* MC 온라인 */}
-                {renderChannelSection('mc_online', 'MC - 온라인', data.mc_online, data.mc_online_subtotal)}
-
-                {/* MC 전체 합계 */}
-                {data.mc_subtotal && (
-                  <>
-                    <tr className="h-2"></tr>
-                    <tr className="bg-yellow-50">
-                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                        {language === 'ko' ? 'MC 전체 합계' : 'MC Total'}
-                      </td>
-                    </tr>
-                    {renderRow(data.mc_subtotal, true)}
-                  </>
-                )}
-
-                {/* HKMC 전체 합계 */}
-                {data.total_subtotal && (
-                  <>
-                    <tr className="h-4"></tr>
-                    <tr className="bg-indigo-50">
-                      <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
-                        {language === 'ko' ? 'HKMC 전체 합계' : 'HKMC Total'}
-                      </td>
-                    </tr>
-                    {renderRow(data.total_subtotal, true)}
+                <tr className="bg-indigo-50">
+                  <td colSpan={8} className="px-4 py-2 font-bold text-gray-800">
+                    {language === 'ko' ? 'HKMC 전체 합계' : 'HKMC Total'}
+                  </td>
+                </tr>
+                {renderRow(data.total_subtotal, true)}
                   </>
                 )}
               </>

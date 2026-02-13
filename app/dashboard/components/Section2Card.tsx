@@ -67,7 +67,7 @@ export default function Section2Card({ section2Data, language, categoryFilter, o
 
   const kpis = calculateKPIs();
   const season = getSection2Season();
-  const currencyUnit = region === 'TW' ? t(language, 'unitWithExchange') : t(language, 'unit');
+  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-lg shadow-md p-6 border-l-4 border-green-600">
@@ -76,23 +76,25 @@ export default function Section2Card({ section2Data, language, categoryFilter, o
         <div className="flex items-center gap-2">
           <span className="text-2xl">📊</span>
           <div>
-            <h3 className="text-lg font-bold text-gray-900">
-              {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
-              {season && <span className="ml-2 text-sm text-purple-600">({season})</span>}
-              <span className="ml-2 text-xs text-gray-500">{t(language, 'tagBasis')}</span>
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-gray-900">
+                {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
+                {season && <span className="ml-2 text-sm text-purple-600">({season})</span>}
+                <span className="ml-2 text-xs text-gray-500">{t(language, 'tagBasis')}</span>
+              </h3>
+            </div>
             <p className="text-xs text-gray-600">{t(language, 'section2Subtitle')}</p>
-            <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
+            <p className="text-xs text-gray-500">{currencyUnit}</p>
           </div>
         </div>
         
         {/* 카테고리 필터 토글 버튼 */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-600">{t(language, 'filterCategory')}:</span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-gray-600 whitespace-nowrap">{t(language, 'filterCategory')}</span>
           <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-l-lg transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-l-lg transition-colors ${
                 categoryFilter === 'clothes'
                   ? 'bg-green-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100'
@@ -102,7 +104,7 @@ export default function Section2Card({ section2Data, language, categoryFilter, o
             </button>
             <button
               onClick={() => onCategoryFilterChange('all')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-r-lg transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-r-lg transition-colors ${
                 categoryFilter === 'all'
                   ? 'bg-green-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100'
@@ -115,7 +117,7 @@ export default function Section2Card({ section2Data, language, categoryFilter, o
       </div>
 
       {/* KPI 그리드 */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-3 gap-4">
         {/* K1 */}
         <div>
           <div className="text-xs text-gray-600 mb-1">{kpis.k1.label}</div>
