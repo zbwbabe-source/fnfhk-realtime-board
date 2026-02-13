@@ -104,6 +104,14 @@ export default function ExecutiveSummary({
         const year = asofDate.getFullYear();
         const month = asofDate.getMonth();
         const totalDays = new Date(year, month + 1, 0).getDate();
+        
+        console.log('📅 [ExecutiveSummary] Date calculation:', {
+          date,
+          asofDate: asofDate.toISOString(),
+          elapsedDays,
+          totalDays,
+          formula: `${elapsedDays}일 / ${totalDays}일`
+        });
 
         const response = await fetch('/api/insights/summary', {
           method: 'POST',
@@ -242,6 +250,14 @@ export default function ExecutiveSummary({
       const year = asofDate.getFullYear();
       const month = asofDate.getMonth();
       const totalDays = new Date(year, month + 1, 0).getDate();
+      
+      console.log('📅 [Regenerate] Date calculation:', {
+        date,
+        asofDate: asofDate.toISOString(),
+        elapsedDays,
+        totalDays,
+        formula: `${elapsedDays}일 / ${totalDays}일`
+      });
 
       const response = await fetch('/api/insights/summary', {
         method: 'POST',
