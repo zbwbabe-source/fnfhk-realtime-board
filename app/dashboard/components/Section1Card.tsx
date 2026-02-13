@@ -104,18 +104,21 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
         <div>
           <div className="text-xs text-gray-600 mb-1">{kpis.k1.label}</div>
           <div className="text-xl font-bold text-blue-600">{kpis.k1.value}</div>
+          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
         </div>
 
         {/* K2 */}
         <div>
           <div className="text-xs text-gray-600 mb-1">{kpis.k2.label}</div>
           <div className="text-xl font-bold text-gray-900">{kpis.k2.value}</div>
+          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
         </div>
 
         {/* K3 */}
         <div>
           <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
           <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
+          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
         </div>
       </div>
     </div>
