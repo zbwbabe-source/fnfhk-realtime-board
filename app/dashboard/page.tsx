@@ -288,9 +288,8 @@ export default function DashboardPage() {
               : 0,
             base_stock_amt: section3Data.header?.base_stock_amt || 0,
             curr_stock_amt: section3Data.header?.curr_stock_amt || 0,
-            stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
-              ? ((section3Data.header?.stagnant_stock_amt || 0) / section3Data.header.curr_stock_amt * 100)
-              : 0,
+            stagnant_ratio: section3Data.header?.stagnant_ratio || 0,
+            prev_month_stagnant_ratio: section3Data.header?.prev_month_stagnant_ratio || 0,
           }
         })
       });
