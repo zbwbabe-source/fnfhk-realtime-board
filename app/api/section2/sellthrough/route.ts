@@ -4,25 +4,9 @@ import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBran
 import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
 import { getApparelCategories } from '@/lib/category-utils.server';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
+import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
-
-// ✅ Memory cache for API responses (5 minute TTL)
-const memCache = new Map<string, { exp: number; value: any }>();
-
-function cacheGet(key: string) {
-  const hit = memCache.get(key);
-  if (!hit) return null;
-  if (Date.now() > hit.exp) {
-    memCache.delete(key);
-    return null;
-  }
-  return hit.value;
-}
-
-function cacheSet(key: string, value: any, ttlMs: number) {
-  memCache.set(key, { exp: Date.now() + ttlMs, value });
-}
 
 /**
  * GET /api/section2/sellthrough
@@ -48,6 +32,7 @@ export async function GET(request: NextRequest) {
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
     const categoryFilter = searchParams.get('category_filter') || 'clothes'; // 'clothes' or 'all'
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     if (!date) {
       return NextResponse.json(
@@ -56,16 +41,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ✅ Check cache first
-    const cacheKey = `sellthrough:${region}:${brand}:${date}:${categoryFilter}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) {
-      const elapsed = Date.now() - startTime;
-      console.log(`✅ Section2 Sellthrough Cache HIT [${cacheKey}] - ${elapsed}ms`);
-      return NextResponse.json(cached);
+    // Validate date format
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid date format. Expected YYYY-MM-DD' },
+        { status: 400 }
+      );
+    }
+
+    // Build cache key
+    let cacheKey: string;
+    try {
+      cacheKey = buildKey(['section2', 'sellthrough', region, brand, date, categoryFilter]);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔑 Redis Key:', cacheKey);
+
+    // ✅ Check cache first (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
+      if (cached) {
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] section2/sellthrough [${cacheKey}] - ${elapsed}ms`);
+        return NextResponse.json(cached);
+      }
     }
     
-    console.log(`⏳ Section2 Sellthrough Cache MISS [${cacheKey}], fetching from DB...`);
+    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] section2/sellthrough [${cacheKey}], fetching from DB...`);
 
     // 시즌 코드 계산 (THIS YEAR)
     const asofDate = new Date(date);
@@ -250,6 +257,7 @@ export async function GET(request: NextRequest) {
       CROSS JOIN stock_ly st_ly
     `;
 
+    console.log('[DB EXEC] section2/sellthrough (header)', cacheKey);
     const headerRows = await executeSnowflakeQuery(headerQuery, [
       // TY - sales_ty
       brand, sesn, startDateStr, date,
@@ -361,6 +369,7 @@ export async function GET(request: NextRequest) {
       ORDER BY sellthrough_pct DESC
     `;
 
+    console.log('[DB EXEC] section2/sellthrough (products)', cacheKey);
     const rows = await executeSnowflakeQuery(productQuery, [
       brand, sesn, date,                // latest_stock_date
       brand, sesn,                      // ending_stock
@@ -559,10 +568,10 @@ export async function GET(request: NextRequest) {
       no_inbound,
     };
 
-    // ✅ Cache the response for 5 minutes (300,000ms)
+    // ✅ Cache the response for 5 minutes (300 seconds)
     const elapsed = Date.now() - startTime;
-    cacheSet(cacheKey, response, 300_000);
-    console.log(`💾 Section2 Sellthrough Cache SET [${cacheKey}] - Query executed in ${elapsed}ms`);
+    await cacheSet(cacheKey, response, 300);
+    console.log(`[CACHE SET] section2/sellthrough [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     return NextResponse.json(response);
 

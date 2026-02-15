@@ -1,29 +1,13 @@
 // app/api/insights/summary/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { cacheGet, cacheSet, buildKey } from "@/lib/cache";
 
 export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// 간단한 인메모리 캐시
-const memCache = new Map<string, { exp: number; value: any }>();
-
-function cacheGet(key: string) {
-  const hit = memCache.get(key);
-  if (!hit) return null;
-  if (Date.now() > hit.exp) {
-    memCache.delete(key);
-    return null;
-  }
-  return hit.value;
-}
-
-function cacheSet(key: string, value: any, ttlMs: number) {
-  memCache.set(key, { exp: Date.now() + ttlMs, value });
-}
 
 // 금액 포맷팅 (K/M 단위)
 function formatCurrency(num: number): string {
@@ -109,6 +93,8 @@ function buildDetailedData(input: any) {
 }
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+  
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({
@@ -122,17 +108,49 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { region, brand, asof_date, skip_cache = false } = body;
-
-    const cacheKey = `summary:${region}:${brand}:${asof_date}`;
     
-    // 캐시 확인
-    if (!skip_cache) {
-      const cached = cacheGet(cacheKey);
+    // Support both skip_cache (body) and forceRefresh (query param)
+    const url = new URL(req.url);
+    const forceRefresh = url.searchParams.get('forceRefresh') === 'true' || skip_cache;
+
+    // Build cache key early for logging
+    let cacheKey: string;
+    try {
+      cacheKey = buildKey(['insights', 'summary', region, brand, asof_date]);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    // Request fingerprint
+    console.log('[REQ] insights/summary', { region, brand, asof_date, skip_cache, forceRefresh, cacheKey });
+
+    console.log('📊 [INSIGHTS/SUMMARY] Request received:', { region, brand, asof_date, forceRefresh });
+    console.log('📊 [INSIGHTS/SUMMARY] Data flow: Receives pre-aggregated section data from client');
+    console.log('📊 [INSIGHTS/SUMMARY] Does NOT call section APIs - uses body.section1/section2/section3 directly');
+
+    console.log('🔑 Redis Key:', cacheKey);
+    
+    // 캐시 확인 (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
       if (cached) {
-        console.log('✅ Cache hit for executive summary');
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] insights/summary [${cacheKey}] - ${elapsed}ms`);
         return NextResponse.json(cached);
       }
+      console.log(`[CACHE MISS] insights/summary [${cacheKey}], generating AI summary...`);
+    } else {
+      console.log(`[CACHE REFRESH] insights/summary [${cacheKey}], generating AI summary...`);
     }
+
+    console.log('📊 [INSIGHTS/SUMMARY] Input sections received:', {
+      section1_keys: Object.keys(body.section1 || {}),
+      section2_keys: Object.keys(body.section2 || {}),
+      section3_keys: Object.keys(body.section3 || {}),
+    });
 
     const detailedData = buildDetailedData(body);
     console.log('📊 Building executive summary from data:', detailedData);
@@ -196,6 +214,7 @@ export async function POST(req: Request) {
     let result: any;
 
     try {
+      console.log('[AI EXEC] insights/summary', cacheKey);
       const resp = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -245,8 +264,11 @@ export async function POST(req: Request) {
       return insight;
     });
 
-    cacheSet(cacheKey, final, 10 * 60 * 1000); // 10분 캐시
-    console.log('✅ Executive summary cached');
+    // Cache for 10 minutes (600 seconds)
+    const elapsed = Date.now() - startTime;
+    await cacheSet(cacheKey, final, 600);
+    console.log(`[CACHE SET] insights/summary [${cacheKey}] - Query executed in ${elapsed}ms`);
+    console.log('📊 [INSIGHTS/SUMMARY] Summary generated successfully');
     return NextResponse.json(final);
   } catch (e: any) {
     console.error('❌ Executive summary API failed:', e);

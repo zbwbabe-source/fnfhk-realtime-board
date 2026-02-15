@@ -4,25 +4,9 @@ import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
 import { loadWeightDataServer, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import targetData from '@/data/target.json';
+import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
-
-// ✅ Memory cache for API responses (5 minute TTL)
-const memCache = new Map<string, { exp: number; value: any }>();
-
-function cacheGet(key: string) {
-  const hit = memCache.get(key);
-  if (!hit) return null;
-  if (Date.now() > hit.exp) {
-    memCache.delete(key);
-    return null;
-  }
-  return hit.value;
-}
-
-function cacheSet(key: string, value: any, ttlMs: number) {
-  memCache.set(key, { exp: Date.now() + ttlMs, value });
-}
 
 /**
  * 매장별 YTD 목표 계산 함수
@@ -73,8 +57,9 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
-    console.log('🔍 API Section1 - Received params:', { region, brand, date });
+    console.log('🔍 API Section1 - Received params:', { region, brand, date, forceRefresh });
 
     if (!date) {
       return NextResponse.json(
@@ -83,16 +68,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ✅ Check cache first
-    const cacheKey = `section1:${region}:${brand}:${date}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) {
-      const elapsed = Date.now() - startTime;
-      console.log(`✅ Section1 Cache HIT [${cacheKey}] - ${elapsed}ms`);
-      return NextResponse.json(cached);
+    // Validate date format
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid date format. Expected YYYY-MM-DD' },
+        { status: 400 }
+      );
+    }
+
+    // Build cache key
+    let cacheKey: string;
+    try {
+      cacheKey = buildKey(['section1', 'store-sales', region, brand, date]);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔑 Redis Key:', cacheKey);
+
+    // ✅ Check cache first (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
+      if (cached) {
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] section1/store-sales [${cacheKey}] - ${elapsed}ms`);
+        return NextResponse.json(cached);
+      }
     }
     
-    console.log(`⏳ Section1 Cache MISS [${cacheKey}], fetching from DB...`);
+    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] section1/store-sales [${cacheKey}], fetching from DB...`);
 
     // Store master 로드
     const storeMaster = getStoreMaster();
@@ -233,6 +240,7 @@ export async function GET(request: NextRequest) {
       ORDER BY shop_cd
     `;
 
+    console.log('[DB EXEC] section1/store-sales', cacheKey);
     const rows = await executeSnowflakeQuery(query, [
       date, date,           // MTD ACT current
       date, date,           // MTD ACT PY
@@ -506,10 +514,10 @@ export async function GET(request: NextRequest) {
       total_subtotal,
     };
 
-    // ✅ Cache the response for 5 minutes (300,000ms)
+    // ✅ Cache the response for 5 minutes (300 seconds)
     const elapsed = Date.now() - startTime;
-    cacheSet(cacheKey, response, 300_000);
-    console.log(`💾 Section1 Cache SET [${cacheKey}] - Query executed in ${elapsed}ms`);
+    await cacheSet(cacheKey, response, 300);
+    console.log(`[CACHE SET] section1/store-sales [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     return NextResponse.json(response);
 

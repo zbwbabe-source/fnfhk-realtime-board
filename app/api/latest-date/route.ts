@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
+import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,12 +14,36 @@ export const dynamic = 'force-dynamic';
  * Returns the latest available date in the database for the given region
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand');
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
-    console.log('🔍 API Latest Date - Received params:', { region, brand });
+    console.log('🔍 API Latest Date - Received params:', { region, brand, forceRefresh });
+
+    // Build cache key (brand may be null)
+    const cacheKeyParts = ['latest-date', region];
+    if (brand) {
+      cacheKeyParts.push(brand);
+    }
+    const cacheKey = buildKey(cacheKeyParts);
+
+    console.log('🔑 Redis Key:', cacheKey);
+
+    // ✅ Check cache first (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
+      if (cached) {
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] latest-date [${cacheKey}] - ${elapsed}ms`);
+        return NextResponse.json(cached);
+      }
+    }
+    
+    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] latest-date [${cacheKey}], fetching from DB...`);
 
     // 리전별 국가 필터
     const countries = region === 'HKMC' ? ['HK', 'MC'] : ['TW'];
@@ -59,6 +84,7 @@ export async function GET(request: NextRequest) {
         AND SALE_DT >= DATEADD(MONTH, -3, CURRENT_DATE())
     `;
 
+    console.log('[DB EXEC] latest-date', cacheKey);
     const rows = await executeSnowflakeQuery(query, []);
 
     const latestDate = rows[0]?.LATEST_DATE;
@@ -74,11 +100,18 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Latest date for ${region}: ${latestDate}`);
 
-    return NextResponse.json({
+    const response = {
       region,
       brand,
       latest_date: latestDate,
-    });
+    };
+
+    // ✅ Cache the response for 1 minute (60 seconds)
+    const elapsed = Date.now() - startTime;
+    await cacheSet(cacheKey, response, 60);
+    console.log(`[CACHE SET] latest-date [${cacheKey}] - Query executed in ${elapsed}ms`);
+
+    return NextResponse.json(response);
 
   } catch (error: any) {
     console.error('Error in /api/latest-date:', error);

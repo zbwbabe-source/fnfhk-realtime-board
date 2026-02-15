@@ -1,0 +1,23 @@
+-- PART_CD vs PRDT_CD 구조 확인
+SELECT TOP 20
+  PRDT_CD,
+  PART_CD,
+  LENGTH(PRDT_CD) AS prdt_len,
+  LENGTH(PART_CD) AS part_len,
+  SUBSTR(PRDT_CD, 1, 1) AS prdt_char1,
+  SUBSTR(PRDT_CD, 2, 3) AS prdt_char2_4,
+  SUBSTR(PRDT_CD, 5, 2) AS prdt_char5_6,
+  SUBSTR(PRDT_CD, 7, 2) AS prdt_char7_8,
+  SUBSTR(PART_CD, 1, 1) AS part_char1,
+  SUBSTR(PART_CD, 2, 1) AS part_char2,
+  SUBSTR(PART_CD, 3, 2) AS part_char3_4,
+  SUBSTR(PART_CD, 5, 2) AS part_char5_6,
+  BRD_CD,
+  SESN,
+  TAG_SALE_AMT,
+  SALE_DT
+FROM SAP_FNF.DW_HMD_SALE_D
+WHERE LOCAL_SHOP_CD IN ('T01','T02','T03','T06','T08','T10','T11','T12','T13','T14','T16','T17','T18','TU1','TU2','TU3','D01','D03','D04','DE1','DE2','TE1','TE2','TE3')
+  AND SALE_DT >= '2026-01-01'
+  AND TAG_SALE_AMT > 0
+ORDER BY SALE_DT DESC, TAG_SALE_AMT DESC;

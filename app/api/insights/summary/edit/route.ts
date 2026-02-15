@@ -5,6 +5,9 @@ import { Redis } from "@upstash/redis";
 export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 
+// Key prefix for all cache keys
+const KEY_PREFIX = 'fnfhk';
+
 // Upstash Redis 클라이언트
 let redis: Redis | null = null;
 
@@ -25,6 +28,22 @@ function getRedisClient() {
   return redis;
 }
 
+/**
+ * Build edited summary cache key
+ * 
+ * @param region - Region (e.g., 'HKMC', 'TW')
+ * @param brand - Brand (e.g., 'M', 'X')
+ * @param date - Date in YYYY-MM-DD format
+ * @returns Cache key (e.g., 'fnfhk:summary:edited:HKMC:M:2025-01-15')
+ */
+function buildEditedSummaryKey(region: string, brand: string, date: string): string {
+  const normalizedRegion = region.trim().toUpperCase();
+  const normalizedBrand = brand.trim().toUpperCase();
+  const normalizedDate = date.trim(); // Keep date format as-is
+  
+  return `${KEY_PREFIX}:summary:edited:${normalizedRegion}:${normalizedBrand}:${normalizedDate}`;
+}
+
 // GET: 편집된 요약 불러오기
 export async function GET(req: Request) {
   try {
@@ -32,6 +51,7 @@ export async function GET(req: Request) {
     const region = searchParams.get('region');
     const brand = searchParams.get('brand');
     const date = searchParams.get('date');
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
     
     if (!region || !brand || !date) {
       return NextResponse.json(
@@ -40,7 +60,13 @@ export async function GET(req: Request) {
       );
     }
     
-    const key = `summary:edited:${region}:${brand}:${date}`;
+    // If forceRefresh, ignore cache and return no data
+    if (forceRefresh) {
+      console.log('🔄 Force refresh: ignoring cache');
+      return NextResponse.json({ edited: false, data: null });
+    }
+    
+    const key = buildEditedSummaryKey(region, brand, date);
     const client = getRedisClient();
     
     const data = await client.get(key);
@@ -64,7 +90,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { region, brand, date, main_summary, key_insights } = body;
+    const { region, brand, date, main_summary, key_insights, forceRefresh } = body;
     
     if (!region || !brand || !date || !main_summary || !key_insights) {
       return NextResponse.json(
@@ -73,8 +99,14 @@ export async function POST(req: Request) {
       );
     }
     
-    const key = `summary:edited:${region}:${brand}:${date}`;
+    const key = buildEditedSummaryKey(region, brand, date);
     const client = getRedisClient();
+    
+    // If forceRefresh, delete existing key first
+    if (forceRefresh === true) {
+      console.log('🔄 Force refresh: deleting existing key before set');
+      await client.del(key);
+    }
     
     const data = {
       main_summary,
@@ -111,7 +143,7 @@ export async function DELETE(req: Request) {
       );
     }
     
-    const key = `summary:edited:${region}:${brand}:${date}`;
+    const key = buildEditedSummaryKey(region, brand, date);
     const client = getRedisClient();
     
     await client.del(key);

@@ -3,6 +3,7 @@ import { executeSnowflakeMerge } from '@/lib/snowflake';
 import { getStoresByRegionBrandChannel, getWarehouseStores } from '@/lib/store-utils';
 import { getYesterday, formatDateYYYYMMDD, getSeasonCode, getSection2StartDate } from '@/lib/date-utils';
 import { getApparelCategories } from '@/lib/category-utils.server';
+import { invalidateCacheByRegionBrand } from '@/lib/cache';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -86,6 +87,14 @@ export async function GET(request: NextRequest) {
         };
 
         console.log(`    ✅ Merged ${result.rowsAffected} rows`);
+        
+        // ✅ Invalidate cache for this region/brand
+        try {
+          const deletedCount = await invalidateCacheByRegionBrand(region, brand);
+          console.log(`    🗑️  Cache invalidated: ${deletedCount} keys deleted for ${region}:${brand}`);
+        } catch (cacheError: any) {
+          console.error(`    ⚠️  Cache invalidation failed (non-fatal): ${cacheError.message}`);
+        }
       } catch (error: any) {
         console.error(`    ❌ Error for brand ${brand}:`, error.message);
         results.section1.brands[brand] = {
@@ -153,6 +162,14 @@ export async function GET(request: NextRequest) {
         };
 
         console.log(`    ✅ Merged ${result.rowsAffected} rows`);
+        
+        // ✅ Invalidate cache for this region/brand
+        try {
+          const deletedCount = await invalidateCacheByRegionBrand(region, brand);
+          console.log(`    🗑️  Cache invalidated: ${deletedCount} keys deleted for ${region}:${brand}`);
+        } catch (cacheError: any) {
+          console.error(`    ⚠️  Cache invalidation failed (non-fatal): ${cacheError.message}`);
+        }
       } catch (error: any) {
         console.error(`    ❌ Error for brand ${brand}:`, error.message);
         results.section2.brands[brand] = {

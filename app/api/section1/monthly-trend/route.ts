@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
+import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,11 +22,14 @@ export const dynamic = 'force-dynamic';
  * }
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     if (!date) {
       return NextResponse.json(
@@ -33,6 +37,39 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate date format
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid date format. Expected YYYY-MM-DD' },
+        { status: 400 }
+      );
+    }
+
+    // Build cache key
+    let cacheKey: string;
+    try {
+      cacheKey = buildKey(['section1', 'monthly-trend', region, brand, date]);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔑 Redis Key:', cacheKey);
+
+    // ✅ Check cache first (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
+      if (cached) {
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] section1/monthly-trend [${cacheKey}] - ${elapsed}ms`);
+        return NextResponse.json(cached);
+      }
+    }
+    
+    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] section1/monthly-trend [${cacheKey}], fetching from DB...`);
 
     // 날짜 파싱
     const asofDate = new Date(date);
@@ -149,6 +186,7 @@ export async function GET(request: NextRequest) {
       ORDER BY ty.month ASC
     `;
 
+    console.log('[DB EXEC] section1/monthly-trend', cacheKey);
     const rows = await executeSnowflakeQuery(query, [
       normalizedBrand, // TY
       date,
@@ -181,12 +219,19 @@ export async function GET(request: NextRequest) {
       })),
     });
 
-    return NextResponse.json({
+    const response = {
       asof_date: date,
       region,
       brand,
       rows: result,
-    });
+    };
+
+    // ✅ Cache the response for 10 minutes (600 seconds)
+    const elapsed = Date.now() - startTime;
+    await cacheSet(cacheKey, response, 600);
+    console.log(`[CACHE SET] section1/monthly-trend [${cacheKey}] - Query executed in ${elapsed}ms`);
+
+    return NextResponse.json(response);
 
   } catch (error: any) {
     console.error('Error in /api/section1/monthly-trend:', error);

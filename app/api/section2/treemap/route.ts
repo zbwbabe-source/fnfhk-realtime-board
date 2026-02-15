@@ -4,25 +4,9 @@ import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBran
 import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
+import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
-
-// Memory cache for treemap data (5 minute TTL)
-const memCache = new Map<string, { exp: number; value: any }>();
-
-function cacheGet(key: string) {
-  const hit = memCache.get(key);
-  if (!hit) return null;
-  if (Date.now() > hit.exp) {
-    memCache.delete(key);
-    return null;
-  }
-  return hit.value;
-}
-
-function cacheSet(key: string, value: any, ttlMs: number) {
-  memCache.set(key, { exp: Date.now() + ttlMs, value });
-}
 
 /**
  * GET /api/section2/treemap
@@ -39,12 +23,15 @@ function cacheSet(key: string, value: any, ttlMs: number) {
  *       └─> small_categories: 소분류별 데이터
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
     const mode = searchParams.get('mode') || 'monthly'; // 'monthly' or 'ytd'
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     if (!date) {
       return NextResponse.json(
@@ -53,15 +40,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check cache first
-    const cacheKey = `treemap:${region}:${brand}:${date}:${mode}`;
-    const cached = cacheGet(cacheKey);
-    if (cached) {
-      console.log(`✅ Treemap cache HIT: ${cacheKey}`);
-      return NextResponse.json(cached);
+    // Validate date format
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid date format. Expected YYYY-MM-DD' },
+        { status: 400 }
+      );
     }
 
-    console.log(`⏳ Treemap cache MISS: ${cacheKey}, fetching from DB...`);
+    // Build cache key
+    let cacheKey: string;
+    try {
+      cacheKey = buildKey(['section2', 'treemap', region, brand, date, mode]);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔑 Redis Key:', cacheKey);
+
+    // Check cache first (skip if forceRefresh)
+    if (!forceRefresh) {
+      const cached = await cacheGet<any>(cacheKey);
+      if (cached) {
+        const elapsed = Date.now() - startTime;
+        console.log(`[CACHE HIT] section2/treemap [${cacheKey}] - ${elapsed}ms`);
+        return NextResponse.json(cached);
+      }
+    }
+
+    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] section2/treemap [${cacheKey}], fetching from DB...`);
 
     const normalizedBrand = normalizeBrand(brand);
     const asofDate = new Date(date);
@@ -202,6 +212,7 @@ export async function GET(request: NextRequest) {
       ORDER BY sales_act_ty DESC
     `;
 
+    console.log('[DB EXEC] section2/treemap', cacheKey);
     const rows = await executeSnowflakeQuery(query, [
       normalizedBrand, sesn, startDateStr, date,           // TY
       normalizedBrand, sesnLY, startDateLYStr, dateLY,     // LY
@@ -407,8 +418,10 @@ export async function GET(request: NextRequest) {
       large_categories: largeCategories,
     };
 
-    // Cache for 5 minutes (300,000ms)
-    cacheSet(cacheKey, responseData, 300_000);
+    // Cache for 5 minutes (300 seconds)
+    const elapsed = Date.now() - startTime;
+    await cacheSet(cacheKey, responseData, 300);
+    console.log(`[CACHE SET] section2/treemap [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     return NextResponse.json(responseData);
 
