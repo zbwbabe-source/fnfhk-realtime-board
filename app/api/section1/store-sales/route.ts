@@ -7,6 +7,23 @@ import targetData from '@/data/target.json';
 
 export const dynamic = 'force-dynamic';
 
+// ✅ Memory cache for API responses (5 minute TTL)
+const memCache = new Map<string, { exp: number; value: any }>();
+
+function cacheGet(key: string) {
+  const hit = memCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.exp) {
+    memCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: any, ttlMs: number) {
+  memCache.set(key, { exp: Date.now() + ttlMs, value });
+}
+
 /**
  * 매장별 YTD 목표 계산 함수
  * ytd_target = Σ TARGET_AMT(1월~당월)
@@ -49,6 +66,8 @@ function calculateYtdTargetForStore(
  * - total_subtotal: HKMC 전체 합계 (1 row)
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
@@ -63,6 +82,17 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ✅ Check cache first
+    const cacheKey = `section1:${region}:${brand}:${date}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Section1 Cache HIT [${cacheKey}] - ${elapsed}ms`);
+      return NextResponse.json(cached);
+    }
+    
+    console.log(`⏳ Section1 Cache MISS [${cacheKey}], fetching from DB...`);
 
     // Store master 로드
     const storeMaster = getStoreMaster();
@@ -475,6 +505,11 @@ export async function GET(request: NextRequest) {
       tw_subtotal,
       total_subtotal,
     };
+
+    // ✅ Cache the response for 5 minutes (300,000ms)
+    const elapsed = Date.now() - startTime;
+    cacheSet(cacheKey, response, 300_000);
+    console.log(`💾 Section1 Cache SET [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     return NextResponse.json(response);
 

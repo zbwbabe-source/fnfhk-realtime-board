@@ -7,6 +7,23 @@ import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-ut
 
 export const dynamic = 'force-dynamic';
 
+// ✅ Memory cache for API responses (5 minute TTL)
+const memCache = new Map<string, { exp: number; value: any }>();
+
+function cacheGet(key: string) {
+  const hit = memCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.exp) {
+    memCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: any, ttlMs: number) {
+  memCache.set(key, { exp: Date.now() + ttlMs, value });
+}
+
 /**
  * GET /api/section2/sellthrough
  * 
@@ -23,6 +40,8 @@ export const dynamic = 'force-dynamic';
  * - no_inbound: 입고 없는 품번 리스트 (inbound = 0, sales > 0)
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
@@ -36,6 +55,17 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ✅ Check cache first
+    const cacheKey = `sellthrough:${region}:${brand}:${date}:${categoryFilter}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Section2 Sellthrough Cache HIT [${cacheKey}] - ${elapsed}ms`);
+      return NextResponse.json(cached);
+    }
+    
+    console.log(`⏳ Section2 Sellthrough Cache MISS [${cacheKey}], fetching from DB...`);
 
     // 시즌 코드 계산 (THIS YEAR)
     const asofDate = new Date(date);
@@ -528,6 +558,11 @@ export async function GET(request: NextRequest) {
       all_products: allProducts,
       no_inbound,
     };
+
+    // ✅ Cache the response for 5 minutes (300,000ms)
+    const elapsed = Date.now() - startTime;
+    cacheSet(cacheKey, response, 300_000);
+    console.log(`💾 Section2 Sellthrough Cache SET [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     return NextResponse.json(response);
 

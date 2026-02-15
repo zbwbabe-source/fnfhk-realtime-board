@@ -5,6 +5,23 @@ import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-ut
 
 export const dynamic = 'force-dynamic';
 
+// ✅ Memory cache for API responses (5 minute TTL)
+const memCache = new Map<string, { exp: number; value: any }>();
+
+function cacheGet(key: string) {
+  const hit = memCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.exp) {
+    memCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: any, ttlMs: number) {
+  memCache.set(key, { exp: Date.now() + ttlMs, value });
+}
+
 /**
  * GET /api/section3/old-season-inventory
  * 
@@ -16,6 +33,8 @@ export const dynamic = 'force-dynamic';
  * 변경사항: 4Q 블록 제거, 시즌 기초재고 대비 현재 현황 중심으로 재구성
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
@@ -30,6 +49,17 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ✅ Check cache first
+    const cacheKey = `section3:${region}:${brand}:${date}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Section3 Cache HIT [${cacheKey}] - ${elapsed}ms`);
+      return NextResponse.json(cached);
+    }
+    
+    console.log(`⏳ Section3 Cache MISS [${cacheKey}], fetching from DB...`);
 
     const normalizedBrand = normalizeBrand(brand);
     
@@ -750,6 +780,11 @@ ORDER BY
         period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,
       })),
     };
+
+    // ✅ Cache the response for 5 minutes (300,000ms)
+    const elapsed = Date.now() - startTime;
+    cacheSet(cacheKey, response, 300_000);
+    console.log(`💾 Section3 Cache SET [${cacheKey}] - Query executed in ${elapsed}ms`);
 
     console.log('✅ API Section3 - Response prepared');
     return NextResponse.json(response);
