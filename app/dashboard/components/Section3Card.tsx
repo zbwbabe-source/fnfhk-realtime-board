@@ -151,7 +151,10 @@ export default function Section3Card({ section3Data, language, region }: Section
 
         {/* K3 */}
         <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
+          <div className="text-xs text-gray-600 mb-1">
+            {kpis.k3.label}
+            <span className="ml-1 text-gray-500">({t(language, 'vsLastMonthEnd')})</span>
+          </div>
           <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
           {kpis.k3.subValue && (
             <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k3.subClass}`}>
