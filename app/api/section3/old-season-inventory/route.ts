@@ -14,10 +14,10 @@ export const dynamic = 'force-dynamic';
  * - brand: 'M' or 'X'
  * - date: 'YYYY-MM-DD' (asof_date)
  * 
- * Redis 스냅샷 우선 조회:
- * 1. Redis에서 스냅샷 확인 (cron 생성)
+ * Redis 캐시 우선 조회:
+ * 1. Redis에서 캐시 확인 (cron 생성)
  * 2. HIT: 즉시 반환
- * 3. MISS: Snowflake 쿼리 실행 후 Redis 저장 (24시간 TTL)
+ * 3. MISS: Snowflake 쿼리 실행 후 Redis 저장(24시간 TTL)
  */
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
@@ -30,12 +30,14 @@ export async function GET(request: NextRequest) {
     const region = (searchParams.get('region') || 'HKMC').trim();
     const brand = (searchParams.get('brand') || 'M').trim();
     const date = searchParams.get('date')?.trim() || '';
+    const categoryFilter = (searchParams.get('category_filter') || 'all').trim() === 'clothes' ? 'clothes' : 'all';
 
     // 요청 시작 로그
-    console.log('[section3] 📥 Request START', {
+      console.log('[section3] 📥 Request START', {
       region,
       brand,
       date,
+      categoryFilter,
       timestamp: new Date().toISOString(),
     });
 
@@ -47,9 +49,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Redis 키 생성
-    const cacheKey = buildKey(['section3', 'old-season-inventory', region, brand, date]);
+    const cacheKey = buildKey(['section3', 'old-season-inventory', region, brand, date, categoryFilter]);
 
-    // Redis에서 스냅샷 조회
+    // Redis에서 캐시 조회
     try {
       const cached = await redis.get<string>(cacheKey);
 
@@ -66,41 +68,49 @@ export async function GET(request: NextRequest) {
 
         // 응답 rows 수 계산
         const payload = snapshot.payload;
-        responseRowsCount = Array.isArray(payload) ? payload.length : 0;
+        const hasCurrentStockYoY =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'curr_stock_yoy_pct');
 
-        const durationMs = Date.now() - startTime;
-        
-        // HIT 로그 (운영 관측성)
-        console.log('[section3] ✅ Request END - CACHE HIT', {
-          region,
-          brand,
-          date,
-          cache_hit: true,
-          key: cacheKey,
-          duration_ms: durationMs,
-          generated_at: snapshot.generatedAt,
-          response_rows_count: responseRowsCount,
-          compressed_kb: (cached.length / 1024).toFixed(2),
-        });
+        if (hasCurrentStockYoY) {
+          responseRowsCount = Array.isArray(payload) ? payload.length : 0;
+          const durationMs = Date.now() - startTime;
 
-        return NextResponse.json(snapshot.payload);
+          // HIT 로그 (운영 관찰성)
+          console.log('[section3] ✅ Request END - CACHE HIT', {
+            region,
+            brand,
+            date,
+            cache_hit: true,
+            key: cacheKey,
+            duration_ms: durationMs,
+            generated_at: snapshot.generatedAt,
+            response_rows_count: responseRowsCount,
+            compressed_kb: (cached.length / 1024).toFixed(2),
+          });
+
+          return NextResponse.json(snapshot.payload);
+        }
+
+        console.log('[section3] Cache payload outdated, regenerating snapshot...', { key: cacheKey });
       }
 
-      console.log('[section3] ⏳ Cache MISS, executing Snowflake query...', { key: cacheKey });
+      console.log('[section3] ⚠️ Cache MISS, executing Snowflake query...', { key: cacheKey });
     } catch (redisError: any) {
-      console.error('[section3] ⚠️  Redis error (non-fatal):', redisError.message);
+      console.error('[section3] ❌ Redis error (non-fatal):', redisError.message);
       // Redis 오류 시 fallback으로 Snowflake 쿼리 실행
     }
 
     // Redis MISS: Snowflake 쿼리 실행
     const snowflakeStart = Date.now();
-    const payload = await executeSection3Query(region, brand, date);
+    const payload = await executeSection3Query(region, brand, date, { categoryFilter });
     snowflakeMs = Date.now() - snowflakeStart;
     
     // 응답 rows 수 계산
     responseRowsCount = Array.isArray(payload) ? payload.length : 0;
 
-    // 결과를 Redis에 저장 (6시간 TTL)
+    // 결과를 Redis에 저장(24시간 TTL)
     try {
       const snapshotData = {
         asofDate: date,
@@ -121,13 +131,13 @@ export async function GET(request: NextRequest) {
         ttl_seconds: ttlSeconds,
       });
     } catch (redisError: any) {
-      console.error('[section3] ⚠️  Redis save failed (non-fatal):', redisError.message);
+      console.error('[section3] ❌ Redis save failed (non-fatal):', redisError.message);
       // Redis 저장 실패해도 응답은 정상 반환
     }
 
     const durationMs = Date.now() - startTime;
     
-    // MISS 로그 (운영 관측성)
+    // MISS 로그 (운영 관찰성)
     console.log('[section3] ✅ Request END - CACHE MISS', {
       region,
       brand,
@@ -144,7 +154,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
     
-    // 에러 로그 (운영 관측성)
+    // 에러 로그 (운영 관찰성)
     console.error('[section3] ❌ Request END - ERROR', {
       cache_hit: cacheHit,
       duration_ms: durationMs,
