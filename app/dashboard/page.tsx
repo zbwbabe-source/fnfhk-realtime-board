@@ -267,7 +267,6 @@ export default function DashboardPage() {
           region,
           brand,
           asof_date: date,
-          skip_cache: true, // 항상 최신 데이터로 생성
           section1: {
             achievement_rate: isYtdMode ? (section1Data.total_subtotal?.progress_ytd || 0) : (section1Data.total_subtotal?.progress || 0),
             yoy_ytd: isYtdMode ? (section1Data.total_subtotal?.yoy_ytd || 0) : (section1Data.total_subtotal?.yoy || 0),
@@ -461,11 +460,10 @@ export default function DashboardPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
         {/* AI 요약 버튼 */}
-        {allDataLoaded && (
+        {date && (
           <div className="mb-6">
             <button
               onClick={() => setShowAISummary(!showAISummary)}
-              disabled={summaryLoading}
               className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {summaryLoading ? (
@@ -489,7 +487,7 @@ export default function DashboardPage() {
         )}
         
         {/* AI 요약 표시 (버튼 클릭 시에만) */}
-        {allDataLoaded && showAISummary && (
+        {showAISummary && (
           <ExecutiveSummary
             region={region}
             brand={brand}
@@ -498,7 +496,7 @@ export default function DashboardPage() {
             section1Data={section1Data}
             section2Data={section2Data}
             section3Data={section3Data}
-            isLoading={false}
+            isLoading={summaryLoading || anyDataLoading}
             isYtdMode={isYtdMode}
             preloadedSummary={executiveSummary}
             preloadedError={summaryError}

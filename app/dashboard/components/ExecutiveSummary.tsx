@@ -82,87 +82,13 @@ export default function ExecutiveSummary({
     console.log('🔄 Filter changed, reset manual edit flag');
   }, [region, brand, date]);
 
+  // preloaded 데이터가 없으면 fetch하지 않음 (부모에서 로딩 보장)
+  // 모든 summary 로딩은 부모(page.tsx)에서 처리
   useEffect(() => {
-    // preloaded 데이터가 있으면 fetch하지 않음
-    if (preloadedSummary || preloadedError) {
-      return;
+    if (!preloadedSummary && !preloadedError) {
+      console.log('⚠️ ExecutiveSummary mounted without preloaded data - waiting for parent');
     }
-
-    // 모든 섹션 데이터가 로드되었을 때만 요약 생성
-    if (!section1Data || !section2Data || !section3Data || !date) {
-      return;
-    }
-
-    async function fetchSummary() {
-      setLoading(true);
-      setError('');
-
-      try {
-        // 경과일수 계산
-        const asofDate = new Date(date);
-        const elapsedDays = asofDate.getDate();
-        const year = asofDate.getFullYear();
-        const month = asofDate.getMonth();
-        const totalDays = new Date(year, month + 1, 0).getDate();
-        
-        console.log('📅 [ExecutiveSummary] Date calculation:', {
-          date,
-          asofDate: asofDate.toISOString(),
-          elapsedDays,
-          totalDays,
-          formula: `${elapsedDays}일 / ${totalDays}일`
-        });
-
-        const response = await fetch('/api/insights/summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            region,
-            brand,
-            asof_date: date,
-            section1: {
-              // AI 요약은 항상 당월(MTD) 데이터 사용
-              achievement_rate: section1Data.total_subtotal?.progress || 0,
-              yoy_ytd: section1Data.total_subtotal?.yoy || 0,
-              actual_sales_ytd: section1Data.total_subtotal?.mtd_act || 0,
-              target_ytd: section1Data.total_subtotal?.target_mth || 0,
-              elapsed_days: elapsedDays,
-              total_days: totalDays,
-            },
-            section2: {
-              sellthrough_rate: section2Data.header?.overall_sellthrough || 0,
-              sales_amt: section2Data.header?.total_sales || 0,
-              inbound_amt: section2Data.header?.total_inbound || 0,
-              sales_yoy_pct: section2Data.header?.sales_yoy_pct || 100,
-            },
-            section3: {
-              sellthrough_rate: ((section3Data.header?.base_stock_amt || 0) - (section3Data.header?.curr_stock_amt || 0)) / (section3Data.header?.base_stock_amt || 1) * 100,
-              base_stock_amt: section3Data.header?.base_stock_amt || 0,
-              curr_stock_amt: section3Data.header?.curr_stock_amt || 0,
-              stagnant_ratio: section3Data.header?.curr_stock_amt > 0 
-                ? ((section3Data.header?.stagnant_stock_amt || 0) / section3Data.header.curr_stock_amt * 100)
-                : 0,
-              prev_month_stagnant_ratio: section3Data.header?.prev_month_stagnant_ratio || 0,
-            }
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch executive summary');
-        }
-
-        const data = await response.json();
-        setSummary(data);
-      } catch (err: any) {
-        console.error('❌ Executive summary fetch error:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchSummary();
-  }, [region, brand, date, section1Data, section2Data, section3Data, preloadedSummary, preloadedError]);
+  }, [preloadedSummary, preloadedError]);
 
   // 로딩 중일 때 스켈레톤 UI
   if (loading || parentLoading) {
