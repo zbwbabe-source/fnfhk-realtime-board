@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useMemo } from 'react';
 import { t, type Language } from '@/lib/translations';
@@ -7,6 +7,7 @@ interface Section3Props {
   region: string;
   brand: string;
   date: string;
+  categoryFilter: 'clothes' | 'all';
   onDataChange?: (data: Section3Data | null) => void;
   language: Language;
 }
@@ -39,7 +40,7 @@ interface CategoryRow {
 
 interface YearRow {
   year_bucket: string;
-  season_code?: string; // 연차별 시즌 코드 (예: "24F", "23F", "~22F")
+  season_code?: string; // ?곗감蹂??쒖쫵 肄붾뱶 (?? "24F", "23F", "~22F")
   sesn?: string;
   base_stock_amt: number;
   curr_stock_amt: number;
@@ -55,7 +56,7 @@ interface Section3Data {
   asof_date: string;
   base_stock_date: string;
   period_start_date: string;
-  season_type: string; // 'FW' 또는 'SS'
+  season_type: string; // 'FW' ?먮뒗 'SS'
   region: string;
   brand: string;
   header: YearRow;
@@ -69,61 +70,68 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 } | null;
 
-export default function Section3OldSeasonInventory({ region, brand, date, onDataChange, language }: Section3Props) {
+export default function Section3OldSeasonInventory({
+  region,
+  brand,
+  date,
+  categoryFilter,
+  onDataChange,
+  language,
+}: Section3Props) {
   const [data, setData] = useState<Section3Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 확장 상태 관리
+  // ?뺤옣 ?곹깭 愿由?
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [showAllCategoriesInYear, setShowAllCategoriesInYear] = useState<Set<string>>(new Set()); // 연차별 기타 카테고리 표시 여부
+  const [showAllCategoriesInYear, setShowAllCategoriesInYear] = useState<Set<string>>(new Set()); // ?곗감蹂?湲고? 移댄뀒怨좊━ ?쒖떆 ?щ?
   const [isAllCategoriesExpanded, setIsAllCategoriesExpanded] = useState(false);
   const [isAllSKUsExpanded, setIsAllSKUsExpanded] = useState(false);
   
-  // 정렬 상태
+  // ?뺣젹 ?곹깭
   const [catSortConfig, setCatSortConfig] = useState<SortConfig>(null);
   const [skuSortConfig, setSkuSortConfig] = useState<SortConfig>(null);
 
   React.useEffect(() => {
     async function fetchData() {
       if (!date) {
-        console.log('⚠️ Section3: No date provided');
+        console.log('?좑툘 Section3: No date provided');
         return;
       }
 
-      console.log('🔍 Section3: Fetching data with params:', { region, brand, date });
+      console.log('?뵇 Section3: Fetching data with params:', { region, brand, date });
       setLoading(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams({ region, brand, date });
+        const params = new URLSearchParams({ region, brand, date, category_filter: categoryFilter });
         const url = `/api/section3/old-season-inventory?${params}`;
-        console.log('🔍 Section3: Fetching from URL:', url);
+        console.log('?뵇 Section3: Fetching from URL:', url);
         
         const res = await fetch(url);
         
-        console.log('📡 Section3: Response status:', res.status);
+        console.log('?뱻 Section3: Response status:', res.status);
         
         if (!res.ok) {
           const errorText = await res.text();
-          console.error('❌ Section3: Error response:', errorText);
+          console.error('??Section3: Error response:', errorText);
           throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
         }
 
         const json = await res.json();
-        console.log('✅ Section3: Received data:', json);
+        console.log('??Section3: Received data:', json);
         setData(json);
         
-        // 부모 컴포넌트로 데이터 전달
+        // 遺紐?而댄룷?뚰듃濡??곗씠???꾨떖
         if (onDataChange) {
           onDataChange(json);
         }
       } catch (err: any) {
-        console.error('❌ Section3: Failed to fetch data:', err);
-        console.error('❌ Section3: Error details:', err.message, err.stack);
-        setError(err.message || (language === 'ko' ? '데이터를 불러오는데 실패했습니다.' : 'Failed to load data.'));
+        console.error('??Section3: Failed to fetch data:', err);
+        console.error('??Section3: Error details:', err.message, err.stack);
+        setError(err.message || (language === 'ko' ? '?곗씠?곕? 遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.' : 'Failed to load data.'));
         
-        // 에러 시 null 전달
+        // ?먮윭 ??null ?꾨떖
         if (onDataChange) {
           onDataChange(null);
         }
@@ -133,12 +141,12 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     }
 
     fetchData();
-  }, [region, brand, date, onDataChange]);
+  }, [region, brand, date, categoryFilter, onDataChange]);
 
-  // 유틸 함수들
+  // ?좏떥 ?⑥닔
   const formatNumber = (num: number | null | undefined, decimals = 0): string => {
     if (num == null) return '-';
-    // 천 HKD 단위로 변환
+    // 泥?HKD ?⑥쐞濡?蹂??
     const thousands = num / 1000;
     return thousands.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -151,34 +159,43 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     return (num * 100).toFixed(1) + '%';
   };
 
-  // 날짜 포맷: YYYY-MM-DD -> YY-MM-DD
+  const normalizeYearBucket = (value: string): string => {
+    const raw = (value || '').trim();
+    if (raw === '1년차' || raw === '2년차' || raw === '3년차 이상') return raw;
+    if (raw.includes('3')) return '3년차 이상';
+    if (raw.includes('2')) return '2년차';
+    if (raw.includes('1')) return '1년차';
+    return raw;
+  };
+
+  // ?좎쭨 ?щ㎎: YYYY-MM-DD -> YY-MM-DD
   const formatDateShort = (dateStr: string): string => {
     if (!dateStr) return '';
     // 2025-09-30 -> 25-09-30
     const parts = dateStr.split('-');
     if (parts.length === 3) {
-      const yy = parts[0].slice(-2); // 마지막 2자리만
+      const yy = parts[0].slice(-2); // 留덉?留?2?먮━留?
       return `${yy}-${parts[1]}-${parts[2]}`;
     }
     return dateStr;
   };
 
-  // 정체재고 CSV 다운로드 함수
+  // ?뺤껜?ш퀬 CSV ?ㅼ슫濡쒕뱶 ?⑥닔
   const downloadStagnantStockCSV = () => {
     if (!data || !data.skus) return;
 
-    // 정체재고가 있는 SKU만 필터링
+    // ?뺤껜?ш퀬媛 ?덈뒗 SKU留??꾪꽣留?
     const stagnantSKUs = data.skus.filter(sku => sku.stagnant_stock_amt > 0);
 
     if (stagnantSKUs.length === 0) {
-      alert(language === 'ko' ? '정체재고 내역이 없습니다.' : 'No stagnant stock data available.');
+      alert(language === 'ko' ? '?뺤껜?ш퀬 ?댁뿭???놁뒿?덈떎.' : 'No stagnant stock data available.');
       return;
     }
 
-    // CSV 헤더 (영문 고정)
+    // CSV ?ㅻ뜑 (?곷Ц 怨좎젙)
     const headers = ['Year', 'Season', 'Category', 'SKU', 'Base Stock (HKD)', 'Current Stock (HKD)', 'Stagnant Stock (HKD)', 'Depleted Stock (HKD)', 'Period Sales (TAG)', 'Period Sales (ACT)'];
 
-    // CSV 데이터 생성
+    // CSV ?곗씠???앹꽦
     const csvRows = [headers];
     
     stagnantSKUs.forEach(sku => {
@@ -196,17 +213,17 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       ]);
     });
 
-    // CSV 문자열 생성
+    // CSV 臾몄옄???앹꽦
     const csvContent = csvRows.map(row => row.join(',')).join('\n');
     
-    // BOM 추가 (Excel에서 한글 깨짐 방지)
+    // BOM 異붽? (Excel?먯꽌 ?쒓? 源⑥쭚 諛⑹?)
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     
-    // 파일명 생성
+    // ?뚯씪紐??앹꽦
     const fileName = `stagnant_stock_${region}_${brand}_${data.asof_date}.csv`;
     
-    // 다운로드 트리거
+    // ?ㅼ슫濡쒕뱶 ?몃━嫄?
     const link = document.createElement('a');
     if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
@@ -220,23 +237,23 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     }
   };
 
-  // 재고일수 표시 (상한 999+일 적용, 판매없음 처리)
+  // ?ш퀬?쇱닔 ?쒖떆 (?곹븳 999+???곸슜, ?먮ℓ?놁쓬 泥섎━)
   const formatInvDays = (invDaysRaw: number | null, invDays: number | null): string => {
-    if (invDays === -1) return t(language, 'noSales');  // 판매없음 플래그
+    if (invDays === -1) return t(language, 'noSales'); // ?먮ℓ?놁쓬 ?뚮옒洹?
     if (invDaysRaw === null || invDays === null) return '-';
     if (invDaysRaw > 999) return `999+${t(language, 'days')}`;
     return `${Math.round(invDays)}${t(language, 'days')}`;
   };
 
-  // 재고일수 색상 (365일 초과 시 빨간색, 판매없음도 빨간색)
+  // ?ш퀬?쇱닔 ?됱긽 (365??珥덇낵 ??鍮④컙?? ?먮ℓ?놁쓬??鍮④컙??
   const getInvDaysColor = (invDaysRaw: number | null, invDays: number | null, isOverFlag?: boolean): string => {
-    if (invDays === -1) return 'text-red-600';  // 판매없음 빨간색
+    if (invDays === -1) return 'text-red-600'; // ?먮ℓ?놁쓬 鍮④컙??
     if (invDaysRaw === null) return '';
     if (isOverFlag || invDaysRaw > 365) return 'text-red-600';
     return '';
   };
 
-  // 카테고리 토글
+  // 移댄뀒怨좊━ ?좉?
   const toggleCategory = (yearBucket: string, cat2: string) => {
     const key = `${yearBucket}_${cat2}`;
     setExpandedCategories(prev => {
@@ -250,36 +267,36 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     });
   };
 
-  // 기타 카테고리 전체 펼치기/접기
+  // 湲고? 移댄뀒怨좊━ ?꾩껜 ?쇱튂湲??묎린
   const toggleAllOtherCategories = () => {
     if (isAllCategoriesExpanded) {
-      // 전체 접기
+      // ?꾩껜 ?묎린
       setShowAllCategoriesInYear(new Set());
       setIsAllCategoriesExpanded(false);
-      setIsAllSKUsExpanded(false); // SKU도 함께 접기
+      setIsAllSKUsExpanded(false); // SKU???④퍡 ?묎린
       setExpandedCategories(new Set());
     } else {
-      // 전체 펼치기 - 모든 연차의 기타 카테고리 표시
+      // ?꾩껜 ?쇱튂湲?- 紐⑤뱺 ?곗감??湲고? 移댄뀒怨좊━ ?쒖떆
       if (data) {
         const allYears = new Set(data.years.map(y => y.year_bucket));
-        setShowAllCategoriesInYear(allYears); // 모든 연차에서 기타 카테고리 표시
+        setShowAllCategoriesInYear(allYears); // 紐⑤뱺 ?곗감?먯꽌 湲고? 移댄뀒怨좊━ ?쒖떆
         setIsAllCategoriesExpanded(true);
       }
     }
   };
 
-  // 품번(SKU) 전체 펼치기/접기
+  // ?덈쾲(SKU) ?꾩껜 ?쇱튂湲??묎린
   const toggleAllSKUs = () => {
     if (isAllSKUsExpanded) {
-      // 전체 접기
+      // ?꾩껜 ?묎린
       setExpandedCategories(new Set());
       setIsAllSKUsExpanded(false);
     } else {
-      // 전체 펼치기
+      // ?꾩껜 ?쇱튂湲?
       if (data) {
         setIsAllCategoriesExpanded(true);
         
-        // 모든 카테고리를 펼침
+        // 紐⑤뱺 移댄뀒怨좊━瑜??쇱묠
         const allCats = new Set(data.categories.map(c => `${c.year_bucket}_${c.cat2}`));
         setExpandedCategories(allCats);
         setIsAllSKUsExpanded(true);
@@ -287,7 +304,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     }
   };
 
-  // 카테고리 정렬
+  // 移댄뀒怨좊━ ?뺣젹
   const handleCatSort = (key: string) => {
     setCatSortConfig(prev => {
       if (!prev || prev.key !== key) {
@@ -300,7 +317,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     });
   };
 
-  // SKU 정렬
+  // SKU ?뺣젹
   const handleSkuSort = (key: string) => {
     setSkuSortConfig(prev => {
       if (!prev || prev.key !== key) {
@@ -313,16 +330,16 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     });
   };
 
-  // 정렬 아이콘
+  // ?뺣젹 ?꾩씠肄?
   const getSortIcon = (key: string, config: SortConfig) => {
-    if (!config || config.key !== key) return '⇅';
+    if (!config || config.key !== key) return '↕';
     return config.direction === 'desc' ? '↓' : '↑';
   };
 
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
+        <h2 className="text-xl font-bold mb-4">{t(language, 'section3Header')}</h2>
         <div className="flex items-center justify-center py-12">
           <div className="text-gray-500">{t(language, 'loading')}</div>
         </div>
@@ -333,9 +350,9 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
+        <h2 className="text-xl font-bold mb-4">{t(language, 'section3Header')}</h2>
         <div className="flex items-center justify-center py-12">
-          <div className="text-red-500">오류: {error}</div>
+          <div className="text-red-500">{language === 'ko' ? `오류: ${error}` : `Error: ${error}`}</div>
         </div>
       </div>
     );
@@ -344,21 +361,23 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
   if (!data) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">섹션3. 과시즌 재고 소진현황</h2>
+        <h2 className="text-xl font-bold mb-4">{t(language, 'section3Header')}</h2>
         <div className="flex items-center justify-center py-12">
-          <div className="text-gray-500">데이터가 없습니다.</div>
+          <div className="text-gray-500">{language === 'ko' ? '데이터가 없습니다.' : 'No data available.'}</div>
         </div>
       </div>
     );
   }
 
-  // 연차 정렬 순서
+  // ?곗감 ?뺣젹 ?쒖꽌
   const yearOrder = ['1년차', '2년차', '3년차 이상'];
   const sortedYears = [...data.years].sort((a, b) => {
-    return yearOrder.indexOf(a.year_bucket) - yearOrder.indexOf(b.year_bucket);
+    const aIdx = yearOrder.indexOf(normalizeYearBucket(a.year_bucket));
+    const bIdx = yearOrder.indexOf(normalizeYearBucket(b.year_bucket));
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
   });
 
-  // 연차별 카테고리 필터링 및 정렬
+  // ?곗감蹂?移댄뀒怨좊━ ?꾪꽣留?諛??뺣젹
   const getCategoriesForYear = (yearBucket: string) => {
     let cats = data.categories.filter(cat => cat.year_bucket === yearBucket);
     
@@ -371,14 +390,14 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         return catSortConfig.direction === 'desc' ? bVal - aVal : aVal - bVal;
       });
     } else {
-      // 기본: 소진재고액(TAG) 내림차순
+      // 湲곕낯: ?뚯쭊?ш퀬??TAG) ?대┝李⑥닚
       cats = [...cats].sort((a, b) => b.depleted_stock_amt - a.depleted_stock_amt);
     }
     
     return cats;
   };
 
-  // 카테고리별 SKU 필터링 및 정렬
+  // 移댄뀒怨좊━蹂?SKU ?꾪꽣留?諛??뺣젹
   const getSKUsForCategory = (yearBucket: string, cat2: string) => {
     let skus = data.skus.filter(sku => sku.year_bucket === yearBucket && sku.cat2 === cat2);
     
@@ -408,10 +427,10 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
       <div className="flex items-center gap-4 mb-4">
         <p className="text-sm text-gray-600">{language === 'ko' ? '단위: 1k HKD' : 'Unit: 1k HKD'}</p>
         <div className="flex items-center gap-1.5 text-sm text-orange-600">
-          <span className="font-bold text-base">ⓘ</span>
+          <span className="font-bold text-base">※</span>
           <span>{t(language, 'stagnantStockInfo')}</span>
         </div>
-        {/* 정체재고 다운로드 버튼 */}
+        {/* ?뺤껜?ш퀬 ?ㅼ슫濡쒕뱶 踰꾪듉 */}
         {data && (
           <button
             onClick={downloadStagnantStockCSV}
@@ -426,7 +445,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         )}
       </div>
 
-      {/* 섹션1: 연차별 집계 */}
+      {/* ?뱀뀡1: ?곗감蹂?吏묎퀎 */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">{t(language, 'yearlyAggregate')}</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
@@ -444,7 +463,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200 cursor-help" title={t(language, 'stagnantStockInfo')}>
                   {t(language, 'stagnantStock')}
-                  <span className="ml-1 text-sm text-orange-500 font-bold">ⓘ</span>
+                  <span className="ml-1 text-sm text-orange-500 font-bold">※</span>
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title={t(language, 'stagnantRatioDesc')}>
                   {t(language, 'stagnantRatio')}<br/>
@@ -464,9 +483,9 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {/* 연차별 행들 */}
+              {/* ?곗감蹂??됰뱾 */}
               {sortedYears.map((year) => {
-                // 정체재고비중 계산
+                // ?뺤껜?ш퀬鍮꾩쨷 怨꾩궛
                 const stagnantRatio = year.curr_stock_amt > 0 
                   ? (year.stagnant_stock_amt / year.curr_stock_amt) * 100 
                   : 0;
@@ -474,7 +493,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 return (
                   <tr key={year.year_bucket} className="hover:bg-gray-50 transition-colors">
                     <td className="px-3 py-2 font-medium border-r border-gray-100">
-                      {year.year_bucket}
+                      {normalizeYearBucket(year.year_bucket)}
                       {year.season_code && (
                         <span className="ml-2 text-xs text-blue-600 font-semibold">
                           ({year.season_code})
@@ -502,7 +521,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                 );
               })}
               
-              {/* 전체 합계 행 */}
+              {/* ?꾩껜 ?⑷퀎 ??*/}
               {data.header && (() => {
                 const headerStagnantRatio = data.header.curr_stock_amt > 0 
                   ? (data.header.stagnant_stock_amt / data.header.curr_stock_amt) * 100 
@@ -534,7 +553,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
         </div>
       </div>
 
-      {/* 섹션2: 카테고리별 내역 (상세 전용) */}
+      {/* ?뱀뀡2: 移댄뀒怨좊━蹂??댁뿭 (?곸꽭 ?꾩슜) */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold bg-purple-100 px-4 py-2 rounded">{t(language, 'categoryDetails')}</h3>
@@ -565,7 +584,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
             <div key={year.year_bucket} className="mb-6">
               <div className="mb-2">
                 <h4 className="inline-block font-semibold text-gray-800 bg-gradient-to-r from-gray-100 to-gray-50 px-4 py-2 rounded-lg shadow-sm border border-gray-200">
-                  {year.year_bucket}
+                  {normalizeYearBucket(year.year_bucket)}
                   {year.season_code && (
                     <span className="ml-2 text-sm text-blue-600">
                       ({year.season_code})
@@ -579,51 +598,53 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-3 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('cat2')}>
-                          카테고리 {getSortIcon('cat2', catSortConfig)}
+                          {t(language, 'category')} {getSortIcon('cat2', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('base_stock_amt')}>
-                          기초재고(TAG)<br/>
+                          {t(language, 'baseStock')}<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.base_stock_date)})</span><br/>
                           {getSortIcon('base_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_amt')}>
-                          현재재고(TAG)<br/>
+                          {t(language, 'currentStock')}<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title="최근 30일 판매가 없거나 재고의 0.1% 미만인 재고">
-                          정체재고(TAG) <span className="text-orange-500 font-bold">ⓘ</span><br/>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title={t(language, 'stagnantStockInfo')}>
+                          {t(language, 'stagnantStock')} <span className="text-orange-500 font-bold">※</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100" title="현재재고 대비 정체재고 비율">
-                          정체재고비중<br/>
-                          <span className="text-[10px] font-semibold text-orange-600">(정체재고 / 현재재고)</span>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100" title={t(language, 'stagnantRatioDesc')}>
+                          {t(language, 'stagnantRatio')}<br/>
+                          <span className="text-[10px] font-semibold text-orange-600">({t(language, 'stagnantRatioDesc')})</span>
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('depleted_stock_amt')}>
-                          소진재고액(TAG)<br/>
+                          {t(language, 'depletedStock')}<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('depleted_stock_amt', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('discount_rate')}>
-                          할인율<br/>
+                          {t(language, 'discountRate')}<br/>
                           {getSortIcon('discount_rate', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title="※ 재고일수 365일 초과 시 장기 재고로 간주되어 빨간색으로 표시됩니다.&#10;※ 색상 표시는 연차·카테고리 단위 관리 판단을 위한 표시입니다.">
-                          재고일수(기간)<br/>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('inv_days')} title={t(language, 'inventoryDaysNote')}>
+                          {t(language, 'inventoryDays')}<br/>
                           <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.period_start_date)} ~ {formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('inv_days', catSortConfig)}
                         </th>
-                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700">상세</th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700">
+                          {language === 'ko' ? '상세' : 'Detail'}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {/* 표시할 카테고리들 (TOP5 또는 전체) */}
+                      {/* ?쒖떆??移댄뀒怨좊━??(TOP5 ?먮뒗 ?꾩껜) */}
                       {displayCategories.map((cat) => {
                         const catKey = `${year.year_bucket}_${cat.cat2}`;
                         const isCatExpanded = expandedCategories.has(catKey);
                         const skus = getSKUsForCategory(year.year_bucket, cat.cat2);
                         
-                        // 카테고리별 정체재고비중 계산
+                        // 移댄뀒怨좊━蹂??뺤껜?ш퀬鍮꾩쨷 怨꾩궛
                         const catStagnantRatio = cat.curr_stock_amt > 0 
                           ? (cat.stagnant_stock_amt / cat.curr_stock_amt) * 100 
                           : 0;
@@ -654,12 +675,12 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                               </td>
                             </tr>
 
-                            {/* SKU 상세 */}
+                            {/* SKU ?곸꽭 */}
                             {isCatExpanded && skus.map((sku, idx) => {
-                              // SKU는 할인율과 재고일수를 계산해서 표시
+                              // SKU???좎씤?④낵 ?ш퀬?쇱닔瑜?怨꾩궛?댁꽌 ?쒖떆
                               const skuDiscRate = sku.period_tag_sales > 0 ? 1 - (sku.period_act_sales / sku.period_tag_sales) : 0;
                               
-                              // SKU별 정체재고비중
+                              // SKU蹂??뺤껜?ш퀬鍮꾩쨷
                               const skuStagnantRatio = sku.curr_stock_amt > 0 
                                 ? (sku.stagnant_stock_amt / sku.curr_stock_amt) * 100 
                                 : 0;
@@ -690,7 +711,7 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
                         );
                       })}
 
-                      {/* 기타 카테고리 버튼 (TOP5만 표시 중일 때) */}
+                      {/* 湲고? 移댄뀒怨좊━ 踰꾪듉 (TOP5留??쒖떆 以묒씪 ?? */}
                       {!showAllCats && others.length > 0 && (
                         <tr className="bg-gray-50 border-t border-gray-200">
                           <td colSpan={9} className="px-3 py-3 text-center text-sm">
@@ -715,3 +736,4 @@ export default function Section3OldSeasonInventory({ region, brand, date, onData
     </div>
   );
 }
+

@@ -1,6 +1,8 @@
-import { executeSnowflakeQuery } from '@/lib/snowflake';
+﻿import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { normalizeBrand, getAllStoresByRegionBrand } from '@/lib/store-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
+import { formatDateYYYYMMDD } from '@/lib/date-utils';
+import { getApparelCategories } from '@/lib/category-utils.server';
 
 export interface Section3Response {
   asof_date: string;
@@ -13,6 +15,8 @@ export interface Section3Response {
     year_bucket: string;
     base_stock_amt: number;
     curr_stock_amt: number;
+    ly_curr_stock_amt: number | null;
+    curr_stock_yoy_pct: number | null;
     prev_month_curr_stock_amt: number;
     curr_stock_change: number;
     stagnant_stock_amt: number;
@@ -75,16 +79,19 @@ export interface Section3Response {
 export async function executeSection3Query(
   region: string,
   brand: string,
-  date: string
+  date: string,
+  options?: { includeYoY?: boolean; categoryFilter?: 'clothes' | 'all' }
 ): Promise<Section3Response> {
+  const includeYoY = options?.includeYoY !== false;
+  const categoryFilter = options?.categoryFilter === 'clothes' ? 'clothes' : 'all';
   const normalizedBrand = normalizeBrand(brand);
   
-  // 브랜드별 조건
+  // 釉뚮옖?쒕퀎 議곌굔
   const brandFilter = normalizedBrand === 'M' 
     ? "(CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = 'M'" 
     : "BRD_CD = 'X'";
   
-  // 모든 매장 코드 가져오기 (region, brand 기반, warehouse 포함)
+  // 紐⑤뱺 留ㅼ옣 肄붾뱶 媛?몄삤湲?(region, brand 湲곕컲, warehouse ?ы븿)
   const allStores = getAllStoresByRegionBrand(region, brand);
   
   if (allStores.length === 0) {
@@ -102,7 +109,7 @@ export async function executeSection3Query(
     };
   }
   
-  // 매장 리스트 CTE 동적 생성
+  // 留ㅼ옣 由ъ뒪??CTE ?숈쟻 ?앹꽦
   const shopValues = allStores.map(code => `('${code}')`).join(',\n    ');
   const shopListCTE = `
 region_shop AS (
@@ -113,6 +120,17 @@ region_shop AS (
 `;
   
   const shopFilter = 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM region_shop)';
+  const apparelCategoryList = getApparelCategories()
+    .map((code) => `'${code.replace(/'/g, "''")}'`)
+    .join(', ');
+  const stockCategoryFilter =
+    categoryFilter === 'clothes'
+      ? `AND SUBSTR(ST.PRDT_CD, 7, 2) IN (${apparelCategoryList})`
+      : '';
+  const salesCategoryFilter =
+    categoryFilter === 'clothes'
+      ? `AND SUBSTR(S.PRDT_CD, 7, 2) IN (${apparelCategoryList})`
+      : '';
   
   const query = `
 WITH
@@ -120,19 +138,19 @@ ${shopListCTE}
 PARAM AS (
   SELECT
     CAST(? AS DATE) AS ASOF_DATE,
-    -- 전월말 날짜
+    -- ?꾩썡留??좎쭨
     LAST_DAY(DATEADD(MONTH, -1, CAST(? AS DATE))) AS PREV_MONTH_END_DT,
-    -- 당월 1일
+    -- ?뱀썡 1??
     DATE_TRUNC('MONTH', CAST(? AS DATE)) AS CURRENT_MONTH_START_DT,
-    -- 현재 시즌 타입 판단 (9~2월=FW, 3~8월=SS)
+    -- ?꾩옱 ?쒖쫵 ????먮떒 (9~2??FW, 3~8??SS)
     CASE WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN 'F' ELSE 'S' END AS CUR_TYP,
-    -- 현재 시즌 연도(YY)
+    -- ?꾩옱 ?쒖쫵 ?곕룄(YY)
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN MOD(YEAR(CAST(? AS DATE)), 100)
       WHEN MONTH(CAST(? AS DATE)) IN (1,2) THEN MOD(YEAR(CAST(? AS DATE)) - 1, 100)
       ELSE MOD(YEAR(CAST(? AS DATE)), 100)
     END AS CUR_YY,
-    -- 기초재고일 산정
+    -- 湲곗큹?ш퀬???곗젙
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
         -- FW: YYYY-09-30
@@ -143,7 +161,7 @@ PARAM AS (
             CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-30' AS DATE)
         END
       ELSE
-        -- SS: YYYY-02-28 or 02-29 (윤년)
+        -- SS: YYYY-02-28 or 02-29 (?ㅻ뀈)
         CASE
           WHEN MOD(YEAR(CAST(? AS DATE)), 4) = 0 AND (MOD(YEAR(CAST(? AS DATE)), 100) != 0 OR MOD(YEAR(CAST(? AS DATE)), 400) = 0) THEN
             CAST(YEAR(CAST(? AS DATE)) || '-02-29' AS DATE)
@@ -151,7 +169,7 @@ PARAM AS (
             CAST(YEAR(CAST(? AS DATE)) || '-02-28' AS DATE)
         END
     END AS BASE_STOCK_DT,
-    -- 판매기간 시작일
+    -- ?먮ℓ湲곌컙 ?쒖옉??
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
         -- FW: YYYY-10-01
@@ -165,7 +183,7 @@ PARAM AS (
         -- SS: YYYY-03-01
         CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
     END AS PERIOD_START_DT,
-    -- 판매기간 일수
+    -- ?먮ℓ湲곌컙 ?쇱닔
     DATEDIFF(day,
       CASE
         WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
@@ -182,7 +200,7 @@ PARAM AS (
     ) + 1 AS PERIOD_DAYS
 ),
 
--- 과시즌 버킷 정의
+-- 怨쇱떆利?踰꾪궥 ?뺤쓽
 SEASON_BUCKETS AS (
   SELECT DISTINCT
     s.SESN,
@@ -256,6 +274,7 @@ BASE_STOCK_SNAP_RAW AS (
   WHERE ${brandFilter}
     AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
     ${shopFilter}
+    ${stockCategoryFilter}
     AND ST.STOCK_DT = BSD.EFFECTIVE_BASE_STOCK_DT
   GROUP BY ST.SESN, ST.PRDT_CD
 ),
@@ -284,6 +303,7 @@ CURR_STOCK_SNAP_RAW AS (
   WHERE ${brandFilter}
     AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
     ${shopFilter}
+    ${stockCategoryFilter}
     AND ST.STOCK_DT = CSD.EFFECTIVE_CURR_STOCK_DT
   GROUP BY ST.SESN, ST.PRDT_CD
 ),
@@ -314,6 +334,7 @@ PERIOD_SALES AS (
   WHERE ${brandFilter}
     AND S.SALE_DT BETWEEN PA.PERIOD_START_DT AND PA.ASOF_DATE
     ${shopFilter}
+    ${salesCategoryFilter}
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
@@ -330,6 +351,7 @@ MONTHLY_SALES AS (
   WHERE ${brandFilter}
     AND S.SALE_DT BETWEEN DATEADD(day, -30, PA.ASOF_DATE) AND PA.ASOF_DATE
     ${shopFilter}
+    ${salesCategoryFilter}
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
@@ -354,6 +376,7 @@ PREV_MONTH_STOCK_RAW AS (
   WHERE ${brandFilter}
     AND RIGHT(ST.SESN, 1) = PA.CUR_TYP
     ${shopFilter}
+    ${stockCategoryFilter}
     AND ST.STOCK_DT = PMSD.EFFECTIVE_PREV_MONTH_STOCK_DT
   GROUP BY ST.SESN, ST.PRDT_CD
 ),
@@ -381,6 +404,7 @@ PREV_MONTH_MONTHLY_SALES AS (
   WHERE ${brandFilter}
     AND S.SALE_DT BETWEEN DATEADD(day, -30, PA.PREV_MONTH_END_DT) AND PA.PREV_MONTH_END_DT
     ${shopFilter}
+    ${salesCategoryFilter}
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
@@ -396,6 +420,7 @@ CURRENT_MONTH_SALES AS (
   WHERE ${brandFilter}
     AND S.SALE_DT BETWEEN PA.CURRENT_MONTH_START_DT AND PA.ASOF_DATE
     ${shopFilter}
+    ${salesCategoryFilter}
   GROUP BY SB.YEAR_BUCKET, S.SESN, S.PRDT_CD
 ),
 
@@ -616,12 +641,12 @@ ORDER BY
 
   const params = Array(31).fill(date);
   
-  console.log(`🔍 Section3Query - Executing for ${region}:${brand}:${date}`);
+  console.log(`?뵇 Section3Query - Executing for ${region}:${brand}:${date}`);
   const rows = await executeSnowflakeQuery(query, params);
   
-  console.log(`✅ Section3Query - Result: ${rows.length} rows`);
+  console.log(`??Section3Query - Result: ${rows.length} rows`);
 
-  // TW 리전일 때 환율 적용
+  // TW 由ъ쟾?????섏쑉 ?곸슜
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(date) : '';
   
@@ -631,13 +656,13 @@ ORDER BY
     return convertTwdToHkd(amount, period);
   };
 
-  // 레벨별 데이터 분리
+  // ?덈꺼蹂??곗씠??遺꾨━
   const header = rows.find((r: any) => r.ROW_LEVEL === 'HEADER');
   const yearRows = rows.filter((r: any) => r.ROW_LEVEL === 'YEAR');
   const catRows = rows.filter((r: any) => r.ROW_LEVEL === 'CAT');
   const skuRows = rows.filter((r: any) => r.ROW_LEVEL === 'SKU');
 
-  // 날짜 계산 (프론트 표시용)
+  // ?좎쭨 怨꾩궛 (?꾨줎???쒖떆??
   const asofDate = new Date(date);
   const month = asofDate.getMonth() + 1;
   const year = asofDate.getFullYear();
@@ -677,7 +702,7 @@ ORDER BY
     return '';
   };
 
-  return {
+  const response: Section3Response = {
     asof_date: date,
     base_stock_date: baseStockDate,
     period_start_date: periodStartDate,
@@ -688,6 +713,8 @@ ORDER BY
       year_bucket: header.YEAR_BUCKET,
       base_stock_amt: applyExchangeRate(parseFloat(header.BASE_STOCK_AMT || 0)) || 0,
       curr_stock_amt: applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0,
+      ly_curr_stock_amt: null,
+      curr_stock_yoy_pct: null,
       prev_month_curr_stock_amt: applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0,
       curr_stock_change: (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0) - (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0),
       stagnant_stock_amt: applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0,
@@ -742,4 +769,84 @@ ORDER BY
       period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,
     })),
   };
+
+  if (includeYoY && response.header) {
+    try {
+      const lyDateObj = new Date(`${date}T00:00:00`);
+      lyDateObj.setFullYear(lyDateObj.getFullYear() - 1);
+      const lyDate = formatDateYYYYMMDD(lyDateObj);
+      const lyResponse = await executeSection3Query(region, brand, lyDate, {
+        includeYoY: false,
+        categoryFilter,
+      });
+      let lyCurrStock = lyResponse.header?.curr_stock_amt ?? 0;
+
+      if (lyDate < '2025-10-01' && lyCurrStock <= 0) {
+        const legacyRaw = await fetchLegacyCurrStockFromPrep(lyDate, categoryFilter);
+        if (region === 'TW') {
+          const lyPeriod = getPeriodFromDateString(lyDate);
+          lyCurrStock = convertTwdToHkd(legacyRaw, lyPeriod) || 0;
+        } else {
+          lyCurrStock = legacyRaw;
+        }
+      }
+
+      response.header.ly_curr_stock_amt = lyCurrStock;
+      response.header.curr_stock_yoy_pct =
+        lyCurrStock > 0
+          ? Math.round((response.header.curr_stock_amt / lyCurrStock) * 10000) / 100
+          : 0;
+    } catch (error: any) {
+      console.error('[section3] failed to compute current stock YoY:', error.message);
+      response.header.ly_curr_stock_amt = 0;
+      response.header.curr_stock_yoy_pct = 0;
+    }
+  }
+  async function fetchLegacyCurrStockFromPrep(
+    asofDate: string,
+    legacyCategoryFilter: 'clothes' | 'all'
+  ): Promise<number> {
+    const yyyymm = asofDate.slice(0, 7).replace('-', '');
+    const d = new Date(`${asofDate}T00:00:00`);
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear();
+    const seasonType = month >= 9 || month <= 2 ? 'F' : 'S';
+    const currentYY = month >= 9 ? year % 100 : month <= 2 ? (year - 1) % 100 : year % 100;
+    const oldSeasonStartYY = currentYY - 1;
+
+    const storeCodes = allStores.map((code) => `'${code}'`).join(',');
+    const legacyCategoryClause =
+      legacyCategoryFilter === 'clothes'
+        ? `AND s.SUB_CTGR IN (${apparelCategoryList})`
+        : '';
+    const legacyQuery = `
+WITH latest_month AS (
+  SELECT MAX(YYYYMM) AS yyyymm
+  FROM SAP_FNF.PREP_HMD_STOCK
+  WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+    AND LOCAL_SHOP_CD IN (${storeCodes})
+    AND TO_NUMBER(YYYYMM) <= TO_NUMBER(?)
+)
+SELECT COALESCE(SUM(TAG_STOCK_AMT), 0) AS curr_stock_amt
+FROM SAP_FNF.PREP_HMD_STOCK s
+CROSS JOIN latest_month m
+WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+  AND s.LOCAL_SHOP_CD IN (${storeCodes})
+  AND s.YYYYMM = m.yyyymm
+  AND RIGHT(s.SESN, 1) = ?
+  AND TRY_TO_NUMBER(LEFT(s.SESN, 2)) <= ?
+  ${legacyCategoryClause}
+`;
+    const legacyRows = await executeSnowflakeQuery(legacyQuery, [
+      normalizedBrand,
+      yyyymm,
+      normalizedBrand,
+      seasonType,
+      oldSeasonStartYY,
+    ]);
+    return parseFloat(legacyRows?.[0]?.CURR_STOCK_AMT || 0);
+  }
+
+  return response;
 }
+

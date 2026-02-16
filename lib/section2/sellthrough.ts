@@ -61,6 +61,9 @@ export async function fetchSection2Sellthrough({
 
   const startDateLY = getSection2StartDate(asofDateLY);
   const startDateLYStr = formatDateYYYYMMDD(startDateLY);
+  const prepStockCutoff = '2025-10-01';
+  const usePrepStockTy = date < prepStockCutoff;
+  const usePrepStockLy = dateLY < prepStockCutoff;
 
   console.log('📅 Date & Season Calculation:', {
     current: { date, sesn, startDate: startDateStr },
@@ -128,12 +131,20 @@ export async function fetchSection2Sellthrough({
   // TW 리전일 때 환율 적용
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(date) : '';
+  const periodLY = isTwRegion ? getPeriodFromDateString(dateLY) : '';
 
-  // 환율 적용 헬퍼 함수
+  // 환율 적용 헬퍼 함수 (TY)
   const applyExchangeRate = (amount: number | null): number | null => {
     if (amount === null) return null;
     if (!isTwRegion) return amount;
     return convertTwdToHkd(amount, period);
+  };
+
+  // 환율 적용 헬퍼 함수 (LY)
+  const applyExchangeRateLY = (amount: number | null): number | null => {
+    if (amount === null) return null;
+    if (!isTwRegion) return amount;
+    return convertTwdToHkd(amount, periodLY);
   };
 
   // 카테고리 필터 조건 구성
@@ -146,20 +157,35 @@ export async function fetchSection2Sellthrough({
     categoryFilter === 'clothes'
       ? `AND SUBSTR(s.PART_CD, 3, 2) IN (${apparelCategoriesStr})`
       : '';
+  const prepCategoryWhereClauseWithAlias =
+    categoryFilter === 'clothes'
+      ? `AND s.SUB_CTGR IN (${apparelCategoriesStr})`
+      : '';
 
-  // 헤더용 SQL (TY + LY)
-  const headerQuery = `
-    WITH
-    -- THIS YEAR (TY)
-    sales_ty AS (
-      SELECT SUM(TAG_SALE_AMT) AS sales_ty
-      FROM SAP_FNF.DW_HMD_SALE_D
+  const tyLatestStockCte = usePrepStockTy
+    ? `
+    latest_stock_yyyymm_ty AS (
+      SELECT MAX(YYYYMM) AS stock_yyyymm
+      FROM SAP_FNF.PREP_HMD_STOCK
       WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
         AND SESN = ?
-        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-        AND SALE_DT BETWEEN ? AND ?
-        ${productCategoryWhereClause}
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND TO_NUMBER(YYYYMM) <= TO_NUMBER(TO_CHAR(TO_DATE(?), 'YYYYMM'))
     ),
+    stock_ty AS (
+      SELECT
+        SUM(s.TAG_STOCK_AMT) AS stock_ty,
+        MAX(TO_DATE(TO_VARCHAR(l.stock_yyyymm) || '01', 'YYYYMMDD')) AS stock_dt_used
+      FROM SAP_FNF.PREP_HMD_STOCK s
+      CROSS JOIN latest_stock_yyyymm_ty l
+      WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+        AND s.SESN = ?
+        AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND s.YYYYMM = l.stock_yyyymm
+        ${prepCategoryWhereClauseWithAlias}
+    ),
+    `
+    : `
     latest_stock_date_ty AS (
       SELECT MAX(STOCK_DT) AS stock_dt
       FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
@@ -178,16 +204,32 @@ export async function fetchSection2Sellthrough({
         AND s.STOCK_DT = l.stock_dt
         ${productCategoryWhereClauseWithAlias}
     ),
-    -- LAST YEAR (LY)
-    sales_ly AS (
-      SELECT SUM(TAG_SALE_AMT) AS sales_ly
-      FROM SAP_FNF.DW_HMD_SALE_D
+    `;
+
+  const lyLatestStockCte = usePrepStockLy
+    ? `
+    latest_stock_yyyymm_ly AS (
+      SELECT MAX(YYYYMM) AS stock_yyyymm
+      FROM SAP_FNF.PREP_HMD_STOCK
       WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
         AND SESN = ?
-        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-        AND SALE_DT BETWEEN ? AND ?
-        ${productCategoryWhereClause}
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND TO_NUMBER(YYYYMM) <= TO_NUMBER(TO_CHAR(TO_DATE(?), 'YYYYMM'))
     ),
+    stock_ly AS (
+      SELECT
+        SUM(s.TAG_STOCK_AMT) AS stock_ly,
+        MAX(TO_DATE(TO_VARCHAR(l.stock_yyyymm) || '01', 'YYYYMMDD')) AS stock_dt_used
+      FROM SAP_FNF.PREP_HMD_STOCK s
+      CROSS JOIN latest_stock_yyyymm_ly l
+      WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+        AND s.SESN = ?
+        AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND s.YYYYMM = l.stock_yyyymm
+        ${prepCategoryWhereClauseWithAlias}
+    )
+    `
+    : `
     latest_stock_date_ly AS (
       SELECT MAX(STOCK_DT) AS stock_dt
       FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
@@ -206,6 +248,33 @@ export async function fetchSection2Sellthrough({
         AND s.STOCK_DT = l.stock_dt
         ${productCategoryWhereClauseWithAlias}
     )
+    `;
+
+  // 헤더용 SQL (TY + LY)
+  const headerQuery = `
+    WITH
+    -- THIS YEAR (TY)
+    sales_ty AS (
+      SELECT SUM(TAG_SALE_AMT) AS sales_ty
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND SALE_DT BETWEEN ? AND ?
+        ${productCategoryWhereClause}
+    ),
+    ${tyLatestStockCte}
+    -- LAST YEAR (LY)
+    sales_ly AS (
+      SELECT SUM(TAG_SALE_AMT) AS sales_ly
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND SALE_DT BETWEEN ? AND ?
+        ${productCategoryWhereClause}
+    ),
+    ${lyLatestStockCte}
     
     SELECT
       /* TY */
@@ -235,17 +304,16 @@ export async function fetchSection2Sellthrough({
     CROSS JOIN stock_ly st_ly
   `;
 
-  const headerRows = await executeSnowflakeQuery(headerQuery, [
+  const headerBinds: any[] = [
     // TY - sales_ty
     brand,
     sesn,
     startDateStr,
     date,
-    // TY - latest_stock_date_ty
+    // TY - stock source
     brand,
     sesn,
     date,
-    // TY - stock_ty
     brand,
     sesn,
     // LY - sales_ly
@@ -253,14 +321,14 @@ export async function fetchSection2Sellthrough({
     sesnLY,
     startDateLYStr,
     dateLY,
-    // LY - latest_stock_date_ly
+    // LY - stock source
     brand,
     sesnLY,
     dateLY,
-    // LY - stock_ly
     brand,
     sesnLY,
-  ]);
+  ];
+  const headerRows = await executeSnowflakeQuery(headerQuery, headerBinds);
 
   const headerData = headerRows[0] || {};
   // 환율 적용하여 데이터 변환
@@ -271,13 +339,74 @@ export async function fetchSection2Sellthrough({
     headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
 
   // LY data (YoY 비교용, 환율 적용)
-  const totalSalesLY = applyExchangeRate(parseFloat(headerData.SALES_LY || 0)) || 0;
-  const totalInboundLY = applyExchangeRate(parseFloat(headerData.INBOUND_LY || 0)) || 0;
+  const totalSalesLY = applyExchangeRateLY(parseFloat(headerData.SALES_LY || 0)) || 0;
+  const totalInboundLY = applyExchangeRateLY(parseFloat(headerData.INBOUND_LY || 0)) || 0;
   const overall_sellthrough_ly =
     headerData.SELLTHROUGH_LY !== null ? parseFloat(headerData.SELLTHROUGH_LY) : null;
 
   // 품번별 데이터 조회
-  const productQuery = `
+  const productQuery = usePrepStockTy
+    ? `
+    WITH 
+    latest_stock_yyyymm AS (
+      SELECT MAX(YYYYMM) AS stock_yyyymm
+      FROM SAP_FNF.PREP_HMD_STOCK
+      WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND TO_NUMBER(YYYYMM) <= TO_NUMBER(TO_CHAR(TO_DATE(?), 'YYYYMM'))
+    ),
+    ending_stock AS (
+      SELECT 
+        s.SUB_CTGR AS PRDT_CD,
+        CONCAT('XX', s.SUB_CTGR) AS PART_CD,
+        SUM(s.TAG_STOCK_AMT) AS stock_tag,
+        SUM(s.STOCK_QTY) AS stock_qty
+      FROM SAP_FNF.PREP_HMD_STOCK s
+      CROSS JOIN latest_stock_yyyymm l
+      WHERE 
+        (CASE WHEN s.BRD_CD IN ('M', 'I') THEN 'M' ELSE s.BRD_CD END) = ?
+        AND s.SESN = ?
+        AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND s.YYYYMM = l.stock_yyyymm
+        ${prepCategoryWhereClauseWithAlias}
+      GROUP BY s.SUB_CTGR
+    ),
+    sales_agg AS (
+      SELECT
+        SUBSTR(PART_CD, 3, 2) AS PRDT_CD,
+        CONCAT('XX', SUBSTR(PART_CD, 3, 2)) AS PART_CD,
+        SUM(TAG_SALE_AMT) AS sales_tag,
+        SUM(SALE_QTY) AS sales_qty
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE 
+        (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND SALE_DT BETWEEN ? AND ?
+        ${productCategoryWhereClause}
+      GROUP BY SUBSTR(PART_CD, 3, 2)
+    )
+    SELECT
+      COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
+      SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
+      COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
+      COALESCE(s.sales_tag, 0) AS sales_tag,
+      COALESCE(e.stock_tag, 0) AS stock_tag,
+      COALESCE(s.sales_qty, 0) + COALESCE(e.stock_qty, 0) AS inbound_qty,
+      COALESCE(s.sales_qty, 0) AS sales_qty,
+      COALESCE(e.stock_qty, 0) AS stock_qty,
+      CASE
+        WHEN (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0)) > 0
+        THEN (COALESCE(s.sales_tag, 0) / (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0))) * 100
+        ELSE 0
+      END AS sellthrough_pct
+    FROM sales_agg s
+    FULL OUTER JOIN ending_stock e ON s.PRDT_CD = e.PRDT_CD
+    WHERE COALESCE(s.PRDT_CD, e.PRDT_CD) IS NOT NULL
+    ORDER BY sellthrough_pct DESC
+  `
+    : `
     WITH 
     latest_stock_date AS (
       SELECT MAX(STOCK_DT) AS stock_dt
@@ -338,17 +467,19 @@ export async function fetchSection2Sellthrough({
     ORDER BY sellthrough_pct DESC
   `;
 
-  const rows = await executeSnowflakeQuery(productQuery, [
+  const productRowsBinds = [
     brand,
     sesn,
-    date, // latest_stock_date
+    date,
     brand,
-    sesn, // ending_stock
+    sesn,
     brand,
     sesn,
     startDateStr,
-    date, // sales_agg
-  ]);
+    date,
+  ];
+
+  const rows = await executeSnowflakeQuery(productQuery, productRowsBinds);
 
   // sales_tag > 0 또는 stock_tag > 0 데이터만 필터
   const validRows = rows.filter(

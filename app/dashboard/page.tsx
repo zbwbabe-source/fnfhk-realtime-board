@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [isYtdMode, setIsYtdMode] = useState(false);
   const [language, setLanguage] = useState<'ko' | 'en'>('ko'); // 언어 상태 추가
   const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes'); // 섹션2 카테고리 필터
+  const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
   
   // 새로고침 키 (변경 시 모든 섹션이 리렌더링됨)
   const [refreshKey, setRefreshKey] = useState(0);
@@ -552,6 +553,8 @@ export default function DashboardPage() {
               section3Data={section3Data}
               language={language}
               region={region}
+              categoryFilter={section3CategoryFilter}
+              onCategoryFilterChange={setSection3CategoryFilter}
             />
             {/* 섹션3 그래프 추후 추가 */}
           </div>
@@ -594,6 +597,7 @@ export default function DashboardPage() {
             date={date}
             onDataChange={handleSection3Change}
             language={language}
+            categoryFilter={section3CategoryFilter}
           />
         </div>
       </div>

@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
     // Region/Brand 조합
     const regions = ['HKMC', 'TW'];
     const brands = ['M', 'X'];
+    const categoryFilters: Array<'clothes' | 'all'> = ['clothes'];
     
     // TTL 설정: 1일치면 72시간, 여러 날짜면 14일
     const ttlSeconds = snapshotDays === 1 ? 60 * 60 * 72 : 60 * 60 * 24 * 14;
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
       dates: targetDates,
       regions,
       brands,
+      category_filters: categoryFilters,
       days_to_generate: snapshotDays,
       parallel: isParallel,
       ttl_hours: ttlSeconds / 3600,
@@ -77,24 +79,31 @@ export async function GET(request: NextRequest) {
       region: string; 
       brand: string; 
       date: string;
+      category_filter: 'clothes' | 'all';
     }> = [];
     const errors: Array<{ 
       region: string; 
       brand: string; 
       date: string;
+      category_filter: 'clothes' | 'all';
       error: string;
     }> = [];
 
     // 스냅샷 생성 함수
-    const generateSnapshot = async (region: string, brand: string, date: string) => {
+    const generateSnapshot = async (
+      region: string,
+      brand: string,
+      date: string,
+      categoryFilter: 'clothes' | 'all'
+    ) => {
       try {
-        console.log(`  📊 [section3-cron] Processing ${region}:${brand}:${date}...`);
+        console.log(`  📊 [section3-cron] Processing ${region}:${brand}:${date}:${categoryFilter}...`);
 
         // Section3 쿼리 실행
-        const payload = await executeSection3Query(region, brand, date);
+        const payload = await executeSection3Query(region, brand, date, { categoryFilter });
 
         // Redis 키 생성
-        const key = buildKey(['section3', 'old-season-inventory', region, brand, date]);
+        const key = buildKey(['section3', 'old-season-inventory', region, brand, date, categoryFilter]);
 
         // 스냅샷 데이터 준비
         const snapshotData = {
@@ -112,14 +121,15 @@ export async function GET(request: NextRequest) {
         // Redis에 저장
         await redis.set(key, compressedValue, { ex: ttlSeconds });
 
-        saved.push({ key, bytes, region, brand, date });
+        saved.push({ key, bytes, region, brand, date, category_filter: categoryFilter });
         console.log(`    ✅ [section3-cron] Saved: ${key} (${(bytes / 1024).toFixed(2)} KB)`);
       } catch (error: any) {
-        console.error(`    ❌ [section3-cron] Error for ${region}:${brand}:${date}:`, error.message);
+        console.error(`    ❌ [section3-cron] Error for ${region}:${brand}:${date}:${categoryFilter}:`, error.message);
         errors.push({
           region,
           brand,
           date,
+          category_filter: categoryFilter,
           error: error.message,
         });
       }
@@ -132,7 +142,9 @@ export async function GET(request: NextRequest) {
       for (const date of targetDates) {
         for (const region of regions) {
           for (const brand of brands) {
-            tasks.push(generateSnapshot(region, brand, date));
+            for (const categoryFilter of categoryFilters) {
+              tasks.push(generateSnapshot(region, brand, date, categoryFilter));
+            }
           }
         }
       }
@@ -142,7 +154,9 @@ export async function GET(request: NextRequest) {
       for (const date of targetDates) {
         for (const region of regions) {
           for (const brand of brands) {
-            await generateSnapshot(region, brand, date);
+            for (const categoryFilter of categoryFilters) {
+              await generateSnapshot(region, brand, date, categoryFilter);
+            }
           }
         }
       }
@@ -151,7 +165,7 @@ export async function GET(request: NextRequest) {
     // 완료 통계
     const durationMs = Date.now() - startTime;
     const totalBytes = saved.reduce((sum, item) => sum + item.bytes, 0);
-    const totalTargets = targetDates.length * regions.length * brands.length;
+    const totalTargets = targetDates.length * regions.length * brands.length * categoryFilters.length;
     const successCount = saved.length;
     const errorCount = errors.length;
 
@@ -178,7 +192,7 @@ export async function GET(request: NextRequest) {
         error_count: errorCount,
         total_kb: result.stats.total_kb,
         duration_ms: durationMs,
-        errors: errors.map(e => `${e.region}:${e.brand}:${e.date}`),
+        errors: errors.map(e => `${e.region}:${e.brand}:${e.date}:${e.category_filter}`),
       });
     } else {
       console.log('[section3-cron] ✅ Snapshot generation SUCCESS', {
