@@ -37,13 +37,19 @@ export default function Section3Card({ section3Data, language, region }: Section
     return '';
   };
 
+  const metricTone = (v: number, pivot = 0) => {
+    if (v > pivot) return 'text-red-700 bg-red-50';  // 정체재고 증가는 부정적
+    if (v < pivot) return 'text-green-700 bg-green-50';  // 정체재고 감소는 긍정적
+    return 'text-gray-700 bg-gray-100';
+  };
+
   // Section3 KPI 계산
   const calculateKPIs = () => {
     if (!section3Data?.header) {
       return {
-        k1: { label: t(language, 'currentStock'), value: 'N/A', subValue: null, subColor: '' },
-        k2: { label: t(language, 'depletedStock'), value: 'N/A', subValue: null, subColor: '' },
-        k3: { label: t(language, 'stagnantRatio'), value: 'N/A', subValue: null, subColor: '' },
+        k1: { label: t(language, 'currentStock'), value: 'N/A', subValue: null, subClass: '' },
+        k2: { label: t(language, 'depletedStock'), value: 'N/A', subValue: null, subClass: '' },
+        k3: { label: t(language, 'stagnantRatio'), value: 'N/A', subValue: null, subClass: '' },
       };
     }
 
@@ -56,10 +62,6 @@ export default function Section3Card({ section3Data, language, region }: Section
     const prevMonthStagnantRatio = (header.prev_month_stagnant_ratio || 0) * 100;
     const stagnantRatioChange = stagnantRatio - prevMonthStagnantRatio;
 
-    // 정체재고비중 증가는 부정적 (red), 감소는 긍정적 (green)
-    const ratioChangeColor = stagnantRatioChange > 0 ? 'text-red-600' : stagnantRatioChange < 0 ? 'text-green-600' : 'text-gray-600';
-    const ratioChangeArrow = stagnantRatioChange > 0 ? '▲ ' : stagnantRatioChange < 0 ? '▼ ' : '';
-
     // 당월 기간 계산 (예: "2/1~2/12")
     let currentMonthPeriod = '';
     if (section3Data?.asof_date) {
@@ -69,28 +71,33 @@ export default function Section3Card({ section3Data, language, region }: Section
       currentMonthPeriod = `${month}/1~${month}/${day}`;
     }
 
+    const formatSubValue = (change: number) => {
+      const sign = change > 0 ? '+' : '';
+      return `${sign}${change.toFixed(1)}%p`;
+    };
+
     return {
       k1: {
         label: t(language, 'currentStock'),
         value: formatCurrency(currentStock),
-        subValue: null,  // 하단 표시 제거
-        subColor: '',
+        subValue: null,
+        subClass: '',
       },
       k2: {
         label: t(language, 'depletedStock'),
         value: formatCurrency(depletedStock),
         subValue: currentMonthDepleted > 0 
-          ? `${t(language, 'currentMonthOnly')}(${currentMonthPeriod}): ${formatCurrency(currentMonthDepleted)}` 
+          ? `${t(language, 'currentMonthOnly')} ${formatCurrency(currentMonthDepleted)}` 
           : null,
-        subColor: 'text-blue-600',
+        subClass: 'text-blue-700 bg-blue-50',
       },
       k3: {
         label: t(language, 'stagnantRatio'),
         value: `${stagnantRatio.toFixed(1)}%`,
         subValue: stagnantRatioChange !== 0 
-          ? `${ratioChangeArrow}${Math.abs(stagnantRatioChange).toFixed(1)}%p (${t(language, 'vsLastMonthEnd')})` 
+          ? formatSubValue(stagnantRatioChange)
           : null,
-        subColor: ratioChangeColor,
+        subClass: metricTone(stagnantRatioChange, 0),
       },
     };
   };
@@ -122,7 +129,7 @@ export default function Section3Card({ section3Data, language, region }: Section
           <div className="text-xs text-gray-600 mb-1">{kpis.k1.label}</div>
           <div className="text-xl font-bold text-orange-600">{kpis.k1.value}</div>
           {kpis.k1.subValue && (
-            <div className={`text-xs font-medium mt-0.5 ${kpis.k1.subColor}`}>
+            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
             </div>
           )}
@@ -136,7 +143,7 @@ export default function Section3Card({ section3Data, language, region }: Section
           </div>
           <div className="text-xl font-bold text-gray-900">{kpis.k2.value}</div>
           {kpis.k2.subValue && (
-            <div className={`text-xs font-medium mt-0.5 ${kpis.k2.subColor}`}>
+            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
             </div>
           )}
@@ -147,7 +154,7 @@ export default function Section3Card({ section3Data, language, region }: Section
           <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
           <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
           {kpis.k3.subValue && (
-            <div className={`text-xs font-medium mt-0.5 ${kpis.k3.subColor}`}>
+            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}
             </div>
           )}
