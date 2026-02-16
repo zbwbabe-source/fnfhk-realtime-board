@@ -409,24 +409,24 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
   return (
     <div id="section1" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-gray-900">
             {t(language, 'section1Header')} <span className="text-sm text-gray-600 font-normal">({t(language, 'unit')})</span>
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsYtdMode(!isYtdMode)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-2 ${
+              className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all duration-200 border ${
                 isYtdMode 
-                  ? 'bg-blue-500 text-white border-blue-500 shadow-md hover:bg-blue-600 hover:shadow-lg' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
               }`}
             >
               {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
             </button>
             {isYtdMode && date && (
-              <span className="text-xs text-orange-600 font-medium">
-                * {language === 'ko' ? '1/1~누적' : 'Year-to-Date (1/1~)'}
+              <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded">
+                {language === 'ko' ? '1/1~누적' : '1/1~YTD'}
               </span>
             )}
           </div>

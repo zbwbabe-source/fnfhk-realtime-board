@@ -5,6 +5,14 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/section1-snapshot",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/section2-snapshot",
+      "schedule": "0 20 * * *"
+    },
+    {
       "path": "/api/cron/section3-snapshot",
       "schedule": "0 20 * * *"
     }

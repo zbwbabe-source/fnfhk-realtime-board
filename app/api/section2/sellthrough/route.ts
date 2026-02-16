@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeSnowflakeQuery } from '@/lib/snowflake';
-import { getAllStoresByRegionBrand, getStoresByRegionBrandChannel, normalizeBrand } from '@/lib/store-utils';
-import { getSeasonCode, getSection2StartDate, formatDateYYYYMMDD } from '@/lib/date-utils';
-import { getApparelCategories } from '@/lib/category-utils.server';
-import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
-import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
+import { getSnapshot, setSnapshot, FALLBACK_TTL_SECONDS } from '@/lib/snapshotCache';
+import { fetchSection2Sellthrough } from '@/lib/section2/sellthrough';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,22 +13,32 @@ export const dynamic = 'force-dynamic';
  * - date: 'YYYY-MM-DD' (asof_date)
  * - category_filter: 'clothes' (의류만) or 'all' (전체 카테고리) - 기본값: 'clothes'
  * 
- * Response:
- * - header: { sesn, overall_sellthrough }
- * - top10: 판매율 TOP 10 (inbound > 0만)
- * - bad10: 판매율 BAD 10 (inbound > 0만)
- * - no_inbound: 입고 없는 품번 리스트 (inbound = 0, sales > 0)
+ * Redis 스냅샷 우선 조회:
+ * 1. Redis에서 스냅샷 확인 (cron 생성)
+ * 2. HIT: 즉시 반환
+ * 3. MISS: Snowflake 쿼리 실행 후 Redis 저장 (24시간 TTL)
  */
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
+  let cacheHit = false;
+  let snowflakeMs = 0;
   
   try {
     const searchParams = request.nextUrl.searchParams;
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
-    const categoryFilter = searchParams.get('category_filter') || 'clothes'; // 'clothes' or 'all'
-    const forceRefresh = searchParams.get('forceRefresh') === 'true';
+    const categoryFilter = searchParams.get('category_filter') || 'clothes';
+
+    // 요청 시작 로그
+    console.log('[section2] 📥 Request START', {
+      resource: 'sellthrough',
+      region,
+      brand,
+      date,
+      category_filter: categoryFilter,
+      timestamp: new Date().toISOString(),
+    });
 
     if (!date) {
       return NextResponse.json(
@@ -49,536 +55,79 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build cache key
-    let cacheKey: string;
-    try {
-      cacheKey = buildKey(['section2', 'sellthrough', region, brand, date, categoryFilter]);
-    } catch (error: any) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
-    }
+    // Redis 스냅샷 조회
+    // Note: categoryFilter는 스냅샷 키에 포함하지 않음 (Cron은 기본값만 생성)
+    // 다른 categoryFilter 요청은 항상 MISS가 되어 fallback 처리
+    const snapshot = await getSnapshot<any>('SECTION2', 'sellthrough', region, brand, date);
 
-    console.log('🔑 Redis Key:', cacheKey);
+    if (snapshot && snapshot.payload.category_filter === categoryFilter) {
+      // Redis HIT: 즉시 반환
+      cacheHit = true;
+      const durationMs = Date.now() - startTime;
 
-    // ✅ Check cache first (skip if forceRefresh)
-    if (!forceRefresh) {
-      const cached = await cacheGet<any>(cacheKey);
-      if (cached) {
-        const elapsed = Date.now() - startTime;
-        console.log(`[CACHE HIT] section2/sellthrough [${cacheKey}] - ${elapsed}ms`);
-        return NextResponse.json(cached);
-      }
-    }
-    
-    console.log(`[CACHE ${forceRefresh ? 'REFRESH' : 'MISS'}] section2/sellthrough [${cacheKey}], fetching from DB...`);
-
-    // 시즌 코드 계산 (THIS YEAR)
-    const asofDate = new Date(date);
-    const sesn = getSeasonCode(asofDate);
-    
-    // 섹션2 계산 시작일: 시즌 시작일 - 6개월
-    const startDate = getSection2StartDate(asofDate);
-    const startDateStr = formatDateYYYYMMDD(startDate);
-
-    // 전년(LAST YEAR) 날짜 및 시즌 계산
-    const asofDateLY = new Date(asofDate);
-    asofDateLY.setFullYear(asofDateLY.getFullYear() - 1);
-    const dateLY = formatDateYYYYMMDD(asofDateLY);
-    const sesnLY = getSeasonCode(asofDateLY);
-    
-    const startDateLY = getSection2StartDate(asofDateLY);
-    const startDateLYStr = formatDateYYYYMMDD(startDateLY);
-
-    console.log('📅 Date & Season Calculation:', {
-      current: { date, sesn, startDate: startDateStr },
-      lastYear: { date: dateLY, sesn: sesnLY, startDate: startDateLYStr },
-    });
-
-    // 매장 코드 준비
-    // - all_store_codes: HKMC 전체 매장 (warehouse 포함) - inbound 계산용
-    // - store_codes: warehouse 제외 매장 - sales 계산용
-    const allStoreCodes = getAllStoresByRegionBrand(region, brand);
-    const salesStoreCodes = getStoresByRegionBrandChannel(region, brand, true); // warehouse 제외
-
-    if (allStoreCodes.length === 0 || salesStoreCodes.length === 0) {
-      return NextResponse.json({
-        asof_date: date,
+      console.log('[section2] ✅ Request END - CACHE HIT', {
+        resource: 'sellthrough',
         region,
         brand,
-        header: { sesn, overall_sellthrough: 0 },
-        categories: [],
-        category_total: {
-          category: '전체',
-          inbound_tag: 0,
-          sales_tag: 0,
-          inbound_qty: 0,
-          sales_qty: 0,
-          product_count: 0,
-          sellthrough: 0,
-        },
-        all_products: [],
-        no_inbound: [],
-      });
-    }
-
-    const allStoreCodesStr = allStoreCodes.map(s => `'${s}'`).join(',');
-    const salesStoreCodesStr = salesStoreCodes.map(s => `'${s}'`).join(',');
-
-    // 의류 카테고리 목록 가져오기 (CSV에서)
-    const apparelCategories = getApparelCategories();
-    const apparelCategoriesStr = apparelCategories.map(c => `'${c}'`).join(',');
-
-    console.log('📊 Section2 Params:', {
-      region,
-      brand,
-      date,
-      sesn,
-      categoryFilter,
-      startDate: startDateStr,
-      periodInfo: `${startDateStr} ~ ${date}`,
-      allStoresCount: allStoreCodes.length,
-      salesStoresCount: salesStoreCodes.length,
-      apparelCategoriesCount: apparelCategories.length,
-    });
-
-    // TW 리전일 때 환율 적용
-    // ⚠️ TY/LY 모두 ASOF Date 기준 환율 사용 (환율 변동 효과 제거)
-    const isTwRegion = region === 'TW';
-    const period = isTwRegion ? getPeriodFromDateString(date) : '';
-    console.log(`💱 Exchange rate: ${isTwRegion ? 'Applying TWD->HKD conversion for period ' + period + ' (same rate for TY & LY)' : 'No conversion (HKMC)'}`);
-
-    // 환율 적용 헬퍼 함수
-    const applyExchangeRate = (amount: number | null): number | null => {
-      if (amount === null) return null;
-      if (!isTwRegion) return amount;
-      return convertTwdToHkd(amount, period);
-    };
-
-    // 카테고리 필터 조건 구성
-    const productCategoryWhereClause = categoryFilter === 'clothes'
-      ? `AND SUBSTR(PART_CD, 3, 2) IN (${apparelCategoriesStr})`
-      : '';
-    
-    const productCategoryWhereClauseWithAlias = categoryFilter === 'clothes'
-      ? `AND SUBSTR(s.PART_CD, 3, 2) IN (${apparelCategoriesStr})`
-      : '';
-
-    // =====================
-    // 헤더용 SQL (TY + LY)
-    // ⚠️ STOCK_DT가 없을 경우 가장 최근 데이터 사용
-    // ✅ 카테고리 필터 적용하여 YoY 계산
-    // =====================
-    const headerQuery = `
-      WITH
-      -- THIS YEAR (TY)
-      sales_ty AS (
-        SELECT SUM(TAG_SALE_AMT) AS sales_ty
-        FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-          AND SALE_DT BETWEEN ? AND ?
-          ${productCategoryWhereClause}
-      ),
-      latest_stock_date_ty AS (
-        SELECT MAX(STOCK_DT) AS stock_dt
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND STOCK_DT <= DATEADD(DAY, 1, ?)
-      ),
-      stock_ty AS (
-        SELECT SUM(s.TAG_STOCK_AMT) AS stock_ty, MAX(s.STOCK_DT) AS stock_dt_used
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
-        CROSS JOIN latest_stock_date_ty l
-        WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
-          AND s.SESN = ?
-          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND s.STOCK_DT = l.stock_dt
-          ${productCategoryWhereClauseWithAlias}
-      ),
-      -- LAST YEAR (LY)
-      sales_ly AS (
-        SELECT SUM(TAG_SALE_AMT) AS sales_ly
-        FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-          AND SALE_DT BETWEEN ? AND ?
-          ${productCategoryWhereClause}
-      ),
-      latest_stock_date_ly AS (
-        SELECT MAX(STOCK_DT) AS stock_dt
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND STOCK_DT <= DATEADD(DAY, 1, ?)
-      ),
-      stock_ly AS (
-        SELECT SUM(s.TAG_STOCK_AMT) AS stock_ly, MAX(s.STOCK_DT) AS stock_dt_used
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
-        CROSS JOIN latest_stock_date_ly l
-        WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
-          AND s.SESN = ?
-          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND s.STOCK_DT = l.stock_dt
-          ${productCategoryWhereClauseWithAlias}
-      )
-      
-      SELECT
-        /* TY */
-        COALESCE(s_ty.sales_ty, 0) AS sales_ty,
-        COALESCE(st_ty.stock_ty, 0) AS stock_ty,
-        st_ty.stock_dt_used AS stock_dt_ty,
-        (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) AS inbound_ty,
-        CASE
-          WHEN (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0)) > 0
-          THEN (COALESCE(s_ty.sales_ty, 0) / (COALESCE(s_ty.sales_ty, 0) + COALESCE(st_ty.stock_ty, 0))) * 100
-          ELSE NULL
-        END AS sellthrough_ty,
-        /* LY */
-        COALESCE(s_ly.sales_ly, 0) AS sales_ly,
-        COALESCE(st_ly.stock_ly, 0) AS stock_ly,
-        st_ly.stock_dt_used AS stock_dt_ly,
-        (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) AS inbound_ly,
-        CASE
-          WHEN (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0)) > 0
-          THEN (COALESCE(s_ly.sales_ly, 0) / (COALESCE(s_ly.sales_ly, 0) + COALESCE(st_ly.stock_ly, 0))) * 100
-          ELSE NULL
-        END AS sellthrough_ly
-      
-      FROM sales_ty s_ty
-      CROSS JOIN stock_ty st_ty
-      CROSS JOIN sales_ly s_ly
-      CROSS JOIN stock_ly st_ly
-    `;
-
-    console.log('[DB EXEC] section2/sellthrough (header)', cacheKey);
-    const headerRows = await executeSnowflakeQuery(headerQuery, [
-      // TY - sales_ty
-      brand, sesn, startDateStr, date,
-      // TY - latest_stock_date_ty
-      brand, sesn, date,
-      // TY - stock_ty
-      brand, sesn,
-      // LY - sales_ly
-      brand, sesnLY, startDateLYStr, dateLY,
-      // LY - latest_stock_date_ly
-      brand, sesnLY, dateLY,
-      // LY - stock_ly
-      brand, sesnLY
-    ]);
-
-    const headerData = headerRows[0] || {};
-    // 환율 적용하여 데이터 변환
-    const totalSales = applyExchangeRate(parseFloat(headerData.SALES_TY || 0)) || 0;
-    const totalStock = applyExchangeRate(parseFloat(headerData.STOCK_TY || 0)) || 0;
-    const totalInbound = applyExchangeRate(parseFloat(headerData.INBOUND_TY || 0)) || 0;
-    const overall_sellthrough = headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
-
-    // LY data (YoY 비교용, 환율 적용)
-    const totalSalesLY = applyExchangeRate(parseFloat(headerData.SALES_LY || 0)) || 0;
-    const totalInboundLY = applyExchangeRate(parseFloat(headerData.INBOUND_LY || 0)) || 0;
-    const overall_sellthrough_ly = headerData.SELLTHROUGH_LY !== null ? parseFloat(headerData.SELLTHROUGH_LY) : null;
-
-    console.log('📊 Header Query Result (for YoY comparison):', {
-      params: {
-        asof_date: date,
-        sesn: sesn,
-        start_date: startDateStr,
+        date,
         category_filter: categoryFilter,
-      },
-      ty: { 
-        sales: totalSales, 
-        stock: totalStock, 
-        stock_dt: headerData.STOCK_DT_TY,
-        inbound: totalInbound, 
-        sellthrough: overall_sellthrough 
-      },
-      ly: {
-        sales: totalSalesLY,
-        inbound: totalInboundLY,
-        sellthrough: overall_sellthrough_ly
-      }
-    });
+        cache_hit: true,
+        duration_ms: durationMs,
+        generated_at: snapshot.meta.generated_at,
+        compressed_kb: (snapshot.compressedBytes / 1024).toFixed(2),
+      });
 
-    // ⚠️ 품번별 데이터 조회 (테이블용)
-    // 동일한 카테고리 필터 적용
-    const productQuery = `
-      WITH 
-      latest_stock_date AS (
-        SELECT MAX(STOCK_DT) AS stock_dt
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
-        WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND STOCK_DT <= DATEADD(DAY, 1, ?)
-      ),
-      ending_stock AS (
-        SELECT 
-          s.PRDT_CD, 
-          ANY_VALUE(s.PART_CD) AS PART_CD, 
-          SUM(s.TAG_STOCK_AMT) AS stock_tag,
-          SUM(s.STOCK_QTY) AS stock_qty
-        FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
-        CROSS JOIN latest_stock_date l
-        WHERE 
-          (CASE WHEN s.BRD_CD IN ('M', 'I') THEN 'M' ELSE s.BRD_CD END) = ?
-          AND s.SESN = ?
-          AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
-          AND s.STOCK_DT = l.stock_dt
-          ${productCategoryWhereClauseWithAlias}
-        GROUP BY s.PRDT_CD
-      ),
-      sales_agg AS (
-        SELECT 
-          PRDT_CD, 
-          ANY_VALUE(PART_CD) AS PART_CD, 
-          SUM(TAG_SALE_AMT) AS sales_tag,
-          SUM(SALE_QTY) AS sales_qty
-        FROM SAP_FNF.DW_HMD_SALE_D
-        WHERE 
-          (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
-          AND SESN = ?
-          AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
-          AND SALE_DT BETWEEN ? AND ?
-          ${productCategoryWhereClause}
-        GROUP BY PRDT_CD
-      )
-      SELECT
-        COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
-        SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
-        COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
-        COALESCE(s.sales_tag, 0) AS sales_tag,
-        COALESCE(e.stock_tag, 0) AS stock_tag,
-        COALESCE(s.sales_qty, 0) + COALESCE(e.stock_qty, 0) AS inbound_qty,
-        COALESCE(s.sales_qty, 0) AS sales_qty,
-        COALESCE(e.stock_qty, 0) AS stock_qty,
-        CASE
-          WHEN (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0)) > 0
-          THEN (COALESCE(s.sales_tag, 0) / (COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0))) * 100
-          ELSE 0
-        END AS sellthrough_pct
-      FROM sales_agg s
-      FULL OUTER JOIN ending_stock e ON s.PRDT_CD = e.PRDT_CD
-      WHERE COALESCE(s.PRDT_CD, e.PRDT_CD) IS NOT NULL
-      ORDER BY sellthrough_pct DESC
-    `;
+      return NextResponse.json(snapshot.payload);
+    }
 
-    console.log('[DB EXEC] section2/sellthrough (products)', cacheKey);
-    const rows = await executeSnowflakeQuery(productQuery, [
-      brand, sesn, date,                // latest_stock_date
-      brand, sesn,                      // ending_stock
-      brand, sesn, startDateStr, date   // sales_agg
-    ]);
+    console.log('[section2] ⏳ Cache MISS, executing Snowflake query...');
 
-    console.log('📊 Section2 Query Result:', {
+    // Redis MISS: Snowflake 쿼리 실행
+    const snowflakeStart = Date.now();
+    const payload = await fetchSection2Sellthrough({ region, brand, date, categoryFilter });
+    snowflakeMs = Date.now() - snowflakeStart;
+
+    // 결과를 Redis에 저장 (fallback TTL)
+    try {
+      await setSnapshot('SECTION2', 'sellthrough', region, brand, date, payload, FALLBACK_TTL_SECONDS);
+    } catch (redisError: any) {
+      console.error('[section2] ⚠️  Redis save failed (non-fatal):', redisError.message);
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    // MISS 로그 (운영 관측성)
+    console.log('[section2] ✅ Request END - CACHE MISS', {
+      resource: 'sellthrough',
       region,
       brand,
       date,
-      sesn,
-      startDate: startDateStr,
-      stockDtUsed: `${date} + 1 day`,
-      allStoresCount: allStoreCodes.length,
-      salesStoresCount: salesStoreCodes.length,
-      rowsCount: rows.length,
-      sampleRows: rows.slice(0, 5).map((r: any) => ({
-        prdt_cd: r.PRDT_CD,
-        inbound: r.INBOUND_TAG,
-        sales: r.SALES_TAG,
-        stock: r.STOCK_TAG,
-        sellthrough: r.SELLTHROUGH_PCT,
-      })),
-    });
-
-    if (rows.length === 0) {
-      return NextResponse.json({
-        asof_date: date,
-        stock_dt_used: formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000)),
-        region,
-        brand,
-        header: { 
-          sesn, 
-          overall_sellthrough: 0,
-          total_inbound: 0,
-          total_sales: 0,
-          sellthrough_yoy_pp: null,
-          sales_yoy_pct: null,
-          inbound_yoy_pct: null,
-        },
-        categories: [],
-        category_total: {
-          category: '전체',
-          inbound_tag: 0,
-          sales_tag: 0,
-          inbound_qty: 0,
-          sales_qty: 0,
-          product_count: 0,
-          sellthrough: 0,
-        },
-        top10: [],
-        all_products: [],
-        no_inbound: [],
-      });
-    }
-
-    // sales_tag > 0 또는 stock_tag > 0 데이터만 필터
-    const validRows = rows.filter((r: any) => 
-      parseFloat(r.SALES_TAG || 0) > 0 || parseFloat(r.STOCK_TAG || 0) > 0
-    );
-
-    // stock_dt_used (실제 사용된 재고 날짜)
-    const stockDtUsed = headerData.STOCK_DT_TY ? formatDateYYYYMMDD(new Date(headerData.STOCK_DT_TY)) : formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000));
-
-    // 전체 데이터 매핑 (환율 적용)
-    const allProducts = validRows.map((r: any) => ({
-      prdt_cd: r.PRDT_CD,
-      category: r.CATEGORY,
-      inbound_tag: applyExchangeRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
-      sales_tag: applyExchangeRate(parseFloat(r.SALES_TAG || 0)) || 0,
-      inbound_qty: parseInt(r.INBOUND_QTY || 0),
-      sales_qty: parseInt(r.SALES_QTY || 0),
-      sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
-    }));
-
-    // 🔍 판매수량 0인 제품 확인
-    const zeroSalesQtyProducts = allProducts.filter(p => p.sales_qty === 0);
-    console.log('📊 판매수량 0인 제품:', {
-      count: zeroSalesQtyProducts.length,
-      samples: zeroSalesQtyProducts.slice(0, 5).map(p => ({
-        prdt_cd: p.prdt_cd,
-        sales_qty: p.sales_qty,
-        stock_qty: p.inbound_qty - p.sales_qty,
-        sellthrough: p.sellthrough
-      }))
-    });
-
-    // 중분류별 집계 (카테고리 그룹핑)
-    const categoryMap = new Map<string, any>();
-    
-    allProducts.forEach(product => {
-      const cat = product.category || 'UNKNOWN';
-      if (!categoryMap.has(cat)) {
-        categoryMap.set(cat, {
-          category: cat,
-          inbound_tag: 0,
-          sales_tag: 0,
-          inbound_qty: 0,
-          sales_qty: 0,
-          product_count: 0,
-        });
-      }
-      
-      const catData = categoryMap.get(cat);
-      catData.inbound_tag += product.inbound_tag;
-      catData.sales_tag += product.sales_tag;
-      catData.inbound_qty += product.inbound_qty;
-      catData.sales_qty += product.sales_qty;
-      catData.product_count += 1;
-    });
-
-    // 판매율 계산 및 배열 변환
-    const categories = Array.from(categoryMap.values()).map(cat => ({
-      ...cat,
-      sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
-    }));
-
-    // 전체 합계 계산 (필터링된 품번 기준)
-    const category_total = {
-      category: '전체',
-      inbound_tag: categories.reduce((sum, c) => sum + c.inbound_tag, 0),
-      sales_tag: categories.reduce((sum, c) => sum + c.sales_tag, 0),
-      inbound_qty: categories.reduce((sum, c) => sum + c.inbound_qty, 0),
-      sales_qty: categories.reduce((sum, c) => sum + c.sales_qty, 0),
-      product_count: categories.reduce((sum, c) => sum + c.product_count, 0),
-      sellthrough: 0,
-    };
-    category_total.sellthrough = category_total.inbound_tag > 0 
-      ? (category_total.sales_tag / category_total.inbound_tag) * 100 
-      : 0;
-
-    // 헤더 데이터를 필터링된 품번 집계로 재계산
-    const filteredTotalSales = category_total.sales_tag;
-    const filteredTotalStock = category_total.inbound_tag - category_total.sales_tag;
-    const filteredTotalInbound = category_total.inbound_tag;
-    const filteredSellthrough = category_total.sellthrough;
-
-    // YoY 계산
-    // ⚠️ 주의: headerQuery의 LY 값 대신 품번 집계 기준으로 통일
-    // headerQuery는 참고용으로만 사용
-    const sellthrough_yoy_pp = overall_sellthrough_ly !== null 
-      ? filteredSellthrough - overall_sellthrough_ly 
-      : null;
-    
-    // Sales YoY: TY/LY 모두 품번 집계 기준
-    // totalSalesLY는 headerQuery 결과 (참고용)
-    const sales_yoy_pct = totalSalesLY > 0 
-      ? (filteredTotalSales / totalSalesLY) * 100 
-      : null;
-    const inbound_yoy_pct = totalInboundLY > 0 
-      ? (filteredTotalInbound / totalInboundLY) * 100 
-      : null;
-
-    console.log('📊 YoY Calculation:', {
-      ty_sales: filteredTotalSales,
-      ly_sales: totalSalesLY,
-      sales_yoy_pct: sales_yoy_pct?.toFixed(1) + '%',
-      note: 'TY는 품번집계, LY는 헤더쿼리'
-    });
-
-    console.log('📊 카테고리별 집계:', {
-      categoriesCount: categories.length,
-      categories: categories.map(c => ({
-        category: c.category,
-        product_count: c.product_count,
-        sellthrough: c.sellthrough.toFixed(1) + '%'
-      }))
-    });
-
-    // No Sales & No Stock (제외)
-    const no_inbound: any[] = [];
-
-    const response = {
-      asof_date: date,
-      stock_dt_used: stockDtUsed,
-      region,
-      brand,
       category_filter: categoryFilter,
-      header: {
-        sesn,
-        overall_sellthrough: Math.round(filteredSellthrough * 100) / 100,
-        total_inbound: filteredTotalInbound,
-        total_sales: filteredTotalSales,
-        // LY values
-        overall_sellthrough_ly: overall_sellthrough_ly !== null ? Math.round(overall_sellthrough_ly * 100) / 100 : null,
-        total_inbound_ly: totalInboundLY,
-        total_sales_ly: totalSalesLY,
-        // YoY metrics
-        sellthrough_yoy_pp: sellthrough_yoy_pp !== null ? Math.round(sellthrough_yoy_pp * 100) / 100 : null,
-        sales_yoy_pct: sales_yoy_pct !== null ? Math.round(sales_yoy_pct * 100) / 100 : null,
-        inbound_yoy_pct: inbound_yoy_pct !== null ? Math.round(inbound_yoy_pct * 100) / 100 : null,
-      },
-      categories,
-      category_total,
-      all_products: allProducts,
-      no_inbound,
-    };
+      cache_hit: false,
+      duration_ms: durationMs,
+      snowflake_ms: snowflakeMs,
+    });
 
-    // ✅ Cache the response for 5 minutes (300 seconds)
-    const elapsed = Date.now() - startTime;
-    await cacheSet(cacheKey, response, 300);
-    console.log(`[CACHE SET] section2/sellthrough [${cacheKey}] - Query executed in ${elapsed}ms`);
-
-    return NextResponse.json(response);
+    return NextResponse.json(payload);
 
   } catch (error: any) {
-    console.error('Error in /api/section2/sellthrough:', error);
+    const durationMs = Date.now() - startTime;
+
+    // 에러 로그 (운영 관측성)
+    console.error('[section2] ❌ Request END - ERROR', {
+      resource: 'sellthrough',
+      cache_hit: cacheHit,
+      duration_ms: durationMs,
+      snowflake_ms: snowflakeMs > 0 ? snowflakeMs : undefined,
+      error: error.message,
+    });
+
     return NextResponse.json(
-      { error: 'Failed to fetch sell-through data', message: error.message },
+      {
+        error: 'Failed to fetch sell-through data',
+        message: error.message,
+        stack: error.stack,
+      },
       { status: 500 }
     );
   }
