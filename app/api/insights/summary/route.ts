@@ -2,12 +2,32 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { cacheGet, cacheSet, buildKey } from "@/lib/cache";
+import { redis } from "@/lib/redis";
 
 export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const inFlightSummary = new Map<string, Promise<any>>();
+const OPS_METRIC_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
+function getUtcDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function incrementSummaryMetric(type: "hit" | "miss" | "refresh") {
+  const dateKey = getUtcDateKey();
+  const key = `fnfhk:OPS:metrics:insights-summary:${type}:${dateKey}`;
+
+  try {
+    await redis.incr(key);
+    await redis.expire(key, OPS_METRIC_TTL_SECONDS);
+  } catch (error: any) {
+    // Non-fatal: metric collection must not break summary API.
+    console.error(`[OPS] metric increment failed (${type})`, error.message);
+  }
+}
 
 // 금액 포맷팅 (K/M 단위)
 function formatCurrency(num: number): string {
@@ -139,26 +159,30 @@ export async function POST(req: Request) {
       if (cached) {
         const elapsed = Date.now() - startTime;
         console.log(`[CACHE HIT] insights/summary [${cacheKey}] - ${elapsed}ms`);
+        await incrementSummaryMetric("hit");
         return NextResponse.json(cached);
       }
       console.log(`[CACHE MISS] insights/summary [${cacheKey}], generating AI summary...`);
+      await incrementSummaryMetric("miss");
     } else {
       console.log(`[CACHE REFRESH] insights/summary [${cacheKey}], generating AI summary...`);
+      await incrementSummaryMetric("refresh");
     }
 
-    console.log('📊 [INSIGHTS/SUMMARY] Input sections received:', {
-      section1_keys: Object.keys(body.section1 || {}),
-      section2_keys: Object.keys(body.section2 || {}),
-      section3_keys: Object.keys(body.section3 || {}),
-    });
+    const generateAndCacheSummary = async () => {
+      console.log('📊 [INSIGHTS/SUMMARY] Input sections received:', {
+        section1_keys: Object.keys(body.section1 || {}),
+        section2_keys: Object.keys(body.section2 || {}),
+        section3_keys: Object.keys(body.section3 || {}),
+      });
 
-    const detailedData = buildDetailedData(body);
-    console.log('📊 Building executive summary from data:', detailedData);
+      const detailedData = buildDetailedData(body);
+      console.log('📊 Building executive summary from data:', detailedData);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
 
-    const prompt = `
+      const prompt = `
 너는 CEO/CFO에게 보고하는 경영 분석가다.
 이 요약만 읽어도 대시보드를 보지 않아도 되게 만드는 것이 목표다.
 
@@ -211,65 +235,90 @@ export async function POST(req: Request) {
 출력은 JSON 형식만 사용.
 `.trim();
 
-    let result: any;
+      let result: any;
 
-    try {
-      console.log('[AI EXEC] insights/summary', cacheKey);
-      const resp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: "너는 CEO/CFO에게 보고하는 경영 분석가다. 반드시 지표명과 수치를 명시하여 구체적인 경영 요약을 작성하라. 추측이나 가정은 금지. 보고서체를 사용하고 평가는 명확하게 제시하라." 
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.4,
-        max_tokens: 800,
-        response_format: { type: "json_object" },
-      }, { signal: controller.signal as any });
+      try {
+        console.log('[AI EXEC] insights/summary', cacheKey);
+        const resp = await client.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { 
+              role: "system", 
+              content: "너는 CEO/CFO에게 보고하는 경영 분석가다. 반드시 지표명과 수치를 명시하여 구체적인 경영 요약을 작성하라. 추측이나 가정은 금지. 보고서체를 사용하고 평가는 명확하게 제시하라." 
+            },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.4,
+          max_tokens: 350,
+          response_format: { type: "json_object" },
+        }, { signal: controller.signal as any });
 
-      const text = resp.choices[0].message.content?.trim() ?? "{}";
-      result = JSON.parse(text);
-      console.log('✅ AI executive summary generated:', result);
-    } catch (e: any) {
-      console.error('❌ OpenAI API error:', e.message);
-      throw e;
-    } finally {
-      clearTimeout(timeout);
-    }
+        const text = resp.choices[0].message.content?.trim() ?? "{}";
+        result = JSON.parse(text);
+        console.log('✅ AI executive summary generated:', result);
+      } catch (e: any) {
+        console.error('❌ OpenAI API error:', e.message);
+        throw e;
+      } finally {
+        clearTimeout(timeout);
+      }
 
-    // 응답 검증 및 기본값 설정
-    const final = {
-      main_summary: result.main_summary || "데이터 분석 중 오류가 발생했습니다.",
-      key_insights: Array.isArray(result.key_insights) && result.key_insights.length > 0
-        ? result.key_insights
-        : [
-            "당월실적 데이터를 확인해주세요.",
-            "당시즌 판매율 데이터를 확인해주세요.",
-            "과시즌 재고 데이터를 확인해주세요."
-          ]
+      // 응답 검증 및 기본값 설정
+      const final = {
+        main_summary: result.main_summary || "데이터 분석 중 오류가 발생했습니다.",
+        key_insights: Array.isArray(result.key_insights) && result.key_insights.length > 0
+          ? result.key_insights
+          : [
+              "당월실적 데이터를 확인해주세요.",
+              "당시즌 판매율 데이터를 확인해주세요.",
+              "과시즌 재고 데이터를 확인해주세요."
+            ]
+      };
+
+      // 300자 제한 (main_summary)
+      if (final.main_summary.length > 300) {
+        final.main_summary = final.main_summary.slice(0, 297) + "...";
+      }
+
+      // 80자 제한 (각 insight)
+      final.key_insights = final.key_insights.map((insight: string) => {
+        if (insight.length > 80) {
+          return insight.slice(0, 77) + "...";
+        }
+        return insight;
+      });
+
+      // Cache for 6 hours (21600 seconds)
+      const elapsed = Date.now() - startTime;
+      await cacheSet(cacheKey, final, 21600);
+      console.log(`[CACHE SET] insights/summary [${cacheKey}] - Query executed in ${elapsed}ms`);
+      console.log('📊 [INSIGHTS/SUMMARY] Summary generated successfully');
+      return final;
     };
 
-    // 300자 제한 (main_summary)
-    if (final.main_summary.length > 300) {
-      final.main_summary = final.main_summary.slice(0, 297) + "...";
+    // In-flight dedupe: prevent duplicate OpenAI calls for same key.
+    if (!forceRefresh) {
+      const inFlight = inFlightSummary.get(cacheKey);
+      if (inFlight) {
+        console.log(`[INFLIGHT HIT] insights/summary [${cacheKey}] - waiting existing generation`);
+        const final = await inFlight;
+        return NextResponse.json(final);
+      }
     }
 
-    // 80자 제한 (각 insight)
-    final.key_insights = final.key_insights.map((insight: string) => {
-      if (insight.length > 80) {
-        return insight.slice(0, 77) + "...";
-      }
-      return insight;
-    });
+    if (forceRefresh) {
+      const final = await generateAndCacheSummary();
+      return NextResponse.json(final);
+    }
 
-    // Cache for 10 minutes (600 seconds)
-    const elapsed = Date.now() - startTime;
-    await cacheSet(cacheKey, final, 600);
-    console.log(`[CACHE SET] insights/summary [${cacheKey}] - Query executed in ${elapsed}ms`);
-    console.log('📊 [INSIGHTS/SUMMARY] Summary generated successfully');
-    return NextResponse.json(final);
+    const generationPromise = generateAndCacheSummary();
+    inFlightSummary.set(cacheKey, generationPromise);
+    try {
+      const final = await generationPromise;
+      return NextResponse.json(final);
+    } finally {
+      inFlightSummary.delete(cacheKey);
+    }
   } catch (e: any) {
     console.error('❌ Executive summary API failed:', e);
     // 실패 시 기본 응답
