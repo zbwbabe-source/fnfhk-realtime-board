@@ -9,10 +9,11 @@ interface Section1CardProps {
   language: Language;
   brand: string;
   region: string;
+  date: string;
   onYtdModeToggle?: () => void;
 }
 
-export default function Section1Card({ isYtdMode, section1Data, language, brand, region, onYtdModeToggle }: Section1CardProps) {
+export default function Section1Card({ isYtdMode, section1Data, language, brand, region, date, onYtdModeToggle }: Section1CardProps) {
 
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
@@ -115,7 +116,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
             </button>
             {isYtdMode && (
               <span className="text-xs text-blue-700 font-semibold bg-blue-100 px-2 py-1 rounded border border-blue-300">
-                {language === 'ko' ? '1/1~누적' : '1/1~YTD'}
+                {language === 'ko' ? `1/1~${date.slice(5).replace('-', '/')}` : `1/1~${date.slice(5).replace('-', '/')}`}
               </span>
             )}
           </div>

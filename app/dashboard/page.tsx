@@ -516,6 +516,7 @@ export default function DashboardPage() {
               language={language}
               brand={brand}
               region={region}
+              date={date}
               onYtdModeToggle={() => setIsYtdMode(!isYtdMode)}
             />
             <Section1StoreBarChart
