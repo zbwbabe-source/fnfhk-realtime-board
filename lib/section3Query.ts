@@ -153,15 +153,15 @@ PARAM AS (
     -- 湲곗큹?ш퀬???곗젙
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
-        -- FW: YYYY-09-30
+        -- FW: YYYY-08-31
         CASE
           WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-09-30' AS DATE)
+            CAST(YEAR(CAST(? AS DATE)) || '-08-31' AS DATE)
           ELSE
-            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-30' AS DATE)
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-08-31' AS DATE)
         END
       ELSE
-        -- SS: YYYY-02-28 or 02-29 (?ㅻ뀈)
+        -- SS: YYYY-02-28 or 02-29 (leap year)
         CASE
           WHEN MOD(YEAR(CAST(? AS DATE)), 4) = 0 AND (MOD(YEAR(CAST(? AS DATE)), 100) != 0 OR MOD(YEAR(CAST(? AS DATE)), 400) = 0) THEN
             CAST(YEAR(CAST(? AS DATE)) || '-02-29' AS DATE)
@@ -172,12 +172,12 @@ PARAM AS (
     -- ?먮ℓ湲곌컙 ?쒖옉??
     CASE
       WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
-        -- FW: YYYY-10-01
+        -- FW: YYYY-09-01
         CASE
           WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-            CAST(YEAR(CAST(? AS DATE)) || '-10-01' AS DATE)
+            CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
           ELSE
-            CAST((YEAR(CAST(? AS DATE)) - 1) || '-10-01' AS DATE)
+            CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
         END
       ELSE
         -- SS: YYYY-03-01
@@ -189,9 +189,9 @@ PARAM AS (
         WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12,1,2) THEN
           CASE
             WHEN MONTH(CAST(? AS DATE)) IN (9,10,11,12) THEN
-              CAST(YEAR(CAST(? AS DATE)) || '-10-01' AS DATE)
+              CAST(YEAR(CAST(? AS DATE)) || '-09-01' AS DATE)
             ELSE
-              CAST((YEAR(CAST(? AS DATE)) - 1) || '-10-01' AS DATE)
+              CAST((YEAR(CAST(? AS DATE)) - 1) || '-09-01' AS DATE)
           END
         ELSE
           CAST(YEAR(CAST(? AS DATE)) || '-03-01' AS DATE)
@@ -465,7 +465,11 @@ SKU_LEVEL AS (
     AND COALESCE(BS.SESN, CS.SESN) = MS.SESN
     AND COALESCE(BS.PRDT_CD, CS.PRDT_CD) = MS.PRDT_CD
   CROSS JOIN PARAM PA
-  WHERE COALESCE(BS.BASE_STOCK_AMT, 0) > 0
+  WHERE
+    COALESCE(BS.BASE_STOCK_AMT, 0) > 0
+    OR COALESCE(CS.CURR_STOCK_AMT, 0) > 0
+    OR COALESCE(PS.PERIOD_TAG_SALES, 0) > 0
+    OR COALESCE(PS.PERIOD_ACT_SALES, 0) > 0
 ),
 
 CAT_LEVEL AS (
@@ -674,8 +678,8 @@ ORDER BY
   
   if (month >= 9 || month <= 2) {
     const fwYear = month >= 9 ? year : year - 1;
-    baseStockDate = `${fwYear}-09-30`;
-    periodStartDate = `${fwYear}-10-01`;
+    baseStockDate = `${fwYear}-08-31`;
+    periodStartDate = `${fwYear}-09-01`;
     seasonType = 'FW';
     currentYY = month >= 9 ? year % 100 : (year - 1) % 100;
   } else {
@@ -781,13 +785,15 @@ ORDER BY
       });
       let lyCurrStock = lyResponse.header?.curr_stock_amt ?? 0;
 
-      if (lyDate < '2025-10-01' && lyCurrStock <= 0) {
+      if (lyDate < '2025-10-01') {
         const legacyRaw = await fetchLegacyCurrStockFromPrep(lyDate, categoryFilter);
-        if (region === 'TW') {
-          const lyPeriod = getPeriodFromDateString(lyDate);
-          lyCurrStock = convertTwdToHkd(legacyRaw, lyPeriod) || 0;
-        } else {
-          lyCurrStock = legacyRaw;
+        if (legacyRaw > 0) {
+          if (region === 'TW') {
+            const lyPeriod = getPeriodFromDateString(lyDate);
+            lyCurrStock = convertTwdToHkd(legacyRaw, lyPeriod) || 0;
+          } else {
+            lyCurrStock = legacyRaw;
+          }
         }
       }
 

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { buildKey } from '@/lib/cache';
 import { compressToB64, decompressFromB64 } from '@/lib/redisSnapshot';
 import { executeSection3Query } from '@/lib/section3Query';
+import {
+  buildSection3OldSeasonCacheKey,
+  SECTION3_CACHE_SCHEMA_VERSION,
+} from '@/lib/section3-cache-key';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Redis 키 생성
-    const cacheKey = buildKey(['section3', 'old-season-inventory', region, brand, date, categoryFilter]);
+    const cacheKey = buildSection3OldSeasonCacheKey(region, brand, date, categoryFilter);
 
     // Redis에서 캐시 조회
     try {
@@ -78,13 +81,14 @@ export async function GET(request: NextRequest) {
           const durationMs = Date.now() - startTime;
 
           // HIT 로그 (운영 관찰성)
-          console.log('[section3] ✅ Request END - CACHE HIT', {
-            region,
-            brand,
-            date,
-            cache_hit: true,
-            key: cacheKey,
-            duration_ms: durationMs,
+      console.log('[section3] ✅ Request END - CACHE HIT', {
+        region,
+        brand,
+        date,
+        cache_schema_version: SECTION3_CACHE_SCHEMA_VERSION,
+        cache_hit: true,
+        key: cacheKey,
+        duration_ms: durationMs,
             generated_at: snapshot.generatedAt,
             response_rows_count: responseRowsCount,
             compressed_kb: (cached.length / 1024).toFixed(2),
@@ -142,6 +146,7 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       date,
+      cache_schema_version: SECTION3_CACHE_SCHEMA_VERSION,
       cache_hit: false,
       key: cacheKey,
       duration_ms: durationMs,

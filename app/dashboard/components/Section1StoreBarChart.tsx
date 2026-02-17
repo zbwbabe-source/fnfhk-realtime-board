@@ -28,6 +28,7 @@ interface StoreBarChartProps {
   region: string;
   brand: string;
   date: string;
+  latestDate?: string;
   language: Language;
 }
 
@@ -71,7 +72,7 @@ interface ChartDataPoint {
   py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
-export default function Section1StoreBarChart({ region, brand, date, language }: StoreBarChartProps) {
+export default function Section1StoreBarChart({ region, brand, date, latestDate, language }: StoreBarChartProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -118,8 +119,10 @@ export default function Section1StoreBarChart({ region, brand, date, language }:
       try {
         const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}`;
         console.log('📊 Fetching from URL:', url);
-        
-        const res = await fetch(url);
+
+        const isLatestDate = !!latestDate && date === latestDate;
+        const finalUrl = `${url}${isLatestDate ? '&forceRefresh=true' : ''}`;
+        const res = await fetch(finalUrl, isLatestDate ? { cache: 'no-store' } : undefined);
 
         if (!res.ok) {
           throw new Error('Failed to fetch store sales');

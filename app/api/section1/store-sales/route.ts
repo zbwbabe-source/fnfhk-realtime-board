@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     // 요청 시작 로그
     console.log('[section1] 📥 Request START', {
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       date,
+      force_refresh: forceRefresh,
       timestamp: new Date().toISOString(),
     });
 
@@ -52,8 +54,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Redis 스냅샷 조회
-    const snapshot = await getSnapshot<any>('SECTION1', 'store-sales', region, brand, date);
+    // Redis 스냅샷 조회 (forceRefresh면 skip)
+    const snapshot = forceRefresh
+      ? null
+      : await getSnapshot<any>('SECTION1', 'store-sales', region, brand, date);
 
     if (snapshot) {
       // Redis HIT: 즉시 반환

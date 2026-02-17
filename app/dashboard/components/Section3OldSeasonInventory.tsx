@@ -83,6 +83,7 @@ export default function Section3OldSeasonInventory({
   const [data, setData] = useState<Section3Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSeqRef = React.useRef(0);
 
   // ?뺤옣 ?곹깭 愿由?
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -96,6 +97,7 @@ export default function Section3OldSeasonInventory({
 
   React.useEffect(() => {
     async function fetchData() {
+      const requestSeq = ++requestSeqRef.current;
       if (!date) {
         console.log('?좑툘 Section3: No date provided');
         return;
@@ -110,7 +112,7 @@ export default function Section3OldSeasonInventory({
         const url = `/api/section3/old-season-inventory?${params}`;
         console.log('?뵇 Section3: Fetching from URL:', url);
         
-        const res = await fetch(url);
+        const res = await fetch(url, { cache: 'no-store' });
         
         console.log('?뱻 Section3: Response status:', res.status);
         
@@ -121,6 +123,9 @@ export default function Section3OldSeasonInventory({
         }
 
         const json = await res.json();
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         console.log('??Section3: Received data:', json);
         setData(json);
         
@@ -129,6 +134,9 @@ export default function Section3OldSeasonInventory({
           onDataChange(json);
         }
       } catch (err: any) {
+        if (requestSeq !== requestSeqRef.current) {
+          return;
+        }
         console.error('??Section3: Failed to fetch data:', err);
         console.error('??Section3: Error details:', err.message, err.stack);
         setError(err.message || (language === 'ko' ? '?곗씠?곕? 遺덈윭?ㅻ뒗???ㅽ뙣?덉뒿?덈떎.' : 'Failed to load data.'));
@@ -138,7 +146,9 @@ export default function Section3OldSeasonInventory({
           onDataChange(null);
         }
       } finally {
-        setLoading(false);
+        if (requestSeq === requestSeqRef.current) {
+          setLoading(false);
+        }
       }
     }
 
@@ -762,4 +772,3 @@ export default function Section3OldSeasonInventory({
     </div>
   );
 }
-

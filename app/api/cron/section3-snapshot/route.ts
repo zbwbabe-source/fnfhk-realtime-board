@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { buildKey } from '@/lib/cache';
 import { compressToB64 } from '@/lib/redisSnapshot';
 import { executeSection3Query } from '@/lib/section3Query';
 import { getYesterday, formatDateYYYYMMDD } from '@/lib/date-utils';
+import {
+  buildSection3OldSeasonCacheKey,
+  SECTION3_CACHE_SCHEMA_VERSION,
+} from '@/lib/section3-cache-key';
 
 /**
  * Vercel Cron Job: Section3 Snapshot
@@ -67,6 +70,7 @@ export async function GET(request: NextRequest) {
       regions,
       brands,
       category_filters: categoryFilters,
+      cache_schema_version: SECTION3_CACHE_SCHEMA_VERSION,
       days_to_generate: snapshotDays,
       parallel: isParallel,
       ttl_hours: ttlSeconds / 3600,
@@ -103,7 +107,7 @@ export async function GET(request: NextRequest) {
         const payload = await executeSection3Query(region, brand, date, { categoryFilter });
 
         // Redis 키 생성
-        const key = buildKey(['section3', 'old-season-inventory', region, brand, date, categoryFilter]);
+        const key = buildSection3OldSeasonCacheKey(region, brand, date, categoryFilter);
 
         // 스냅샷 데이터 준비
         const snapshotData = {
