@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import { t, type Language } from '@/lib/translations';
@@ -8,6 +8,7 @@ interface Section3Props {
   brand: string;
   date: string;
   categoryFilter: 'clothes' | 'all';
+  onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   onDataChange?: (data: Section3Data | null) => void;
   language: Language;
 }
@@ -75,6 +76,7 @@ export default function Section3OldSeasonInventory({
   brand,
   date,
   categoryFilter,
+  onCategoryFilterChange,
   onDataChange,
   language,
 }: Section3Props) {
@@ -430,6 +432,30 @@ export default function Section3OldSeasonInventory({
           <span className="font-bold text-base">※</span>
           <span>{t(language, 'stagnantStockInfo')}</span>
         </div>
+        
+        {/* 의류만/악세포함 필터 버튼 */}
+        <div className="flex items-center gap-2 ml-4">
+          <span className="text-xs text-gray-600 whitespace-nowrap">{t(language, 'filterCategory')}</span>
+          <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
+            <button
+              onClick={() => onCategoryFilterChange('clothes')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-l-lg transition-colors ${
+                categoryFilter === 'clothes' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'clothesOnly')}
+            </button>
+            <button
+              onClick={() => onCategoryFilterChange('all')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-r-lg transition-colors ${
+                categoryFilter === 'all' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t(language, 'allCategory')}
+            </button>
+          </div>
+        </div>
+
         {/* ?뺤껜?ш퀬 ?ㅼ슫濡쒕뱶 踰꾪듉 */}
         {data && (
           <button

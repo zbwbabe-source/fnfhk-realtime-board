@@ -524,6 +524,7 @@ export default function DashboardPage() {
               region={region}
               brand={brand}
               date={date}
+              latestDate={availableDates[0] || ''}
               language={language}
             />
           </div>
@@ -568,6 +569,7 @@ export default function DashboardPage() {
             region={region} 
             brand={brand} 
             date={date}
+            latestDate={availableDates[0] || ''}
             onDataChange={handleSection1Change}
             onYtdModeChange={setIsYtdMode}
             language={language}
@@ -598,6 +600,7 @@ export default function DashboardPage() {
             onDataChange={handleSection3Change}
             language={language}
             categoryFilter={section3CategoryFilter}
+            onCategoryFilterChange={setSection3CategoryFilter}
           />
         </div>
       </div>
