@@ -303,7 +303,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
       // ========== DETAIL 모드: 모든 지표 표시 ==========
       const discountColor = discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
-      const discountSymbol = discount_rate_diff > 0 ? '+' : '▼';
+      const discountSymbol = discount_rate_diff > 0 ? '+' : '△';
       
       const cx = x + width / 2;
       const cy = y + height / 2;
@@ -707,7 +707,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
     const data = payload[0].payload;
     const discountColor = data.discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
-    const discountSymbol = data.discount_rate_diff > 0 ? '+' : '';
+    const discountSymbol = data.discount_rate_diff > 0 ? '+' : '△';
 
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-300 text-sm">

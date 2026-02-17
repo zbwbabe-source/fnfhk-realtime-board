@@ -36,8 +36,13 @@ export default function Section2Card({
 
   const formatPp = (v: number | null | undefined) => {
     if (v === null || v === undefined) return language === 'ko' ? '전년비 N/A' : 'vs LY N/A';
-    const sign = v > 0 ? '+' : '';
-    return language === 'ko' ? `전년비 ${sign}${v.toFixed(1)}%p` : `vs LY ${sign}${v.toFixed(1)}%p`;
+    if (v > 0) {
+      return language === 'ko' ? `전년비 +${v.toFixed(1)}%p` : `vs LY +${v.toFixed(1)}%p`;
+    }
+    if (v < 0) {
+      return language === 'ko' ? `전년비 △${Math.abs(v).toFixed(1)}%p` : `vs LY △${Math.abs(v).toFixed(1)}%p`;
+    }
+    return language === 'ko' ? '전년비 0.0%p' : 'vs LY 0.0%p';
   };
 
   const formatYoy = (v: number | null | undefined) => {
