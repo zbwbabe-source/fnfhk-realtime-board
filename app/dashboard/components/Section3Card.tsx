@@ -172,29 +172,31 @@ export default function Section3Card({
         </div>
 
         <div>
-          <div className="text-xs text-gray-600 mb-1">
-            {kpis.k2.label}
-            {periodStartInfo && <span className="ml-1 text-blue-600">{periodStartInfo}</span>}
-          </div>
+          <div className="text-xs text-gray-600 mb-1">{kpis.k2.label}</div>
           <div className="text-xl font-bold text-gray-900">{kpis.k2.value}</div>
           {kpis.k2.subValue && (
             <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
             </div>
           )}
+          {periodStartInfo && (
+            <div className="text-[11px] text-blue-600 font-medium mt-1">
+              {periodStartInfo}
+            </div>
+          )}
         </div>
 
         <div>
-          <div className="text-xs text-gray-600 mb-1">
-            {kpis.k3.label}
-            <span className="ml-1 text-gray-500">({t(language, 'vsLastMonthEnd')})</span>
-          </div>
+          <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
           <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
           {kpis.k3.subValue && (
             <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}
             </div>
           )}
+          <div className="text-[11px] text-gray-500 mt-1">
+            ({t(language, 'vsLastMonthEnd')})
+          </div>
         </div>
       </div>
     </div>
