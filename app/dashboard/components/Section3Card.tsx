@@ -82,8 +82,9 @@ export default function Section3Card({
     const stagnantRatioChange = stagnantRatio - prevMonthStagnantRatio;
 
     const formatSubValue = (change: number) => {
-      const sign = change > 0 ? '+' : '';
-      return `${sign}${change.toFixed(1)}%p`;
+      const sign = change > 0 ? '▲' : change < 0 ? '△' : '';
+      const absChange = Math.abs(change);
+      return `${sign}${absChange.toFixed(1)}%p`;
     };
 
     return {
