@@ -101,24 +101,51 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
           </div>
         </div>
         
-        {/* 연누적 버튼 */}
+        {/* 당월/누적 버튼 */}
         {onYtdModeToggle && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onYtdModeToggle}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 border whitespace-nowrap ${
-                isYtdMode 
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
-              }`}
-            >
-              {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
-            </button>
-            {isYtdMode && (
-              <span className="text-xs text-blue-700 font-semibold bg-blue-100 px-2 py-1 rounded border border-blue-300">
-                {language === 'ko' ? `1/1~${date.slice(5).replace('-', '/')}` : `1/1~${date.slice(5).replace('-', '/')}`}
-              </span>
-            )}
+          <div className="flex flex-col items-end gap-1">
+            {/* 버튼 그룹 */}
+            <div className="flex items-center gap-2">
+              {/* 당월 버튼 */}
+              <button
+                onClick={() => {
+                  if (isYtdMode) {
+                    onYtdModeToggle();
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 border whitespace-nowrap ${
+                  !isYtdMode 
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                {!isYtdMode ? `✓ ${t(language, 'mtdToggle')}` : t(language, 'mtdToggle')}
+              </button>
+              
+              {/* 누적 버튼 */}
+              <button
+                onClick={() => {
+                  if (!isYtdMode) {
+                    onYtdModeToggle();
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 border whitespace-nowrap ${
+                  isYtdMode 
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
+              </button>
+            </div>
+            
+            {/* 대상 기간 표시 */}
+            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-300">
+              {isYtdMode 
+                ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
+                : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`
+              }
+            </span>
           </div>
         )}
       </div>

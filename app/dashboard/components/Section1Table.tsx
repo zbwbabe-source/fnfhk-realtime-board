@@ -8,6 +8,7 @@ interface Section1TableProps {
   region: string;
   brand: string;
   date: string;
+  latestDate?: string;
   onDataChange?: (data: any) => void;
   onYtdModeChange?: (isYtd: boolean) => void;
   language: Language;
@@ -40,7 +41,7 @@ interface StoreRow {
   forecast: number | null;
 }
 
-export default function Section1Table({ region, brand, date, onDataChange, onYtdModeChange, language }: Section1TableProps) {
+export default function Section1Table({ region, brand, date, latestDate, onDataChange, onYtdModeChange, language }: Section1TableProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -188,9 +189,9 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
       setError('');
       
       try {
-        const res = await fetch(
-          `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}`
-        );
+        const isLatestDate = !!latestDate && date === latestDate;
+        const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}${isLatestDate ? '&forceRefresh=true' : ''}`;
+        const res = await fetch(url, isLatestDate ? { cache: 'no-store' } : undefined);
         
         if (!res.ok) {
           throw new Error('Failed to fetch data');
@@ -413,20 +414,49 @@ export default function Section1Table({ region, brand, date, onDataChange, onYtd
           <h2 className="text-lg font-semibold text-gray-900">
             {t(language, 'section1Header')} <span className="text-sm text-gray-600 font-normal">({t(language, 'unit')})</span>
           </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsYtdMode(!isYtdMode)}
-              className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all duration-200 border ${
-                isYtdMode 
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
-              }`}
-            >
-              {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
-            </button>
-            {isYtdMode && date && (
-              <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded">
-                {language === 'ko' ? '1/1~누적' : '1/1~YTD'}
+          <div className="flex flex-col items-start gap-1">
+            {/* 버튼 그룹 */}
+            <div className="flex items-center gap-2">
+              {/* 당월 버튼 */}
+              <button
+                onClick={() => {
+                  if (isYtdMode) {
+                    setIsYtdMode(false);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all duration-200 border whitespace-nowrap ${
+                  !isYtdMode 
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                {!isYtdMode ? `✓ ${t(language, 'mtdToggle')}` : t(language, 'mtdToggle')}
+              </button>
+              
+              {/* 누적 버튼 */}
+              <button
+                onClick={() => {
+                  if (!isYtdMode) {
+                    setIsYtdMode(true);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all duration-200 border whitespace-nowrap ${
+                  isYtdMode 
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                }`}
+              >
+                {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
+              </button>
+            </div>
+            
+            {/* 대상 기간 표시 */}
+            {date && (
+              <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-300">
+                {isYtdMode 
+                  ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
+                  : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`
+                }
               </span>
             )}
           </div>
