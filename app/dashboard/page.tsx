@@ -394,6 +394,15 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex flex-wrap gap-4 items-center">
+            {/* 요약 버튼 */}
+            <div className="flex items-center gap-2">
+              <button
+                className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800 shadow-sm transition-all"
+              >
+                📊 요약
+              </button>
+            </div>
+            
             <RegionToggle value={region} onChange={setRegion} />
             <BrandSelect value={brand} onChange={setBrand} />
             <DateSelect 
