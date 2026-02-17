@@ -94,6 +94,13 @@ export const translations = {
     allCategory: '악세포함',
     tagBasis: '(택가기준)',
     
+    // 카테고리명 번역
+    '의류': '의류',
+    '모자': '모자',
+    '악세': '악세',
+    '신발': '신발',
+    '가방': '가방',
+    
     // Section 3
     section3Header: '섹션3. 과시즌 재고 소진현황',
     oldSeason: '과시즌',
@@ -222,6 +229,13 @@ export const translations = {
     clothesOnly: 'Apparel Only',
     allCategory: 'w/ ACC',
     tagBasis: '(TAG Basis)',
+    
+    // 카테고리명 번역
+    '의류': 'Apparel',
+    '모자': 'Hats',
+    '악세': 'Accessories',
+    '신발': 'Shoes',
+    '가방': 'Bags',
     
     // Section 3
     section3Header: 'Section 3: Old-season Inventory Clearance',

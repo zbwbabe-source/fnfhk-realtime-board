@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import { type Language } from '@/lib/translations';
+import { t, type Language } from '@/lib/translations';
 import { getColorByLargeCategory } from '@/lib/category-utils';
 import { 
   CardShell, 
@@ -78,6 +78,11 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // 카테고리명 번역 함수
+  const translateCategory = (categoryName: string): string => {
+    return t(language, categoryName as any) || categoryName;
+  };
 
   // Get current data based on mode
   const data = mode === 'monthly' ? monthlyData : ytdData;
@@ -291,7 +296,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
               }}
             >
               <tspan x={x + width / 2} dy="-0.5em" fontSize="14">
-                {name}
+                {translateCategory(name)}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="13" textAnchor="middle">
                 {yoy ? `YoY ${yoy.toFixed(0)}%` : `할인 ${discount_rate.toFixed(1)}%`}
@@ -358,7 +363,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                {name}
+                {translateCategory(name)}
               </text>
               <text
                 x={cx}
@@ -508,7 +513,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                {name}
+                {translateCategory(name)}
               </text>
               <text
                 x={cx}
@@ -607,7 +612,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
                   filter: 'none'
                 }}
               >
-                {name}
+                {translateCategory(name)}
               </text>
               <text
                 x={cx}
@@ -711,7 +716,7 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
 
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-300 text-sm">
-        <div className="font-bold text-gray-900 mb-3 text-base">{data.name}</div>
+        <div className="font-bold text-gray-900 mb-3 text-base">{translateCategory(data.name)}</div>
         <div className="space-y-1.5 text-gray-700">
           <div>
             <span className="font-semibold">{language === 'ko' ? '택매출' : 'Tag Sales'}:</span>{' '}
