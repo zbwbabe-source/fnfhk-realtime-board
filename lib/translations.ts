@@ -232,7 +232,7 @@ export const translations = {
     
     // 카테고리명 번역
     '의류': 'Apparel',
-    '모자': 'Hats',
+    '모자': 'Headwear',
     '악세': 'Accessories',
     '신발': 'Shoes',
     '가방': 'Bags',
