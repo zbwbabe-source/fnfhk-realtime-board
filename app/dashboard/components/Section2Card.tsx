@@ -118,9 +118,6 @@ export default function Section2Card({
           >
             {formatYoy(salesYoyPct)}
           </div>
-          <div className="text-[11px] text-gray-500 mt-1">
-            {t(language, 'tagBasis')}
-          </div>
         </div>
 
         <div>
@@ -133,9 +130,6 @@ export default function Section2Card({
             )}`}
           >
             {formatYoy(inboundYoyPct)}
-          </div>
-          <div className="text-[11px] text-gray-500 mt-1">
-            {t(language, 'tagBasis')}
           </div>
         </div>
       </div>
