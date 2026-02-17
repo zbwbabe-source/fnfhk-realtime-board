@@ -29,18 +29,28 @@ export default function Section3Card({
   };
 
   const getPeriodStartInfo = () => {
+    // period_start_date가 있으면 해당 날짜 사용 (예: 2025-09-01)
+    if (section3Data?.period_start_date) {
+      const periodStart = section3Data.period_start_date;
+      const year = periodStart.slice(2, 4); // 25
+      const month = periodStart.slice(5, 7); // 09
+      const day = periodStart.slice(8, 10); // 01
+      
+      return language === 'ko' 
+        ? `(${year}/${parseInt(month)}/${parseInt(day)}~)` 
+        : `(from ${year}/${parseInt(month)}/${parseInt(day)})`;
+    }
+    
+    // fallback: season_type만 있는 경우
     if (!section3Data?.season_type) return '';
     
-    // 현재 날짜에서 연도 추출
     const currentYear = new Date().getFullYear();
-    const shortYear = String(currentYear).slice(-2); // 25, 26 등
+    const shortYear = String(currentYear).slice(-2);
     
     if (section3Data.season_type === 'FW') {
-      // FW 시즌: 9월 1일부터
       return language === 'ko' ? `(${shortYear}/9/1~)` : `(from ${shortYear}/9/1)`;
     }
     if (section3Data.season_type === 'SS') {
-      // SS 시즌: 3월 1일부터
       return language === 'ko' ? `(${shortYear}/3/1~)` : `(from ${shortYear}/3/1)`;
     }
     return '';
