@@ -125,6 +125,14 @@ export const translations = {
     expandProducts: '품번 펼치기',
     collapseProducts: '품번 접기',
     
+    // Summary & Highlight
+    summary: '요약',
+    detailView: '상세 보기',
+    hkmcRegion: 'HKMC',
+    twRegion: 'TW',
+    dailyHighlight: '오늘의 하이라이트',
+    highlightPlaceholder: 'AI가 오늘의 주요 인사이트를 분석 중입니다...',
+    
     // Common
     year1: '1년차',
     year2: '2년차',
@@ -260,6 +268,14 @@ export const translations = {
     collapseOtherCategories: 'Hide Other Categories',
     expandProducts: 'Show Products',
     collapseProducts: 'Hide Products',
+    
+    // Summary & Highlight
+    summary: 'Summary',
+    detailView: 'Detail View',
+    hkmcRegion: 'HKMC',
+    twRegion: 'TW',
+    dailyHighlight: 'Daily Highlight',
+    highlightPlaceholder: 'AI is analyzing key insights for today...',
     
     // Common
     year1: 'Year 1',

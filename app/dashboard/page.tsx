@@ -13,6 +13,8 @@ import Section2SellThrough from './components/Section2SellThrough';
 import Section3Card from './components/Section3Card';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import ExecutiveSummary from './components/ExecutiveSummary';
+import DailyHighlight from './components/DailyHighlight';
+import SummaryView from './components/SummaryView';
 import { t, type Language } from '@/lib/translations';
 
 export default function DashboardPage() {
@@ -22,17 +24,28 @@ export default function DashboardPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isYtdMode, setIsYtdMode] = useState(false);
-  const [language, setLanguage] = useState<'ko' | 'en'>('ko'); // 언어 상태 추가
-  const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes'); // 섹션2 카테고리 필터
+  const [language, setLanguage] = useState<'ko' | 'en'>('ko');
+  const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
   
-  // 새로고침 키 (변경 시 모든 섹션이 리렌더링됨)
+  // 요약/상세 뷰 토글 상태
+  const [isSummaryView, setIsSummaryView] = useState(true);
+  
+  // 새로고침 키
   const [refreshKey, setRefreshKey] = useState(0);
   
-  // 섹션 데이터 상태
+  // 상세 뷰용 섹션 데이터 (현재 선택된 region)
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
   const [section3Data, setSection3Data] = useState<any>(null);
+  
+  // 요약 뷰용 섹션 데이터 (HKMC, TW 각각)
+  const [hkmcSection1Data, setHkmcSection1Data] = useState<any>(null);
+  const [hkmcSection2Data, setHkmcSection2Data] = useState<any>(null);
+  const [hkmcSection3Data, setHkmcSection3Data] = useState<any>(null);
+  const [twSection1Data, setTwSection1Data] = useState<any>(null);
+  const [twSection2Data, setTwSection2Data] = useState<any>(null);
+  const [twSection3Data, setTwSection3Data] = useState<any>(null);
 
   // 통합 AI 인사이트 상태
   const [dashboardInsights, setDashboardInsights] = useState<{
@@ -81,10 +94,20 @@ export default function DashboardPage() {
       setExecutiveSummary(null);
       setSummaryLoading(false);
       setSummaryError('');
-      // AI 요약 표시 상태 초기화 (버튼을 다시 "AI 요약 보기"로 되돌림)
+      // AI 요약 표시 상태 초기화
       setShowAISummary(false);
+      
+      // 요약 뷰일 때 HKMC와 TW 데이터 초기화
+      if (isSummaryView) {
+        setHkmcSection1Data(null);
+        setHkmcSection2Data(null);
+        setHkmcSection3Data(null);
+        setTwSection1Data(null);
+        setTwSection2Data(null);
+        setTwSection3Data(null);
+      }
     }
-  }, [region, brand, date]);
+  }, [region, brand, date, isSummaryView]);
 
   // 새로고침 핸들러
   const handleRefresh = () => {
@@ -126,6 +149,55 @@ export default function DashboardPage() {
     setSection3Data(data);
     setDataLoadStatus(prev => ({ ...prev, section3: data ? 'success' : 'error' }));
   }, []);
+
+  // 요약 뷰일 때 HKMC와 TW 데이터 병렬 로드
+  useEffect(() => {
+    if (!isSummaryView || !date || !brand) return;
+
+    const fetchSummaryData = async () => {
+      try {
+        const mode = isYtdMode ? 'ytd' : 'mtd';
+        
+        // HKMC와 TW 데이터를 병렬로 가져오기
+        const [hkmcS1, hkmcS2, hkmcS3, twS1, twS2, twS3] = await Promise.all([
+          // HKMC 섹션1
+          fetch(`/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}&mode=${mode}`).then(r => r.ok ? r.json() : null),
+          // HKMC 섹션2
+          fetch(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}`).then(r => r.ok ? r.json() : null),
+          // HKMC 섹션3
+          fetch(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`).then(r => r.ok ? r.json() : null),
+          // TW 섹션1
+          fetch(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}`).then(r => r.ok ? r.json() : null),
+          // TW 섹션2
+          fetch(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}`).then(r => r.ok ? r.json() : null),
+          // TW 섹션3
+          fetch(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`).then(r => r.ok ? r.json() : null),
+        ]);
+
+        setHkmcSection1Data(hkmcS1);
+        setHkmcSection2Data(hkmcS2);
+        setHkmcSection3Data(hkmcS3);
+        setTwSection1Data(twS1);
+        setTwSection2Data(twS2);
+        setTwSection3Data(twS3);
+        
+        setDataLoadStatus({
+          section1: (hkmcS1 && twS1) ? 'success' : 'error',
+          section2: (hkmcS2 && twS2) ? 'success' : 'error',
+          section3: (hkmcS3 && twS3) ? 'success' : 'error',
+        });
+      } catch (error) {
+        console.error('Error fetching summary data:', error);
+        setDataLoadStatus({
+          section1: 'error',
+          section2: 'error',
+          section3: 'error',
+        });
+      }
+    };
+
+    fetchSummaryData();
+  }, [isSummaryView, date, brand, isYtdMode, categoryFilter, section3CategoryFilter]);
 
   // 전체 로딩 상태 계산
   const allDataLoaded = dataLoadStatus.section1 === 'success' && 
@@ -397,13 +469,15 @@ export default function DashboardPage() {
             {/* 요약 버튼 */}
             <div className="flex items-center gap-2">
               <button
+                onClick={() => setIsSummaryView(!isSummaryView)}
                 className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800 shadow-sm transition-all"
               >
-                📊 요약
+                📊 {isSummaryView ? t(language, 'detailView') : t(language, 'summary')}
               </button>
             </div>
             
-            <RegionToggle value={region} onChange={setRegion} />
+            {/* Region 버튼은 상세 뷰일 때만 표시 */}
+            {!isSummaryView && <RegionToggle value={region} onChange={setRegion} />}
             <BrandSelect value={brand} onChange={setBrand} />
             <DateSelect 
               value={date} 
@@ -469,55 +543,89 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
-        {/* AI 요약 버튼 */}
-        {date && (
-          <div className="mb-6">
-            <button
-              onClick={() => setShowAISummary(!showAISummary)}
-              className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {summaryLoading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>{language === 'ko' ? 'AI 분석 중...' : 'AI Analyzing...'}</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-xl">🤖</span>
-                  <span>
-                    {showAISummary 
-                      ? (language === 'ko' ? 'AI 요약 숨기기' : 'Hide AI Summary')
-                      : (language === 'ko' ? 'AI 요약 보기' : 'View AI Summary')
-                    }
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
-        
-        {/* AI 요약 표시 (버튼 클릭 시에만) */}
-        {showAISummary && (
-          <ExecutiveSummary
-            region={region}
-            brand={brand}
-            date={date}
-            language={language}
-            section1Data={section1Data}
-            section2Data={section2Data}
-            section3Data={section3Data}
-            isLoading={summaryLoading || anyDataLoading}
-            isYtdMode={isYtdMode}
-            preloadedSummary={executiveSummary}
-            preloadedError={summaryError}
-            onSummaryUpdated={(data) => {
-              setExecutiveSummary(data);
-            }}
-          />
-        )}
-        
-        {/* 상단: 요약카드 + 그래프 그리드 (3열) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {isSummaryView ? (
+          /* ========== 요약 뷰 ========== */
+          <>
+            {/* 오늘의 하이라이트 */}
+            {date && (
+              <DailyHighlight
+                date={date}
+                brand={brand}
+                language={language}
+              />
+            )}
+            
+            {/* 요약 뷰 */}
+            <SummaryView
+              brand={brand}
+              date={date}
+              language={language}
+              isYtdMode={isYtdMode}
+              onYtdModeToggle={() => setIsYtdMode(!isYtdMode)}
+              hkmcSection1Data={hkmcSection1Data}
+              hkmcSection2Data={hkmcSection2Data}
+              hkmcSection3Data={hkmcSection3Data}
+              twSection1Data={twSection1Data}
+              twSection2Data={twSection2Data}
+              twSection3Data={twSection3Data}
+              categoryFilter={categoryFilter}
+              section3CategoryFilter={section3CategoryFilter}
+              onCategoryFilterChange={setCategoryFilter}
+              onSection3CategoryFilterChange={setSection3CategoryFilter}
+            />
+          </>
+        ) : (
+          /* ========== 상세 뷰 (기존) ========== */
+          <>
+            {/* AI 요약 버튼 */}
+            {date && (
+              <div className="mb-6">
+                <button
+                  onClick={() => setShowAISummary(!showAISummary)}
+                  className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {summaryLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>{language === 'ko' ? 'AI 분석 중...' : 'AI Analyzing...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">🤖</span>
+                      <span>
+                        {showAISummary 
+                          ? (language === 'ko' ? 'AI 요약 숨기기' : 'Hide AI Summary')
+                          : (language === 'ko' ? 'AI 요약 보기' : 'View AI Summary')
+                        }
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            
+            {/* AI 요약 표시 (버튼 클릭 시에만) */}
+            {showAISummary && (
+              <ExecutiveSummary
+                region={region}
+                brand={brand}
+                date={date}
+                language={language}
+                section1Data={section1Data}
+                section2Data={section2Data}
+                section3Data={section3Data}
+                isLoading={summaryLoading || anyDataLoading}
+                isYtdMode={isYtdMode}
+                preloadedSummary={executiveSummary}
+                preloadedError={summaryError}
+                onSummaryUpdated={(data) => {
+                  setExecutiveSummary(data);
+                }}
+              />
+            )}
+            
+            {/* 상단: 요약카드 + 그래프 그리드 (3열) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* 섹션1 열 */}
           <div className="space-y-6">
             <Section1Card
@@ -612,6 +720,8 @@ export default function DashboardPage() {
             onCategoryFilterChange={setSection3CategoryFilter}
           />
         </div>
+          </>
+        )}
       </div>
     </div>
   );

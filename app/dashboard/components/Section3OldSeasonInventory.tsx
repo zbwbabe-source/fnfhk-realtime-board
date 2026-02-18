@@ -84,6 +84,7 @@ export default function Section3OldSeasonInventory({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSeqRef = React.useRef(0);
+  const lastContextRef = React.useRef('');
 
   // ?뺤옣 ?곹깭 愿由?
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -108,7 +109,21 @@ export default function Section3OldSeasonInventory({
       setError(null);
 
       try {
-        const params = new URLSearchParams({ region, brand, date, category_filter: categoryFilter });
+        const contextKey = `${region}|${brand}|${date}`;
+        const shouldForceRefresh = contextKey !== lastContextRef.current;
+        if (shouldForceRefresh) {
+          lastContextRef.current = contextKey;
+        }
+
+        const params = new URLSearchParams({
+          region,
+          brand,
+          date,
+          category_filter: categoryFilter,
+        });
+        if (shouldForceRefresh) {
+          params.set('forceRefresh', 'true');
+        }
         const url = `/api/section3/old-season-inventory?${params}`;
         console.log('?뵇 Section3: Fetching from URL:', url);
         

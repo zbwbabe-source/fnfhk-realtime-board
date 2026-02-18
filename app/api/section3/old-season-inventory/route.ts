@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const region = (searchParams.get('region') || 'HKMC').trim();
     const brand = (searchParams.get('brand') || 'M').trim();
     const date = searchParams.get('date')?.trim() || '';
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
     const categoryFilter = (searchParams.get('category_filter') || 'all').trim() === 'clothes' ? 'clothes' : 'all';
 
     // 요청 시작 로그
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
       brand,
       date,
       categoryFilter,
+      force_refresh: forceRefresh,
       timestamp: new Date().toISOString(),
     });
 
@@ -56,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Redis에서 캐시 조회
     try {
-      const cached = await redis.get<string>(cacheKey);
+      const cached = forceRefresh ? null : await redis.get<string>(cacheKey);
 
       if (cached) {
         // Redis HIT: 압축 해제 후 반환
