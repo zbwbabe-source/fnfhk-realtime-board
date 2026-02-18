@@ -57,15 +57,32 @@ export async function GET(request: NextRequest) {
     const regions = ['HKMC', 'TW'];
     const brands = ['M', 'X'];
 
-    // Resources (기본 파라미터만 Cron에서 생성)
+    // Resources (필터별 변형 포함)
     const resources = [
       {
         name: 'sellthrough',
-        fetch: (params: any) => fetchSection2Sellthrough({ ...params, categoryFilter: 'clothes' }),
+        variants: [
+          {
+            key: 'sellthrough:clothes',
+            label: 'sellthrough:clothes',
+            fetch: (params: any) => fetchSection2Sellthrough({ ...params, categoryFilter: 'clothes' }),
+          },
+          {
+            key: 'sellthrough:all',
+            label: 'sellthrough:all',
+            fetch: (params: any) => fetchSection2Sellthrough({ ...params, categoryFilter: 'all' }),
+          },
+        ],
       },
       {
         name: 'treemap',
-        fetch: (params: any) => fetchSection2Treemap({ ...params, mode: 'monthly' }),
+        variants: [
+          {
+            key: 'treemap',
+            label: 'treemap',
+            fetch: (params: any) => fetchSection2Treemap({ ...params, mode: 'monthly' }),
+          },
+        ],
       },
     ];
 
@@ -105,33 +122,35 @@ export async function GET(request: NextRequest) {
       region: string,
       brand: string,
       date: string,
-      resource: { name: string; fetch: Function }
+      resource: { name: string; variants: Array<{ key: string; label: string; fetch: Function }> }
     ) => {
       try {
-        console.log(
-          `  📊 [section2-cron] Processing ${region}:${brand}:${date}:${resource.name}...`
-        );
+        for (const variant of resource.variants) {
+          console.log(
+            `  📊 [section2-cron] Processing ${region}:${brand}:${date}:${variant.label}...`
+          );
 
-        // Snowflake 쿼리 실행
-        const payload = await resource.fetch({ region, brand, date });
+          // Snowflake 쿼리 실행
+          const payload = await variant.fetch({ region, brand, date });
 
-        // Redis에 저장
-        await setSnapshot('SECTION2', resource.name, region, brand, date, payload, ttlSeconds);
+          // Redis에 저장
+          await setSnapshot('SECTION2', variant.key, region, brand, date, payload, ttlSeconds);
 
-        // 압축된 크기 추정 (정확한 크기는 setSnapshot 내부에서 계산됨)
-        const estimatedBytes = JSON.stringify(payload).length;
+          // 압축된 크기 추정 (정확한 크기는 setSnapshot 내부에서 계산됨)
+          const estimatedBytes = JSON.stringify(payload).length;
 
-        saved.push({
-          key: `SECTION2:${resource.name}:${region}:${brand}:${date}`,
-          bytes: estimatedBytes,
-          region,
-          brand,
-          date,
-          resource: resource.name,
-        });
-        console.log(
-          `    ✅ [section2-cron] Saved: SECTION2:${resource.name}:${region}:${brand}:${date}`
-        );
+          saved.push({
+            key: `SECTION2:${variant.key}:${region}:${brand}:${date}`,
+            bytes: estimatedBytes,
+            region,
+            brand,
+            date,
+            resource: variant.label,
+          });
+          console.log(
+            `    ✅ [section2-cron] Saved: SECTION2:${variant.key}:${region}:${brand}:${date}`
+          );
+        }
       } catch (error: any) {
         console.error(
           `    ❌ [section2-cron] Error for ${region}:${brand}:${date}:${resource.name}:`,
@@ -177,7 +196,11 @@ export async function GET(request: NextRequest) {
     // 완료 통계
     const durationMs = Date.now() - startTime;
     const totalBytes = saved.reduce((sum, item) => sum + item.bytes, 0);
-    const totalTargets = targetDates.length * regions.length * brands.length * resources.length;
+    const totalTargets =
+      targetDates.length *
+      regions.length *
+      brands.length *
+      resources.reduce((sum, resource) => sum + resource.variants.length, 0);
     const successCount = saved.length;
     const errorCount = errors.length;
 

@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
-    const categoryFilter = searchParams.get('category_filter') || 'clothes';
+    const categoryFilter =
+      (searchParams.get('category_filter') || 'clothes').trim() === 'all' ? 'all' : 'clothes';
 
     // 요청 시작 로그
     console.log('[section2] 📥 Request START', {
@@ -55,12 +56,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Redis 스냅샷 조회
-    // Note: categoryFilter는 스냅샷 키에 포함하지 않음 (Cron은 기본값만 생성)
-    // 다른 categoryFilter 요청은 항상 MISS가 되어 fallback 처리
-    const snapshot = await getSnapshot<any>('SECTION2', 'sellthrough', region, brand, date);
+    // Redis 스냅샷 조회 (필터별 키 분리)
+    const snapshotResource = `sellthrough:${categoryFilter}`;
+    const snapshot = await getSnapshot<any>('SECTION2', snapshotResource, region, brand, date);
 
-    if (snapshot && snapshot.payload.category_filter === categoryFilter) {
+    if (snapshot) {
       // Redis HIT: 즉시 반환
       cacheHit = true;
       const durationMs = Date.now() - startTime;
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     // 결과를 Redis에 저장 (fallback TTL)
     try {
-      await setSnapshot('SECTION2', 'sellthrough', region, brand, date, payload, FALLBACK_TTL_SECONDS);
+      await setSnapshot('SECTION2', snapshotResource, region, brand, date, payload, FALLBACK_TTL_SECONDS);
     } catch (redisError: any) {
       console.error('[section2] ⚠️  Redis save failed (non-fatal):', redisError.message);
     }

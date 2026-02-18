@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Region/Brand 조합
     const regions = ['HKMC', 'TW'];
     const brands = ['M', 'X'];
-    const categoryFilters: Array<'clothes' | 'all'> = ['clothes'];
+    const categoryFilters: Array<'clothes' | 'all'> = ['clothes', 'all'];
     
     // TTL 설정: 1일치면 72시간, 여러 날짜면 14일
     const ttlSeconds = snapshotDays === 1 ? 60 * 60 * 72 : 60 * 60 * 24 * 14;
