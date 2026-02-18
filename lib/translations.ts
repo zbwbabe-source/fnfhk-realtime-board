@@ -16,11 +16,11 @@ export const translations = {
     refreshData: '데이터 새로고침',
     
     // Summary Cards
-    section1Title: '섹션1: 매장별 매출',
+    section1Title: '1. 매장별매출',
     section1Subtitle: 'Store Sales',
-    section2Title: '섹션2: 당시즌 판매율',
+    section2Title: '2. 당시즌판매율',
     section2Subtitle: 'In-season Sell-through',
-    section3Title: '섹션3: 과시즌 재고 소진',
+    section3Title: '3. 과시즌재고소진',
     section3Subtitle: 'Old-season Clearance',
     analyzing: '분석 중...',
     cardUnit: '단위: HKD',
@@ -40,7 +40,7 @@ export const translations = {
     stagnantStockRatio: '정체재고비중',
     
     // Section 1
-    section1Header: '섹션 1: 매장별 매출',
+    section1Header: '1. 매장별매출',
     unit: '단위: 1k HKD',
     unitWithExchange: '단위: 1k HKD (환율적용)',
     mtdToggle: '당월',
@@ -62,9 +62,9 @@ export const translations = {
     subtotal: '소계',
     
     // Section 2
-    section2Header: '섹션 2: 당시즌 판매율',
-    section2HeaderClothes: '섹션2: 당시즌 판매율',
-    section2HeaderAll: '섹션2: 당시즌 판매율',
+    section2Header: '2. 당시즌판매율',
+    section2HeaderClothes: '2. 당시즌판매율',
+    section2HeaderAll: '2. 당시즌판매율',
     inSeason: '당시즌',
     sellthrough: '판매율',
     cumulativeSales: '누적판매(TAG)',
@@ -102,7 +102,7 @@ export const translations = {
     '가방': '가방',
     
     // Section 3
-    section3Header: '섹션3. 과시즌 재고 소진현황',
+    section3Header: '3. 과시즌재고소진',
     oldSeason: '과시즌',
     stagnantStockInfo: '정체재고: 최근 30일 판매없음 or 현재재고 대비 < 0.1%',
     yearlyAggregate: '1. 연차별 집계',
@@ -160,11 +160,11 @@ export const translations = {
     refreshData: 'Refresh Data',
     
     // Summary Cards
-    section1Title: 'Section 1: Store Sales',
+    section1Title: '1. Store Sales',
     section1Subtitle: 'Store Sales',
-    section2Title: 'Section 2: In-season Sell-through',
+    section2Title: '2. In-season Sell-through',
     section2Subtitle: 'In-season Sell-through',
-    section3Title: 'Section 3: Old-season Clearance',
+    section3Title: '3. Old-season Clearance',
     section3Subtitle: 'Old-season Clearance',
     analyzing: 'Analyzing...',
     cardUnit: 'Unit: HKD',
@@ -184,7 +184,7 @@ export const translations = {
     stagnantStockRatio: 'Stagnant Stock Ratio',
     
     // Section 1
-    section1Header: 'Section 1: Store Sales',
+    section1Header: '1. Store Sales',
     unit: 'Unit: 1k HKD',
     unitWithExchange: 'Unit: 1k HKD (Exch. Applied)',
     mtdToggle: 'MTD',
@@ -206,9 +206,9 @@ export const translations = {
     subtotal: 'Subtotal',
     
     // Section 2
-    section2Header: 'Section 2: In-season Sell-through',
-    section2HeaderClothes: 'Section 2: In-season Sell-through',
-    section2HeaderAll: 'Section 2: In-season Sell-through',
+    section2Header: '2. In-season Sell-through',
+    section2HeaderClothes: '2. In-season Sell-through',
+    section2HeaderAll: '2. In-season Sell-through',
     inSeason: 'In-season',
     sellthrough: 'Sell-through',
     cumulativeSales: 'Cumulative Sales (TAG)',
@@ -246,7 +246,7 @@ export const translations = {
     '가방': 'Bags',
     
     // Section 3
-    section3Header: 'Section 3: Old-season Inventory Clearance',
+    section3Header: '3. Old-season Clearance',
     oldSeason: 'Old-season',
     stagnantStockInfo: 'Stagnant Stock: No sales in last 30 days or < 0.1% of current stock',
     yearlyAggregate: '1. By Year',
