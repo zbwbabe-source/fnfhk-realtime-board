@@ -29,6 +29,8 @@ interface StoreBarChartProps {
   brand: string;
   date: string;
   latestDate?: string;
+  section1Data?: any;
+  disableFetch?: boolean;
   language: Language;
 }
 
@@ -72,7 +74,7 @@ interface ChartDataPoint {
   py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
-export default function Section1StoreBarChart({ region, brand, date, latestDate, language }: StoreBarChartProps) {
+export default function Section1StoreBarChart({ region, brand, date, latestDate, section1Data, disableFetch = false, language }: StoreBarChartProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -102,6 +104,13 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
     setSelectedChannel('전체');
   }, [region]);
 
+  useEffect(() => {
+    if (!section1Data) return;
+    setData(section1Data);
+    setLoading(false);
+    setError('');
+  }, [section1Data]);
+
   console.log('📊 Section1StoreBarChart rendered:', { region, brand, date, isYtdMode, showSalesPerArea, selectedChannel, isMobile });
 
   // 데이터 fetch
@@ -110,6 +119,8 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
       console.log('⚠️ No date provided, skipping fetch');
       return;
     }
+    if (disableFetch) return;
+    if (section1Data) return;
 
     async function fetchData() {
       console.log('📊 Fetching store sales data...');
@@ -140,7 +151,7 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
     }
 
     fetchData();
-  }, [region, brand, date]);
+  }, [region, brand, date, latestDate, section1Data, disableFetch]);
 
   // 채널별 색상 매핑
   const channelColors: Record<string, string> = {

@@ -9,6 +9,8 @@ interface Section1TableProps {
   brand: string;
   date: string;
   latestDate?: string;
+  section1Data?: any;
+  disableFetch?: boolean;
   onDataChange?: (data: any) => void;
   onYtdModeChange?: (isYtd: boolean) => void;
   language: Language;
@@ -41,7 +43,7 @@ interface StoreRow {
   forecast: number | null;
 }
 
-export default function Section1Table({ region, brand, date, latestDate, onDataChange, onYtdModeChange, language }: Section1TableProps) {
+export default function Section1Table({ region, brand, date, latestDate, section1Data, disableFetch = false, onDataChange, onYtdModeChange, language }: Section1TableProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -180,7 +182,16 @@ export default function Section1Table({ region, brand, date, latestDate, onDataC
   const isAllExpanded = Object.values(expandedChannels).every(v => v);
 
   useEffect(() => {
+    if (!section1Data) return;
+    setData(section1Data);
+    setLoading(false);
+    setError('');
+  }, [section1Data]);
+
+  useEffect(() => {
     if (!date) return;
+    if (disableFetch) return;
+    if (section1Data) return;
 
     console.log('🔍 Section1Table - Fetching data with params:', { region, brand, date });
 
@@ -219,7 +230,7 @@ export default function Section1Table({ region, brand, date, latestDate, onDataC
     }
 
     fetchData();
-  }, [region, brand, date, onDataChange]);
+  }, [region, brand, date, latestDate, section1Data, disableFetch, onDataChange]);
 
   // YTD 모드 변경 시 부모에게 알림
   useEffect(() => {
