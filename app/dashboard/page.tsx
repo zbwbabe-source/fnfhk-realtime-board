@@ -466,15 +466,40 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex flex-wrap gap-4 items-center">
-            {/* 요약 버튼 */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsSummaryView(!isSummaryView)}
-                className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800 shadow-sm transition-all"
-              >
-                📊 {isSummaryView ? t(language, 'detailView') : t(language, 'summary')}
-              </button>
-            </div>
+            {/* 요약/상세 뷰 전환 버튼 */}
+            {isSummaryView ? (
+              /* 요약 뷰: HKMC 상세, TW 상세 버튼 */
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setRegion('HKMC');
+                    setIsSummaryView(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-600 hover:from-blue-700 hover:to-blue-800 shadow-sm transition-all"
+                >
+                  🏢 HKMC 상세
+                </button>
+                <button
+                  onClick={() => {
+                    setRegion('TW');
+                    setIsSummaryView(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-green-600 to-green-700 text-white border-green-600 hover:from-green-700 hover:to-green-800 shadow-sm transition-all"
+                >
+                  🏢 TW 상세
+                </button>
+              </div>
+            ) : (
+              /* 상세 뷰: 요약 버튼 */
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsSummaryView(true)}
+                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800 shadow-sm transition-all"
+                >
+                  📊 {t(language, 'summary')}
+                </button>
+              </div>
+            )}
             
             {/* Region 버튼은 상세 뷰일 때만 표시 */}
             {!isSummaryView && <RegionToggle value={region} onChange={setRegion} />}
