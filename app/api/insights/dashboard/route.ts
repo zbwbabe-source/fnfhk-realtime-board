@@ -1,209 +1,371 @@
-// app/api/insights/dashboard/route.ts
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { cacheGet, cacheSet, buildKey } from "@/lib/cache";
+import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
+import { buildKey, cacheGet, cacheSet } from '@/lib/cache';
+import { EXEC_INSIGHT_SYSTEM_PROMPT, EXEC_INSIGHT_USER_PROMPT } from '@/lib/insights/prompts';
+import type {
+  ExecutiveInsightBlock,
+  ExecutiveInsightInput,
+  ExecutiveInsightResponse,
+  ExecutiveRegionInput,
+  InsightTone,
+} from '@/lib/insights/types';
 
-export const runtime = "nodejs"; // edge 말고 node 권장(안정성)
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+const MODEL = 'gpt-4o-mini';
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// 80자 제한 강제(길면 줄임)
-function clamp80(s: string) {
-  if (!s) return s;
-  return s.length <= 80 ? s : s.slice(0, 79) + "…";
+function clampText(s: string, max: number): string {
+  if (!s) return '';
+  return s.length <= max ? s : `${s.slice(0, max - 3)}...`;
 }
 
-// 숫자 -> 판단 신호로 변환 (실제 수치 포함)
-function buildSignals(input: any) {
-  const s1 = input.section1 ?? {};
-  const s2 = input.section2 ?? {};
-  const s3 = input.section3 ?? {};
+function toNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
 
-  const section1 = {
-    achievement_rate: Math.round(s1.achievement_rate || 0),
-    yoy_ytd: Math.round(s1.yoy_ytd || 0),
-    actual_sales: Math.round(s1.actual_sales_ytd || 0),
-    target: Math.round(s1.target_ytd || 0),
-    tone:
-      s1.achievement_rate >= 100 ? "positive" :
-      s1.achievement_rate >= 90 ? "neutral" : "negative",
-    growth_quality:
-      s1.yoy_ytd >= 30 ? "strong" :
-      s1.yoy_ytd > 0 ? "mild" : "weak",
+function fmtYoy(v: number | null): string {
+  if (v === null) return 'N/A';
+  return `${Math.round(v)}%`;
+}
+
+function fmtRate(v: number | null): string {
+  if (v === null) return 'N/A';
+  return `${v.toFixed(1)}%`;
+}
+
+function fmtNum(v: number | null): string {
+  if (v === null) return 'N/A';
+  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+  return `${Math.round(v)}`;
+}
+
+function fmtDays(v: number | null): string {
+  if (v === null) return 'N/A';
+  return `${Math.round(v)}일`;
+}
+
+function normalizeInput(raw: any): ExecutiveInsightInput {
+  const normalizedMode = raw?.mode === 'YTD' ? 'YTD' : 'MTD';
+  const asOfDate = String(raw?.asOfDate || raw?.asof_date || '').trim();
+  const brand = String(raw?.brand || '').trim().toUpperCase();
+  const region = String(raw?.region || 'ALL').trim().toUpperCase();
+
+  const hkmcFromLegacy = raw?.hkmc ?? {
+    salesMtdYoy: toNumber(raw?.section1?.hkmc_mtd_yoy),
+    salesYtdYoy: toNumber(raw?.section1?.hkmc_ytd_yoy),
+    seasonSellthrough: toNumber(raw?.section2?.hkmc_sellthrough),
+    oldStock: toNumber(raw?.section3?.hkmc_curr_stock),
+    invDays: toNumber(raw?.section3?.hkmc_inv_days),
   };
 
-  const section2 = {
-    sellthrough_rate: Math.round(s2.sellthrough_rate || 0),
-    sales_amt: Math.round(s2.sales_amt || 0),
-    inbound_amt: Math.round(s2.inbound_amt || 0),
-    sales_yoy: Math.round(s2.sales_yoy_pct || 100),
-    tone:
-      s2.sellthrough_rate >= 70 ? "positive" :
-      s2.sellthrough_rate >= 60 ? "neutral" : "negative",
-    risk:
-      s2.sellthrough_rate < 60 ? "promo_pressure" :
-      s2.sellthrough_rate < 65 ? "watch" : "stable",
+  const twFromLegacy = raw?.tw ?? {
+    salesMtdYoy: toNumber(raw?.section1?.tw_mtd_yoy),
+    salesYtdYoy: toNumber(raw?.section1?.tw_ytd_yoy),
+    seasonSellthrough: toNumber(raw?.section2?.tw_sellthrough),
+    oldStock: toNumber(raw?.section3?.tw_curr_stock),
+    invDays: toNumber(raw?.section3?.tw_inv_days),
   };
 
-  const section3 = {
-    sellthrough_rate: Math.round(s3.sellthrough_rate || 0),
-    base_stock: Math.round(s3.base_stock_amt || 0),
-    curr_stock: Math.round(s3.curr_stock_amt || 0),
-    tone:
-      s3.sellthrough_rate >= 25 ? "positive" :
-      s3.sellthrough_rate >= 15 ? "neutral" : "negative",
-    risk:
-      s3.curr_stock_amt > 0
-        ? (s3.sellthrough_rate < 20 ? "slow_burn" : "ok_burn")
-        : "unknown",
+  const hkmc: ExecutiveRegionInput = {
+    salesMtdYoy: toNumber(hkmcFromLegacy?.salesMtdYoy),
+    salesYtdYoy: toNumber(hkmcFromLegacy?.salesYtdYoy),
+    seasonSellthrough: toNumber(hkmcFromLegacy?.seasonSellthrough),
+    oldStock: toNumber(hkmcFromLegacy?.oldStock),
+    invDays: toNumber(hkmcFromLegacy?.invDays),
   };
 
-  return { section1, section2, section3 };
+  const tw: ExecutiveRegionInput = {
+    salesMtdYoy: toNumber(twFromLegacy?.salesMtdYoy),
+    salesYtdYoy: toNumber(twFromLegacy?.salesYtdYoy),
+    seasonSellthrough: toNumber(twFromLegacy?.seasonSellthrough),
+    oldStock: toNumber(twFromLegacy?.oldStock),
+    invDays: toNumber(twFromLegacy?.invDays),
+  };
+
+  return {
+    region,
+    brand,
+    asOfDate,
+    mode: normalizedMode,
+    isToday: typeof raw?.isToday === 'boolean' ? raw.isToday : undefined,
+    hkmc,
+    tw,
+  };
+}
+
+function toneByDiff(diff: number | null): InsightTone {
+  if (diff === null) return 'neutral';
+  if (diff >= 20) return 'positive';
+  if (diff >= 5) return 'neutral';
+  if (diff >= -10) return 'warning';
+  return 'critical';
+}
+
+function toneByLevel(v: number | null, good: number, warn: number): InsightTone {
+  if (v === null) return 'neutral';
+  if (v >= good) return 'positive';
+  if (v >= warn) return 'warning';
+  return 'critical';
+}
+
+function buildSignals(input: ExecutiveInsightInput) {
+  const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
+  const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
+  const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
+  const salesYtdTw = input.tw.salesYtdYoy ?? null;
+  const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
+  const seasonTw = input.tw.seasonSellthrough ?? null;
+  const oldHkmc = input.hkmc.oldStock ?? null;
+  const oldTw = input.tw.oldStock ?? null;
+  const invHkmc = input.hkmc.invDays ?? null;
+  const invTw = input.tw.invDays ?? null;
+
+  const salesDiff = salesHkmc !== null && salesTw !== null ? salesHkmc - salesTw : null;
+  const seasonDiff = seasonHkmc !== null && seasonTw !== null ? seasonHkmc - seasonTw : null;
+
+  const blocks: ExecutiveInsightBlock[] = [
+    {
+      id: 'sales',
+      label: '매출',
+      tone: toneByDiff(salesDiff),
+      text: `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
+    },
+    {
+      id: 'season',
+      label: '당시즌',
+      tone: toneByDiff(seasonDiff),
+      text: `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`,
+    },
+    {
+      id: 'old',
+      label: '과시즌',
+      tone: toneByLevel(Math.max(invHkmc ?? 0, invTw ?? 0), 180, 120),
+      text: `과시즌 잔액/재고일수는 HKMC ${fmtNum(oldHkmc)}·${fmtDays(invHkmc)}, TW ${fmtNum(oldTw)}·${fmtDays(invTw)}입니다.`,
+    },
+  ];
+
+  const summaryLine = clampText('HKMC/TW 각 특성 속 당시즌 둔화가 차기 과시즌 부담으로 이어질 수 있습니다.', 80);
+  const compareLine = '';
+
+  const actions = [
+    { priority: 'P1' as const, text: 'TW 당시즌 소진 둔화 → 차기 과시즌 부담 전이 가능, 선제 소진 대책을 즉시 점검.' },
+    { priority: 'P2' as const, text: 'HKMC/TW 매출 YoY 차이는 채널·상품군 구성 차이 여부를 우선 점검.' },
+    { priority: 'P3' as const, text: '과시즌 재고일수 상위 구간 중심으로 할인·재배치 우선순위를 재설정.' },
+  ];
+
+  return {
+    summaryLine,
+    compareLine,
+    blocks,
+    actions,
+  };
+}
+
+function forceSalesBlockWithYtd(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
+  const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
+  const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
+  const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
+  const salesYtdTw = input.tw.salesYtdYoy ?? null;
+
+  return blocks.map((b) => {
+    if (b.id !== 'sales') return b;
+    return {
+      ...b,
+      text: `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
+    };
+  });
+}
+
+function forceSeasonTargetBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
+  const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
+  const seasonTw = input.tw.seasonSellthrough ?? null;
+  return blocks.map((b) => {
+    if (b.id !== 'season') return b;
+    return {
+      ...b,
+      text: `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`,
+    };
+  });
+}
+
+function isValidTone(v: unknown): v is InsightTone {
+  return v === 'positive' || v === 'neutral' || v === 'warning' || v === 'critical';
+}
+
+function validateResponseShape(obj: any): obj is Omit<ExecutiveInsightResponse, 'meta'> {
+  if (!obj || typeof obj !== 'object') return false;
+  if (obj.title !== 'Executive Insight') return false;
+  if (typeof obj.asOfLabel !== 'string' || typeof obj.summaryLine !== 'string' || typeof obj.compareLine !== 'string') return false;
+  if (!Array.isArray(obj.blocks) || obj.blocks.length !== 3) return false;
+  if (!Array.isArray(obj.actions) || obj.actions.length > 3) return false;
+
+  const expectedIds = ['sales', 'season', 'old'];
+  for (let i = 0; i < 3; i += 1) {
+    const b = obj.blocks[i];
+    if (!b || b.id !== expectedIds[i] || typeof b.label !== 'string' || typeof b.text !== 'string' || !isValidTone(b.tone)) {
+      return false;
+    }
+  }
+  for (let i = 0; i < obj.actions.length; i += 1) {
+    const a = obj.actions[i];
+    if (!a || (a.priority !== 'P1' && a.priority !== 'P2' && a.priority !== 'P3') || typeof a.text !== 'string') {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sanitizeInsightText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/실행안 확정/g, '우선 대응')
+    .replace(/실행안을 확정/g, '우선 대응안을 정리')
+    .replace(/HKMC\s*우위\s*유지\s*속/gi, 'HKMC/TW 각 특성 속')
+    .replace(/HKMC\s*우위/gi, 'HKMC/TW 특성')
+    .replace(/로 비교됩니다\./g, '입니다.')
+    .replace(/비교됩니다\./g, '입니다.')
+    .trim();
+}
+
+function withMeta(
+  payload: Omit<ExecutiveInsightResponse, 'meta'>,
+  meta: { cached: boolean; generatedAt: string; ttlSeconds: number; model: string },
+  input: ExecutiveInsightInput
+): ExecutiveInsightResponse {
+  const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
+  const seasonForced = forceSeasonTargetBlock(salesForced, input);
+  return {
+    ...payload,
+    summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
+    compareLine: '',
+    blocks: seasonForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
+    actions: payload.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
+    meta: {
+      model: meta.model,
+      cached: meta.cached,
+      generatedAt: meta.generatedAt,
+      ttlSeconds: meta.ttlSeconds,
+    },
+  };
+}
+
+async function generateExecutiveInsight(input: ExecutiveInsightInput): Promise<Omit<ExecutiveInsightResponse, 'meta'>> {
+  const signals = buildSignals(input);
+  const asOfLabel = `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`;
+
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+    max_tokens: 800,
+    messages: [
+      { role: 'system', content: EXEC_INSIGHT_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `${EXEC_INSIGHT_USER_PROMPT}
+
+INPUT:
+${JSON.stringify(input, null, 2)}
+
+SIGNALS:
+${JSON.stringify(signals, null, 2)}
+
+Output JSON only.`,
+      },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content?.trim() || '{}';
+  const parsed = JSON.parse(raw);
+  if (!validateResponseShape(parsed)) {
+    throw new Error('Invalid JSON schema from model');
+  }
+
+  return {
+    ...parsed,
+    title: 'Executive Insight',
+    asOfLabel,
+  };
+}
+
+function buildRuleFallback(input: ExecutiveInsightInput): Omit<ExecutiveInsightResponse, 'meta'> {
+  const signals = buildSignals(input);
+  return {
+    title: 'Executive Insight',
+    asOfLabel: `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`,
+    summaryLine: signals.summaryLine,
+    compareLine: signals.compareLine,
+    blocks: signals.blocks,
+    actions: signals.actions,
+  };
+}
+
+function resolveTtlSeconds(input: ExecutiveInsightInput): number {
+  if (typeof input.isToday === 'boolean') {
+    return input.isToday ? 3600 : 12 * 3600;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  return input.asOfDate === today ? 3600 : 12 * 3600;
 }
 
 export async function POST(req: Request) {
-  const startTime = Date.now();
-  
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({
-        section1: "AI 비활성 상태임",
-        section2: "AI 비활성 상태임",
-        section3: "AI 비활성 상태임",
-      });
+    const body = await req.json();
+    const input = normalizeInput(body);
+    const url = new URL(req.url);
+    const forceRefresh = url.searchParams.get('forceRefresh') === 'true' || body?.skip_cache === true;
+
+    if (!input.brand || !input.asOfDate) {
+      return NextResponse.json({ error: 'brand and asOfDate are required' }, { status: 400 });
     }
 
-    const body = await req.json();
-    const { region, brand, asof_date, skip_cache = false } = body;
-    
-    // Support both skip_cache (body) and forceRefresh (query param)
-    const url = new URL(req.url);
-    const forceRefresh = url.searchParams.get('forceRefresh') === 'true' || skip_cache;
+    const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
+    const cacheKey = buildKey(['insights', 'exec', 'v7', regionPart, input.brand, input.asOfDate]);
+    const ttlSeconds = resolveTtlSeconds(input);
 
-    // Build cache key early for logging
-    let cacheKey: string;
-    try {
-      cacheKey = buildKey(['insights', 'dashboard', region, brand, asof_date]);
-    } catch (error: any) {
+    const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
+    if (cached && !forceRefresh) {
       return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
+        withMeta(
+          {
+            title: 'Executive Insight',
+            asOfLabel: cached.asOfLabel,
+            summaryLine: cached.summaryLine,
+            compareLine: cached.compareLine,
+            blocks: cached.blocks,
+            actions: cached.actions,
+          },
+          {
+            cached: true,
+            generatedAt: cached.meta?.generatedAt || new Date().toISOString(),
+            ttlSeconds: cached.meta?.ttlSeconds || ttlSeconds,
+            model: cached.meta?.model || MODEL,
+          },
+          input
+        )
       );
     }
 
-    // Request fingerprint
-    console.log('[REQ] insights/dashboard', { region, brand, asof_date, skip_cache, forceRefresh, cacheKey });
-
-    console.log('📊 [INSIGHTS/DASHBOARD] Request received:', { region, brand, asof_date, forceRefresh });
-    console.log('📊 [INSIGHTS/DASHBOARD] Data flow: Receives pre-aggregated section data from client');
-    console.log('📊 [INSIGHTS/DASHBOARD] Does NOT call section APIs - uses body.section1/section2/section3 directly');
-
-    console.log('🔑 Redis Key:', cacheKey);
-    
-    // 캐시 건너뛰기가 아닐 때만 캐시 확인
-    if (!forceRefresh) {
-      const cached = await cacheGet<any>(cacheKey);
-      if (cached) {
-        const elapsed = Date.now() - startTime;
-        console.log(`[CACHE HIT] insights/dashboard [${cacheKey}] - ${elapsed}ms`);
-        return NextResponse.json(cached);
-      }
-      console.log(`[CACHE MISS] insights/dashboard [${cacheKey}], generating AI insights...`);
-    } else {
-      console.log(`[CACHE REFRESH] insights/dashboard [${cacheKey}], generating AI insights...`);
-    }
-
-    console.log('📊 [INSIGHTS/DASHBOARD] Input sections received:', {
-      section1_keys: Object.keys(body.section1 || {}),
-      section2_keys: Object.keys(body.section2 || {}),
-      section3_keys: Object.keys(body.section3 || {}),
-    });
-
-    const signals = buildSignals(body);
-    console.log('🔍 Building insights from signals:', signals);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8초 컷
-
-    const prompt = `
-너는 리테일 데이터 분석가다.
-아래 수치를 기반으로 현재 지표를 해석하라.
-
-반드시 다음 3가지 관점을 모두 반영하여 분석:
-① 최근 추세 (상승/하락/정체)
-② 전월 대비 수준
-③ 전년 동월 대비 수준
-
-규칙:
-- 반드시 구체적인 분석을 작성 (fallback 금지)
-- 수치 기반으로 서술 (상회/유사/하회)
-- 평가·지시·조언·관리 표현 금지
-- 서술형 1문장, 80자 이내
-- JSON 형식만 출력
-
-입력 신호:
-- Section1: ${JSON.stringify(signals.section1)}
-- Section2: ${JSON.stringify(signals.section2)}
-- Section3: ${JSON.stringify(signals.section3)}
-
-출력 예시:
-{
-  "section1": "전년 대비 목표달성률 상승세이나 전월 대비 소폭 둔화",
-  "section2": "판매율 전년 유사 수준이며 전월 대비 안정적 추세 유지 중",
-  "section3": "소진율 전년 대비 개선 중이나 전월 대비 정체 구간"
-}
-`.trim();
-
-    let result: any;
+    const generatedAt = new Date().toISOString();
+    let payload: Omit<ExecutiveInsightResponse, 'meta'>;
 
     try {
-      console.log('[AI EXEC] insights/dashboard', cacheKey);
-      const resp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { 
-            role: "system", 
-            content: "너는 리테일 데이터 분석가다. 반드시 구체적인 분석을 제공하라. '추가 관찰 후 판단 필요함' 같은 회피 응답은 금지. 숫자 기반으로 최근추세, 전월비교, 전년비교를 모두 반영해 80자 이내로 서술하라." 
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.3, // 약간 높여서 더 다양한 응답 유도
-        max_tokens: 300,
-        response_format: { type: "json_object" },
-      }, { signal: controller.signal as any });
-
-      const text = resp.choices[0].message.content?.trim() ?? "{}";
-      result = JSON.parse(text);
-      console.log('✅ AI response:', result);
-    } catch (e: any) {
-      console.error('❌ OpenAI API error:', e.message);
-      throw e;
-    } finally {
-      clearTimeout(timeout);
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is missing');
+      }
+      payload = await generateExecutiveInsight(input);
+    } catch {
+      payload = buildRuleFallback(input);
     }
 
-    // 80자 제한 강제
-    const final = {
-      section1: clamp80(result.section1 ?? "추가 관찰 후 판단 필요함"),
-      section2: clamp80(result.section2 ?? "추가 관찰 후 판단 필요함"),
-      section3: clamp80(result.section3 ?? "추가 관찰 후 판단 필요함"),
-    };
-
-    // Cache for 10 minutes (600 seconds)
-    const elapsed = Date.now() - startTime;
-    await cacheSet(cacheKey, final, 600);
-    console.log(`[CACHE SET] insights/dashboard [${cacheKey}] - Query executed in ${elapsed}ms`);
-    console.log('📊 [INSIGHTS/DASHBOARD] Insights generated successfully');
+    const final = withMeta(payload, { cached: false, generatedAt, ttlSeconds, model: MODEL }, input);
+    await cacheSet(cacheKey, final, ttlSeconds);
     return NextResponse.json(final);
-  } catch (e: any) {
-    console.error('❌ Dashboard insights failed:', e);
-    // 타임아웃/실패 시 즉시 fallback
-    return NextResponse.json({
-      section1: "추가 관찰 후 판단 필요함",
-      section2: "추가 관찰 후 판단 필요함",
-      section3: "추가 관찰 후 판단 필요함",
-    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to generate executive insight' }, { status: 500 });
   }
 }

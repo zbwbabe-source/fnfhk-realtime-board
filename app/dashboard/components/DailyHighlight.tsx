@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { type Language } from '@/lib/translations';
+import type { ExecutiveInsightResponse } from '@/lib/insights/types';
 
 interface DailyHighlightProps {
   date: string;
@@ -15,25 +17,9 @@ interface DailyHighlightProps {
   twSection3Data: any;
 }
 
-const formatPct = (value: number | null | undefined, digits = 1) =>
-  typeof value === 'number' ? `${value.toFixed(digits)}%` : 'N/A';
-
-const formatShort = (value: number | null | undefined) => {
-  if (typeof value !== 'number') return 'N/A';
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-  return `${value.toFixed(0)}`;
-};
-
-const formatDays = (value: number | null | undefined, language: Language) => {
-  if (typeof value !== 'number') return 'N/A';
-  return language === 'ko' ? `${Math.round(value)}일` : `${Math.round(value)} days`;
-};
-
 export default function DailyHighlight({
   date,
   brand,
-  language,
   isYtdMode,
   hkmcSection1Data,
   hkmcSection2Data,
@@ -42,70 +28,118 @@ export default function DailyHighlight({
   twSection2Data,
   twSection3Data,
 }: DailyHighlightProps) {
-  const hkmcMtdYoy = hkmcSection1Data?.total_subtotal?.yoy;
-  const twMtdYoy = twSection1Data?.total_subtotal?.yoy;
-  const hkmcYtdYoy = hkmcSection1Data?.total_subtotal?.yoy_ytd;
-  const twYtdYoy = twSection1Data?.total_subtotal?.yoy_ytd;
+  const [data, setData] = useState<ExecutiveInsightResponse | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const hkmcSellthrough = hkmcSection2Data?.header?.overall_sellthrough;
-  const twSellthrough = twSection2Data?.header?.overall_sellthrough;
+  const inputPayload = useMemo(() => {
+    return {
+      brand,
+      asOfDate: date,
+      mode: isYtdMode ? 'YTD' : 'MTD',
+      region: 'ALL',
+      hkmc: {
+        salesMtdYoy: hkmcSection1Data?.total_subtotal?.yoy ?? null,
+        salesYtdYoy: hkmcSection1Data?.total_subtotal?.yoy_ytd ?? null,
+        seasonSellthrough: hkmcSection2Data?.header?.overall_sellthrough ?? null,
+        oldStock: hkmcSection3Data?.header?.curr_stock_amt ?? null,
+        invDays: hkmcSection3Data?.header?.inv_days ?? null,
+      },
+      tw: {
+        salesMtdYoy: twSection1Data?.total_subtotal?.yoy ?? null,
+        salesYtdYoy: twSection1Data?.total_subtotal?.yoy_ytd ?? null,
+        seasonSellthrough: twSection2Data?.header?.overall_sellthrough ?? null,
+        oldStock: twSection3Data?.header?.curr_stock_amt ?? null,
+        invDays: twSection3Data?.header?.inv_days ?? null,
+      },
+    };
+  }, [
+    brand,
+    date,
+    isYtdMode,
+    hkmcSection1Data,
+    hkmcSection2Data,
+    hkmcSection3Data,
+    twSection1Data,
+    twSection2Data,
+    twSection3Data,
+  ]);
 
-  const hkmcOldStock = hkmcSection3Data?.header?.curr_stock_amt;
-  const twOldStock = twSection3Data?.header?.curr_stock_amt;
-  const hkmcInvDays = hkmcSection3Data?.header?.inv_days;
-  const twInvDays = twSection3Data?.header?.inv_days;
+  useEffect(() => {
+    if (!date || !brand) return;
+    let mounted = true;
+
+    async function fetchInsight() {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/insights/dashboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputPayload),
+        });
+        if (!response.ok) return;
+        const json = (await response.json()) as ExecutiveInsightResponse;
+        if (mounted) {
+          setData(json);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchInsight();
+    return () => {
+      mounted = false;
+    };
+  }, [inputPayload, date, brand]);
+
+  const toneClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
+    if (tone === 'positive') return 'text-emerald-700 bg-emerald-50';
+    if (tone === 'warning') return 'text-amber-700 bg-amber-50';
+    if (tone === 'critical') return 'text-rose-700 bg-rose-50';
+    return 'text-gray-600 bg-gray-100';
+  };
+
+  const toneTextClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
+    if (tone === 'positive') return 'text-emerald-700';
+    if (tone === 'warning') return 'text-amber-700';
+    if (tone === 'critical') return 'text-rose-700';
+    return 'text-gray-700';
+  };
 
   return (
     <section className="mb-6 rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Executive Insight</h2>
-        <p className="text-xs text-gray-500">
-          {date} | {brand} | {isYtdMode ? 'YTD' : 'MTD'}
-        </p>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">{data?.title || 'Executive Insight'}</h2>
+        <p className="text-xs text-gray-500">{data?.asOfLabel || `${date} | ${brand} | ${isYtdMode ? 'YTD' : 'MTD'}`}</p>
       </div>
 
-      <div className="space-y-1.5 text-sm text-gray-700">
-        {language === 'ko' ? (
-          <>
-            <p>
-              1. 실판매출 YoY: HKMC 당월 <span className="font-semibold text-purple-600">{formatPct(hkmcMtdYoy, 0)}</span>, 누적{' '}
-              <span className="font-semibold text-purple-600">{formatPct(hkmcYtdYoy, 0)}</span> / TW 당월{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twMtdYoy, 0)}</span>, 누적{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twYtdYoy, 0)}</span>.
-            </p>
-            <p>
-              2. 당시즌 판매율: HKMC <span className="font-semibold text-purple-600">{formatPct(hkmcSellthrough)}</span> vs TW{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twSellthrough)}</span>.
-            </p>
-            <p>
-              3. 과시즌재고 잔액 및 재고일수 (25/9/1~ 누적): HKMC <span className="font-semibold text-purple-600">{formatShort(hkmcOldStock)}</span> /{' '}
-              <span className="font-semibold text-purple-600">{formatDays(hkmcInvDays, language)}</span>, TW{' '}
-              <span className="font-semibold text-purple-600">{formatShort(twOldStock)}</span> /{' '}
-              <span className="font-semibold text-purple-600">{formatDays(twInvDays, language)}</span>.
-            </p>
-          </>
-        ) : (
-          <>
-            <p>
-              1. Store sales MTD YoY / YTD YoY: HKMC MTD <span className="font-semibold text-purple-600">{formatPct(hkmcMtdYoy, 0)}</span> / YTD{' '}
-              <span className="font-semibold text-purple-600">{formatPct(hkmcYtdYoy, 0)}</span>, TW MTD{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twMtdYoy, 0)}</span> / YTD{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twYtdYoy, 0)}</span>.
-            </p>
-            <p>
-              2. In-season sell-through: HKMC <span className="font-semibold text-purple-600">{formatPct(hkmcSellthrough)}</span> vs TW{' '}
-              <span className="font-semibold text-purple-600">{formatPct(twSellthrough)}</span>.
-            </p>
-            <p>
-              3. Old-season stock balance & inventory days (cumulative from 25/9/1): HKMC{' '}
-              <span className="font-semibold text-purple-600">{formatShort(hkmcOldStock)}</span> /{' '}
-              <span className="font-semibold text-purple-600">{formatDays(hkmcInvDays, language)}</span>, TW{' '}
-              <span className="font-semibold text-purple-600">{formatShort(twOldStock)}</span> /{' '}
-              <span className="font-semibold text-purple-600">{formatDays(twInvDays, language)}</span>.
-            </p>
-          </>
-        )}
-      </div>
+      {loading && !data ? (
+        <p className="text-sm text-gray-500">Generating insight...</p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-gray-900">{data?.summaryLine}</p>
+          {data?.compareLine ? <p className="text-sm text-gray-700">{data.compareLine}</p> : null}
+
+          <div className="space-y-2">
+            {(data?.blocks || []).map((block) => (
+              <div key={block.id} className="flex items-start gap-2 text-sm">
+                <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${toneClass(block.tone)}`}>{block.label}</span>
+                <p className={toneTextClass(block.tone)}>{block.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1 pt-1">
+            {(data?.actions || []).map((action) => (
+              <p key={action.priority} className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">{action.priority}.</span> {action.text}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
