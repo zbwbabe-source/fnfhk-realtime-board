@@ -90,8 +90,8 @@ export const translations = {
     filterCategory: '필터',
     allCategories: '전체 카테고리',
     productCode: '품번',
-    clothesOnly: '의류만',
-    allCategory: '악세포함',
+    clothesOnly: '의류',
+    allCategory: '전체',
     tagBasis: '(택가기준)',
     
     // 카테고리명 번역
