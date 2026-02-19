@@ -11,18 +11,12 @@ interface SummaryViewProps {
   language: Language;
   isYtdMode: boolean;
   onYtdModeToggle: () => void;
-  
-  // HKMC 데이터
   hkmcSection1Data: any;
   hkmcSection2Data: any;
   hkmcSection3Data: any;
-  
-  // TW 데이터
   twSection1Data: any;
   twSection2Data: any;
   twSection3Data: any;
-  
-  // 필터 상태
   categoryFilter: 'clothes' | 'all';
   section3CategoryFilter: 'clothes' | 'all';
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
@@ -46,94 +40,71 @@ export default function SummaryView({
   onCategoryFilterChange,
   onSection3CategoryFilterChange,
 }: SummaryViewProps) {
+  const RegionColumn = ({
+    regionCode,
+    regionLabel,
+    section1Data,
+    section2Data,
+    section3Data,
+  }: {
+    regionCode: 'HKMC' | 'TW';
+    regionLabel: string;
+    section1Data: any;
+    section2Data: any;
+    section3Data: any;
+  }) => (
+    <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-end justify-between border-b border-gray-200 pb-4">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-gray-900">{regionLabel}</h2>
+          <p className="mt-0.5 text-xs text-gray-500">{brand} | {date}</p>
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        <Section1Card
+          isYtdMode={isYtdMode}
+          section1Data={section1Data}
+          language={language}
+          brand={brand}
+          region={regionCode}
+          date={date}
+          onYtdModeToggle={onYtdModeToggle}
+        />
+        <Section2Card
+          section2Data={section2Data}
+          language={language}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={onCategoryFilterChange}
+          region={regionCode}
+        />
+        <Section3Card
+          section3Data={section3Data}
+          language={language}
+          region={regionCode}
+          categoryFilter={section3CategoryFilter}
+          onCategoryFilterChange={onSection3CategoryFilterChange}
+        />
+      </div>
+    </section>
+  );
+
   return (
-    <div className="space-y-8">
-      {/* HKMC 영역 */}
-      <div>
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <span className="text-blue-600">🏢</span>
-            {t(language, 'hkmcRegion')}
-          </h2>
-          <div className="h-1 w-20 bg-gradient-to-r from-blue-600 to-blue-400 rounded-full mt-2"></div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 섹션1 카드 - HKMC */}
-          <Section1Card
-            isYtdMode={isYtdMode}
-            section1Data={hkmcSection1Data}
-            language={language}
-            brand={brand}
-            region="HKMC"
-            date={date}
-            onYtdModeToggle={onYtdModeToggle}
-          />
-          
-          {/* 섹션2 카드 - HKMC */}
-          <Section2Card
-            section2Data={hkmcSection2Data}
-            language={language}
-            categoryFilter={categoryFilter}
-            onCategoryFilterChange={onCategoryFilterChange}
-            region="HKMC"
-          />
-          
-          {/* 섹션3 카드 - HKMC */}
-          <Section3Card
-            section3Data={hkmcSection3Data}
-            language={language}
-            region="HKMC"
-            categoryFilter={section3CategoryFilter}
-            onCategoryFilterChange={onSection3CategoryFilterChange}
-          />
-        </div>
-      </div>
-      
-      {/* 구분선 */}
-      <div className="border-t-2 border-gray-200"></div>
-      
-      {/* TW 영역 */}
-      <div>
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <span className="text-green-600">🏢</span>
-            {t(language, 'twRegion')}
-          </h2>
-          <div className="h-1 w-20 bg-gradient-to-r from-green-600 to-green-400 rounded-full mt-2"></div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 섹션1 카드 - TW */}
-          <Section1Card
-            isYtdMode={isYtdMode}
-            section1Data={twSection1Data}
-            language={language}
-            brand={brand}
-            region="TW"
-            date={date}
-            onYtdModeToggle={onYtdModeToggle}
-          />
-          
-          {/* 섹션2 카드 - TW */}
-          <Section2Card
-            section2Data={twSection2Data}
-            language={language}
-            categoryFilter={categoryFilter}
-            onCategoryFilterChange={onCategoryFilterChange}
-            region="TW"
-          />
-          
-          {/* 섹션3 카드 - TW */}
-          <Section3Card
-            section3Data={twSection3Data}
-            language={language}
-            region="TW"
-            categoryFilter={section3CategoryFilter}
-            onCategoryFilterChange={onSection3CategoryFilterChange}
-          />
-        </div>
-      </div>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <RegionColumn
+        regionCode="HKMC"
+        regionLabel={t(language, 'hkmcRegion')}
+        section1Data={hkmcSection1Data}
+        section2Data={hkmcSection2Data}
+        section3Data={hkmcSection3Data}
+      />
+      <RegionColumn
+        regionCode="TW"
+        regionLabel={t(language, 'twRegion')}
+        section1Data={twSection1Data}
+        section2Data={twSection2Data}
+        section3Data={twSection3Data}
+      />
     </div>
   );
 }

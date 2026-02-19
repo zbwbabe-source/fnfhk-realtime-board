@@ -29,24 +29,22 @@ export default function Section3Card({
   };
 
   const getPeriodStartInfo = () => {
-    // period_start_date가 있으면 해당 날짜 사용 (예: 2025-09-01)
     if (section3Data?.period_start_date) {
       const periodStart = section3Data.period_start_date;
-      const year = periodStart.slice(2, 4); // 25
-      const month = periodStart.slice(5, 7); // 09
-      const day = periodStart.slice(8, 10); // 01
-      
-      return language === 'ko' 
-        ? `(${year}/${parseInt(month)}/${parseInt(day)}~)` 
+      const year = periodStart.slice(2, 4);
+      const month = periodStart.slice(5, 7);
+      const day = periodStart.slice(8, 10);
+
+      return language === 'ko'
+        ? `(${year}/${parseInt(month)}/${parseInt(day)}~)`
         : `(from ${year}/${parseInt(month)}/${parseInt(day)})`;
     }
-    
-    // fallback: season_type만 있는 경우
+
     if (!section3Data?.season_type) return '';
-    
+
     const currentYear = new Date().getFullYear();
     const shortYear = String(currentYear).slice(-2);
-    
+
     if (section3Data.season_type === 'FW') {
       return language === 'ko' ? `(${shortYear}/9/1~)` : `(from ${shortYear}/9/1)`;
     }
@@ -83,7 +81,7 @@ export default function Section3Card({
 
     const formatSubValue = (change: number) => {
       if (change > 0) return `+${change.toFixed(1)}%p`;
-      if (change < 0) return `△${Math.abs(change).toFixed(1)}%p`;
+      if (change < 0) return `-${Math.abs(change).toFixed(1)}%p`;
       return '0.0%p';
     };
 
@@ -107,7 +105,7 @@ export default function Section3Card({
           currentMonthDepleted > 0
             ? `${t(language, 'currentMonthOnly')} ${formatCurrency(currentMonthDepleted)}`
             : null,
-        subClass: 'text-blue-700 bg-blue-50',
+        subClass: 'text-orange-700 bg-orange-50',
       },
       k3: {
         label: t(language, 'stagnantRatio'),
@@ -124,35 +122,31 @@ export default function Section3Card({
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
-    <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-lg shadow-md p-6 border-l-4 border-orange-600">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">📦</span>
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">
-              {t(language, 'section3Title')}
-              {seasonType && <span className="ml-2 text-sm text-purple-600">({seasonType})</span>}
-            </h3>
-            <p className="text-xs text-gray-600">{t(language, 'section3Subtitle')}</p>
-            <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
-          </div>
+    <article className="rounded-2xl border border-gray-200 border-l-4 border-l-orange-400 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 leading-tight">
+            {t(language, 'section3Title')}
+            {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
+          </h3>
+          <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section3Subtitle')}</p>
         </div>
 
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-gray-600 whitespace-nowrap">{t(language, 'filterCategory')}</span>
-          <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
+        <div className="shrink-0 space-y-1.5 text-right">
+          <p className="text-xs font-medium text-gray-500">{t(language, 'filterCategory')}</p>
+          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-l-lg transition-colors ${
-                categoryFilter === 'clothes' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                categoryFilter === 'clothes' ? 'bg-orange-50 text-orange-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'clothesOnly')}
             </button>
             <button
               onClick={() => onCategoryFilterChange('all')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-r-lg transition-colors ${
-                categoryFilter === 'all' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                categoryFilter === 'all' ? 'bg-orange-50 text-orange-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'allCategory')}
@@ -161,45 +155,41 @@ export default function Section3Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k1.label}</div>
-          <div className="text-xl font-bold text-orange-600">{kpis.k1.value}</div>
+      <div className="grid grid-cols-3 gap-6">
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k1.label}</p>
+          <p className="text-3xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k1.value}</p>
           {kpis.k1.subValue && (
-            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k1.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
-            </div>
+            </span>
           )}
         </div>
 
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k2.label}</div>
-          <div className="text-xl font-bold text-gray-900">{kpis.k2.value}</div>
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k2.label}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k2.value}</p>
           {kpis.k2.subValue && (
-            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k2.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
-            </div>
+            </span>
           )}
-          {periodStartInfo && (
-            <div className="text-[11px] text-blue-600 font-medium mt-1">
-              {periodStartInfo}
-            </div>
-          )}
+          {periodStartInfo && <p className="mt-1 text-[10px] leading-tight text-gray-500">{periodStartInfo}</p>}
         </div>
 
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
-          <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k3.label}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k3.value}</p>
           {kpis.k3.subValue && (
-            <div className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${kpis.k3.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}
-            </div>
+            </span>
           )}
-          <div className="text-[11px] text-gray-500 mt-1">
-            ({t(language, 'vsLastMonthEnd')})
-          </div>
+          <p className="mt-1 text-[10px] leading-tight text-gray-500">({t(language, 'vsLastMonthEnd')})</p>
         </div>
       </div>
-    </div>
+
+      <div className="mt-5 border-t border-gray-200 pt-3 text-[10px] uppercase tracking-wide text-gray-400">{currencyUnit}</div>
+    </article>
   );
 }

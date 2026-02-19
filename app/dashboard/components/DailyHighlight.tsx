@@ -234,19 +234,19 @@ export default function DailyHighlight({
   const twHighlights = buildCountryHighlights(twSection1Data, twSection2Data, twSection3Data, isYtdMode, language);
 
   return (
-    <div className="bg-gradient-to-r from-slate-50 via-sky-50 to-cyan-50 rounded-lg shadow-sm border border-sky-200 p-5 mb-6">
+    <div className="mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-2 mb-4">
         <h2 className="text-lg font-bold text-gray-900">
           {language === 'ko' ? '오늘의 하이라이트' : "Today's Highlights"}
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-600 bg-white px-2 py-1 rounded-md border border-gray-200">
+          <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
             {date} | {brand} | {isYtdMode ? 'YTD' : 'MTD'}
           </span>
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="text-xs font-medium text-sky-700 bg-white px-2 py-1 rounded-md border border-sky-300 hover:bg-sky-50 transition-colors"
+            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
             aria-expanded={isExpanded}
           >
             {isExpanded
@@ -260,9 +260,9 @@ export default function DailyHighlight({
         </div>
       </div>
 
-      {isExpanded && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-blue-200 p-4">
-          <h3 className="text-sm font-semibold text-blue-700 mb-3">HKMC</h3>
+      {isExpanded && <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-900">HKMC</h3>
           <div className="space-y-2">
             {hkmcHighlights.map((item) => (
               <div key={`hkmc-${item.section}`} className={`rounded-md border px-3 py-2 ${metricToneClass(item.tone)}`}>
@@ -276,8 +276,8 @@ export default function DailyHighlight({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-emerald-200 p-4">
-          <h3 className="text-sm font-semibold text-emerald-700 mb-3">TW</h3>
+        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-900">TW</h3>
           <div className="space-y-2">
             {twHighlights.map((item) => (
               <div key={`tw-${item.section}`} className={`rounded-md border px-3 py-2 ${metricToneClass(item.tone)}`}>

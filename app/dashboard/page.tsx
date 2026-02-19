@@ -217,26 +217,26 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="border-b border-gray-100 bg-white/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{t(language, 'title')}</h1>
-              <p className="text-sm text-gray-600 mt-1">{t(language, 'subtitle')}</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{t(language, 'title')}</h1>
+              <p className="mt-1 text-sm text-gray-500">{t(language, 'subtitle')}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => setLanguage('ko')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  language === 'ko' ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  language === 'ko' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 KR
               </button>
               <button
                 onClick={() => setLanguage('en')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  language === 'en' ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors ${
+                  language === 'en' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 EN
@@ -247,8 +247,8 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-4 items-center">
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-4">
             {isSummaryView ? (
               <div className="flex items-center gap-2">
                 <button
@@ -256,27 +256,27 @@ export default function DashboardPage() {
                     setRegion('HKMC');
                     setIsSummaryView(false);
                   }}
-                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-600 hover:from-blue-700 hover:to-blue-800 shadow-sm transition-all"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  🏢 HKMC 상세
+                  HKMC Detail
                 </button>
                 <button
                   onClick={() => {
                     setRegion('TW');
                     setIsSummaryView(false);
                   }}
-                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-green-600 to-green-700 text-white border-green-600 hover:from-green-700 hover:to-green-800 shadow-sm transition-all"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  🏢 TW 상세
+                  TW Detail
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsSummaryView(true)}
-                  className="px-4 py-2 text-sm font-medium rounded-md border bg-gradient-to-r from-purple-600 to-purple-700 text-white border-purple-600 hover:from-purple-700 hover:to-purple-800 shadow-sm transition-all"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  📊 {t(language, 'summary')}
+                  {t(language, 'summary')}
                 </button>
               </div>
             )}
@@ -313,7 +313,7 @@ export default function DashboardPage() {
               )}
               <button
                 onClick={handleRefresh}
-                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
                 title={t(language, 'refreshData')}
                 disabled={anyDataLoading}
               >
@@ -328,6 +328,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+          <p className="mt-3 text-xs text-gray-500">Insight as of {date || '-'}</p>
         </div>
       </div>
 
@@ -458,3 +459,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { t, type Language } from '@/lib/translations';
 
 interface Section1CardProps {
@@ -14,7 +13,6 @@ interface Section1CardProps {
 }
 
 export default function Section1Card({ isYtdMode, section1Data, language, brand, region, date, onYtdModeToggle }: Section1CardProps) {
-
   const formatCurrency = (num: number) => {
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
@@ -25,7 +23,6 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
     return num.toFixed(0);
   };
 
-  // Section1 KPI 계산
   const calculateKPIs = () => {
     if (!section1Data?.total_subtotal) {
       return {
@@ -36,7 +33,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
     }
 
     const total = section1Data.total_subtotal;
-    
+
     if (isYtdMode) {
       if (typeof total.ytd_act === 'undefined' || total.ytd_act === null) {
         return {
@@ -56,12 +53,10 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
     }
 
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
-    // X 브랜드는 MoM, 나머지는 YoY
     const compareRate = brand === 'X' ? (isYtdMode ? total.yoy_ytd : total.mom) : (isYtdMode ? total.yoy_ytd : total.yoy);
     const progress = isYtdMode ? total.progress_ytd : total.progress;
     const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
 
-    // YoY/MoM이 없거나 0일 때 할인율 표시
     const hasCompareRate = compareRate && compareRate !== 0;
     const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
 
@@ -71,10 +66,10 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
         value: formatCurrency(actual),
       },
       k2: {
-        label: hasCompareRate 
+        label: hasCompareRate
           ? t(language, brand === 'X' ? 'mom' : 'yoy')
-          : (language === 'ko' ? '할인율' : 'Discount Rate'),
-        value: hasCompareRate 
+          : 'Discount Rate',
+        value: hasCompareRate
           ? `${compareRate.toFixed(0)}%`
           : (hasDiscountRate ? `${discountRate.toFixed(1)}%` : 'N/A'),
       },
@@ -89,90 +84,66 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg shadow-md p-6 border-l-4 border-blue-600">
-      {/* 제목 */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">💼</span>
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">{t(language, 'section1Title')}</h3>
-            <p className="text-xs text-gray-600">{t(language, 'section1Subtitle')}</p>
-            <p className="text-xs text-gray-500 mt-1">{currencyUnit}</p>
-          </div>
+    <article className="rounded-2xl border border-gray-200 border-l-4 border-l-blue-500 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 leading-tight">{t(language, 'section1Title')}</h3>
+          <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section1Subtitle')}</p>
         </div>
-        
-        {/* 당월/누적 버튼 */}
+
         {onYtdModeToggle && (
-          <div className="flex flex-col items-end gap-1">
-            {/* 버튼 그룹 */}
-            <div className="flex items-center gap-2">
-              {/* 당월 버튼 */}
+          <div className="shrink-0 space-y-1.5 text-right">
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
               <button
                 onClick={() => {
                   if (isYtdMode) {
                     onYtdModeToggle();
                   }
                 }}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 border whitespace-nowrap ${
-                  !isYtdMode 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  !isYtdMode ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                {!isYtdMode ? `✓ ${t(language, 'mtdToggle')}` : t(language, 'mtdToggle')}
+                {t(language, 'mtdToggle')}
               </button>
-              
-              {/* 누적 버튼 */}
               <button
                 onClick={() => {
                   if (!isYtdMode) {
                     onYtdModeToggle();
                   }
                 }}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 border whitespace-nowrap ${
-                  isYtdMode 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-600 shadow-lg hover:from-blue-600 hover:to-blue-700 ring-2 ring-blue-300 ring-opacity-50' 
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'
+                className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isYtdMode ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
-                {isYtdMode ? `✓ ${t(language, 'ytdToggle')}` : t(language, 'ytdToggle')}
+                {t(language, 'ytdToggle')}
               </button>
             </div>
-            
-            {/* 대상 기간 표시 */}
-            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-300">
-              {isYtdMode 
+            <p className="text-[10px] leading-tight text-gray-500">
+              {isYtdMode
                 ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
-                : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`
-              }
-            </span>
+                : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`}
+            </p>
           </div>
         )}
       </div>
 
-      {/* KPI 그리드 */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        {/* K1 */}
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k1.label}</div>
-          <div className="text-xl font-bold text-blue-600">{kpis.k1.value}</div>
-          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k1.label}</p>
+          <p className="text-3xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k1.value}</p>
         </div>
-
-        {/* K2 */}
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k2.label}</div>
-          <div className="text-xl font-bold text-gray-900">{kpis.k2.value}</div>
-          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k2.label}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k2.value}</p>
         </div>
-
-        {/* K3 */}
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{kpis.k3.label}</div>
-          <div className="text-xl font-bold text-gray-900">{kpis.k3.value}</div>
-          <div className="h-5"></div> {/* 섹션3 높이 맞춤용 빈 공간 */}
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k3.label}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k3.value}</p>
         </div>
       </div>
-    </div>
+
+      <div className="mt-5 border-t border-gray-200 pt-3 text-[10px] uppercase tracking-wide text-gray-400">{currencyUnit}</div>
+    </article>
   );
 }

@@ -35,14 +35,14 @@ export default function Section2Card({
   const inboundYoyPct = header?.inbound_yoy_pct as number | null | undefined;
 
   const formatPp = (v: number | null | undefined) => {
-    if (v === null || v === undefined) return language === 'ko' ? '전년비 N/A' : 'vs LY N/A';
+    if (v === null || v === undefined) return 'vs LY N/A';
     if (v > 0) {
-      return language === 'ko' ? `전년비 +${v.toFixed(1)}%p` : `vs LY +${v.toFixed(1)}%p`;
+      return `vs LY +${v.toFixed(1)}%p`;
     }
     if (v < 0) {
-      return language === 'ko' ? `전년비 △${Math.abs(v).toFixed(1)}%p` : `vs LY △${Math.abs(v).toFixed(1)}%p`;
+      return `vs LY -${Math.abs(v).toFixed(1)}%p`;
     }
-    return language === 'ko' ? '전년비 0.0%p' : 'vs LY 0.0%p';
+    return 'vs LY 0.0%p';
   };
 
   const formatYoy = (v: number | null | undefined) => {
@@ -51,45 +51,38 @@ export default function Section2Card({
   };
 
   const metricTone = (v: number | null | undefined, pivot = 0) => {
-    if (v === null || v === undefined) return 'text-gray-500 bg-gray-100';
-    if (v > pivot) return 'text-blue-700 bg-blue-50';
+    if (v === null || v === undefined) return 'text-gray-600 bg-gray-100';
+    if (v > pivot) return 'text-green-700 bg-green-50';
     if (v < pivot) return 'text-red-700 bg-red-50';
     return 'text-gray-700 bg-gray-100';
   };
 
   return (
-    <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-lg shadow-md p-6 border-l-4 border-green-600">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">📊</span>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-gray-900">
-                {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
-                {season && <span className="ml-2 text-sm text-purple-600">({season})</span>}
-                <span className="ml-2 text-xs text-gray-500">{t(language, 'tagBasis')}</span>
-              </h3>
-            </div>
-            <p className="text-xs text-gray-600">{t(language, 'section2Subtitle')}</p>
-            <p className="text-xs text-gray-500">{currencyUnit}</p>
-          </div>
+    <article className="rounded-2xl border border-gray-200 border-l-4 border-l-green-500 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 leading-tight">
+            {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
+            {season && <span className="ml-2 text-xs font-medium text-gray-500">({season})</span>}
+          </h3>
+          <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section2Subtitle')}</p>
         </div>
 
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-gray-600 whitespace-nowrap">{t(language, 'filterCategory')}</span>
-          <div className="inline-flex rounded-lg border border-gray-300 bg-white shadow-sm">
+        <div className="shrink-0 space-y-1.5 text-right">
+          <p className="text-xs font-medium text-gray-500">{t(language, 'filterCategory')}</p>
+          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-l-lg transition-colors ${
-                categoryFilter === 'clothes' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                categoryFilter === 'clothes' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'clothesOnly')}
             </button>
             <button
               onClick={() => onCategoryFilterChange('all')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-r-lg transition-colors ${
-                categoryFilter === 'all' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                categoryFilter === 'all' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'allCategory')}
@@ -98,46 +91,35 @@ export default function Section2Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{t(language, 'sellRate')}</div>
-          <div className="text-xl font-bold text-green-600">{sellthrough.toFixed(1)}%</div>
-          <div
-            className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${metricTone(
-              sellthroughYoyPp,
-              0
-            )}`}
-          >
+      <div className="grid grid-cols-3 gap-6">
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t(language, 'sellRate')}</p>
+          <p className="text-3xl font-bold tabular-nums text-gray-900 leading-none">{sellthrough.toFixed(1)}%</p>
+          <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${metricTone(sellthroughYoyPp, 0)}`}>
             {formatPp(sellthroughYoyPp)}
-          </div>
+          </span>
         </div>
 
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{t(language, 'cumulativeSales')}</div>
-          <div className="text-xl font-bold text-gray-900">{formatCurrency(totalSales)}</div>
-          <div
-            className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${metricTone(
-              salesYoyPct,
-              100
-            )}`}
-          >
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t(language, 'cumulativeSales')}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{formatCurrency(totalSales)}</p>
+          <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${metricTone(salesYoyPct, 100)}`}>
             {formatYoy(salesYoyPct)}
-          </div>
+          </span>
         </div>
 
-        <div>
-          <div className="text-xs text-gray-600 mb-1">{t(language, 'cumulativeInbound')}</div>
-          <div className="text-xl font-bold text-gray-900">{formatCurrency(totalInbound)}</div>
-          <div
-            className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${metricTone(
-              inboundYoyPct,
-              100
-            )}`}
-          >
+        <div className="space-y-2 border-l border-gray-200 pl-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t(language, 'cumulativeInbound')}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{formatCurrency(totalInbound)}</p>
+          <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${metricTone(inboundYoyPct, 100)}`}>
             {formatYoy(inboundYoyPct)}
-          </div>
+          </span>
         </div>
       </div>
-    </div>
+
+      <div className="mt-5 border-t border-gray-200 pt-3 text-[10px] uppercase tracking-wide text-gray-400">
+        {currencyUnit} | {t(language, 'tagBasis')}
+      </div>
+    </article>
   );
 }
