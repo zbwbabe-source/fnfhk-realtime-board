@@ -117,28 +117,38 @@ export default function Section3Card({
   };
 
   const kpis = calculateKPIs();
+  const stagnantRatioRisk =
+    section3Data?.header?.curr_stock_amt > 0
+      ? (section3Data.header.stagnant_stock_amt / section3Data.header.curr_stock_amt) * 100
+      : 0;
+  const showRiskBadge = stagnantRatioRisk >= 30;
   const seasonType = getSection3SeasonType();
   const periodStartInfo = getPeriodStartInfo();
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
-    <article className="rounded-2xl border border-gray-200 border-l-4 border-l-orange-400 bg-white p-6 shadow-sm">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 leading-tight">
+          <h3 className="text-base font-semibold text-gray-900 leading-tight">
             {t(language, 'section3Title')}
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section3Subtitle')}</p>
+          {showRiskBadge && (
+            <span className="mt-2 inline-block rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600">
+              Clearance Risk {stagnantRatioRisk.toFixed(1)}%
+            </span>
+          )}
         </div>
 
         <div className="shrink-0 space-y-1.5 text-right">
-          <p className="text-xs font-medium text-gray-500">{t(language, 'filterCategory')}</p>
-          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <p className="text-xs text-gray-500">{t(language, 'filterCategory')}</p>
+          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
               className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                categoryFilter === 'clothes' ? 'bg-orange-50 text-orange-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'clothesOnly')}
@@ -146,7 +156,7 @@ export default function Section3Card({
             <button
               onClick={() => onCategoryFilterChange('all')}
               className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
-                categoryFilter === 'all' ? 'bg-orange-50 text-orange-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'allCategory')}
@@ -155,41 +165,41 @@ export default function Section3Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k1.label}</p>
-          <p className="text-3xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k1.value}</p>
+          <p className="text-xs text-gray-500">{kpis.k1.label}</p>
+          <p className="text-3xl font-semibold tabular-nums text-gray-900">{kpis.k1.value}</p>
           {kpis.k1.subValue && (
-            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k1.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
             </span>
           )}
         </div>
 
-        <div className="space-y-2 border-l border-gray-200 pl-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k2.label}</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k2.value}</p>
+        <div className="space-y-2 border-l border-gray-100 pl-3">
+          <p className="text-xs text-gray-500">{kpis.k2.label}</p>
+          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k2.value}</p>
           {kpis.k2.subValue && (
-            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k2.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
             </span>
           )}
-          {periodStartInfo && <p className="mt-1 text-[10px] leading-tight text-gray-500">{periodStartInfo}</p>}
+          {periodStartInfo && <p className="mt-1 text-[11px] leading-tight text-gray-500">{periodStartInfo}</p>}
         </div>
 
-        <div className="space-y-2 border-l border-gray-200 pl-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k3.label}</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k3.value}</p>
+        <div className="space-y-2 border-l border-gray-100 pl-3">
+          <p className="text-xs text-gray-500">{kpis.k3.label}</p>
+          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k3.value}</p>
           {kpis.k3.subValue && (
-            <span className={`inline-block rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${kpis.k3.subClass}`}>
+            <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}
             </span>
           )}
-          <p className="mt-1 text-[10px] leading-tight text-gray-500">({t(language, 'vsLastMonthEnd')})</p>
+          <p className="mt-1 text-[11px] leading-tight text-gray-500">({t(language, 'vsLastMonthEnd')})</p>
         </div>
       </div>
 
-      <div className="mt-5 border-t border-gray-200 pt-3 text-[10px] uppercase tracking-wide text-gray-400">{currencyUnit}</div>
+      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{currencyUnit}</div>
     </article>
   );
 }

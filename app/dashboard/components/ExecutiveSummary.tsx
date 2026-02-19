@@ -93,35 +93,15 @@ export default function ExecutiveSummary({
   // 로딩 중일 때 스켈레톤 UI
   if (loading || parentLoading) {
     return (
-      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg shadow-md p-6 border-l-4 border-orange-500 mb-6">
-        {/* 주요내용 스켈레톤 */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xl">📊</span>
-          <h3 className="text-lg font-bold text-gray-900">
-            {t(language, 'executiveSummaryTitle')}
-          </h3>
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex items-start justify-between">
+          <h3 className="text-xl font-bold text-gray-900">Executive Insight</h3>
+          <div className="text-xs text-gray-400">Loading...</div>
         </div>
-        <div className="space-y-2 mb-5">
-          <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-          <div className="h-4 bg-gray-200 rounded animate-pulse w-11/12"></div>
-          <div className="h-4 bg-gray-200 rounded animate-pulse w-10/12"></div>
-          <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-        </div>
-
-        {/* 핵심인사이트 스켈레톤 */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xl">💡</span>
-          <h3 className="text-lg font-bold text-gray-900">
-            {t(language, 'keyInsightsTitle')}
-          </h3>
-        </div>
-        <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="text-gray-400 mt-1">•</span>
-              <div className="h-3 bg-gray-200 rounded animate-pulse flex-1"></div>
-            </div>
-          ))}
+        <div className="space-y-4">
+          <div className="h-6 w-full animate-pulse rounded bg-gray-100"></div>
+          <div className="h-4 w-11/12 animate-pulse rounded bg-gray-100"></div>
+          <div className="h-4 w-10/12 animate-pulse rounded bg-gray-100"></div>
         </div>
       </div>
     );
@@ -130,19 +110,11 @@ export default function ExecutiveSummary({
   // 에러 발생 시
   if (error) {
     return (
-      <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-lg shadow-md p-6 border-l-4 border-red-500 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xl">⚠️</span>
-          <h3 className="text-lg font-bold text-gray-900">
-            {language === 'ko' ? '요약 생성 실패' : 'Summary Generation Failed'}
-          </h3>
-        </div>
-        <p className="text-sm text-gray-700">
-          {language === 'ko'
-            ? '경영 요약을 생성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-            : 'An error occurred while generating the executive summary. Please try again later.'}
-        </p>
-        <p className="text-xs text-gray-500 mt-2">{error}</p>
+      <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-6 shadow-sm">
+        <h3 className="mb-2 text-lg font-bold text-red-900">
+          {language === 'ko' ? 'Insight 생성 실패' : 'Insight Generation Failed'}
+        </h3>
+        <p className="text-sm text-red-700">{error}</p>
       </div>
     );
   }
@@ -245,65 +217,55 @@ export default function ExecutiveSummary({
   };
 
   return (
-    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg shadow-md p-6 border-l-4 border-orange-500 mb-6">
-      {/* 헤더 (제목 + AI 재생성 버튼) */}
-      <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">📊</span>
-            <h3 className="text-lg font-bold text-gray-900">
-              {t(language, 'executiveSummaryTitle')}
-            </h3>
+    <div className="mb-6 rounded-2xl border border-purple-200 bg-white p-6 shadow-sm">
+      {/* Header */}
+      <div className="mb-6 flex items-start justify-between border-b border-gray-100 pb-4">
+        <h3 className="text-xl font-bold text-gray-900">Executive Insight</h3>
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-gray-400">
+            {date} | {brand} | {isYtdMode ? 'YTD' : 'MTD'}
           </div>
           <button
             onClick={handleRegenerate}
             disabled={regenerating}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-white hover:bg-red-50 border border-red-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {regenerating ? (
               <>
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {language === 'ko' ? '재생성 중...' : 'Regenerating...'}
+                <span>{language === 'ko' ? '재생성 중...' : 'Regenerating...'}</span>
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {language === 'ko' ? 'AI 재생성' : 'Regenerate AI'}
+                <span>{language === 'ko' ? 'AI 재생성' : 'Regenerate'}</span>
               </>
             )}
           </button>
         </div>
-
-        {/* 주요내용 */}
-        <div className="mb-5">
-          <p key={summary.main_summary} className="text-base text-gray-800 leading-relaxed whitespace-pre-line">
-            {summary.main_summary}
-          </p>
-        </div>
-
-        {/* 핵심인사이트 */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-2xl">💡</span>
-            <h3 className="text-lg font-bold text-gray-900">
-              {t(language, 'keyInsightsTitle')}
-            </h3>
-          </div>
-          <ul className="space-y-2">
-            {summary.key_insights.map((insight, index) => (
-              <li key={`${insight}-${index}`} className="flex items-start gap-2">
-                <span className="text-orange-500 font-bold mt-0.5">•</span>
-                <span className="text-sm text-gray-800 leading-relaxed flex-1">
-                  {insight}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
+
+      {/* Core Summary */}
+      <div className="mb-6 rounded-lg bg-purple-50 p-4">
+        <p className="text-base font-semibold leading-relaxed text-gray-900">
+          {summary.main_summary}
+        </p>
+      </div>
+
+      {/* Key Insights */}
+      <div className="space-y-4">
+        {summary.key_insights.map((insight, index) => (
+          <div key={`${insight}-${index}`} className="flex items-start gap-3">
+            <div className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500"></div>
+            <p className="text-sm leading-relaxed text-gray-700">{insight}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

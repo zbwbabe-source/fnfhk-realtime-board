@@ -210,7 +210,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-xl text-gray-600">Loading...</div>
+        <div className="text-xl text-gray-600">{language === 'ko' ? '로딩 중...' : 'Loading...'}</div>
       </div>
     );
   }
@@ -223,6 +223,9 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{t(language, 'title')}</h1>
               <p className="mt-1 text-sm text-gray-500">{t(language, 'subtitle')}</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {language === 'ko' ? '업데이트' : 'Updated'} {date || '-'} | {language === 'ko' ? '기준일' : 'asOf'} {date || '-'}
+              </p>
             </div>
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
@@ -245,6 +248,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+      <div className="h-px w-full bg-purple-200" />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -258,7 +262,7 @@ export default function DashboardPage() {
                   }}
                   className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  HKMC Detail
+                  {language === 'ko' ? 'HKMC 상세' : 'HKMC Detail'}
                 </button>
                 <button
                   onClick={() => {
@@ -267,7 +271,7 @@ export default function DashboardPage() {
                   }}
                   className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  TW Detail
+                  {language === 'ko' ? 'TW 상세' : 'TW Detail'}
                 </button>
               </div>
             ) : (
@@ -328,7 +332,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <p className="mt-3 text-xs text-gray-500">Insight as of {date || '-'}</p>
+          <p className="mt-3 text-xs text-gray-500">{language === 'ko' ? '인사이트 기준일' : 'Insight as of'} {date || '-'}</p>
         </div>
       </div>
 

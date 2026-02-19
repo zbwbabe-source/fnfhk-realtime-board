@@ -84,16 +84,16 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
 
   return (
-    <article className="rounded-2xl border border-gray-200 border-l-4 border-l-blue-500 bg-white p-6 shadow-sm">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 leading-tight">{t(language, 'section1Title')}</h3>
+          <h3 className="text-base font-semibold text-gray-900 leading-tight">{t(language, 'section1Title')}</h3>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section1Subtitle')}</p>
         </div>
 
         {onYtdModeToggle && (
           <div className="shrink-0 space-y-1.5 text-right">
-            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => {
                   if (isYtdMode) {
@@ -101,7 +101,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
                   }
                 }}
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  !isYtdMode ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+                  !isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'mtdToggle')}
@@ -113,7 +113,7 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
                   }
                 }}
                 className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isYtdMode ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'
+                  isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'ytdToggle')}
@@ -128,22 +128,22 @@ export default function Section1Card({ isYtdMode, section1Data, language, brand,
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k1.label}</p>
-          <p className="text-3xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k1.value}</p>
+          <p className="text-xs text-gray-500">{kpis.k1.label}</p>
+          <p className="text-3xl font-semibold tabular-nums text-gray-900">{kpis.k1.value}</p>
         </div>
-        <div className="space-y-2 border-l border-gray-200 pl-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k2.label}</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k2.value}</p>
+        <div className="space-y-2 border-l border-gray-100 pl-3">
+          <p className="text-xs text-gray-500">{kpis.k2.label}</p>
+          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k2.value}</p>
         </div>
-        <div className="space-y-2 border-l border-gray-200 pl-6">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{kpis.k3.label}</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900 leading-none">{kpis.k3.value}</p>
+        <div className="space-y-2 border-l border-gray-100 pl-3">
+          <p className="text-xs text-gray-500">{kpis.k3.label}</p>
+          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k3.value}</p>
         </div>
       </div>
 
-      <div className="mt-5 border-t border-gray-200 pt-3 text-[10px] uppercase tracking-wide text-gray-400">{currencyUnit}</div>
+      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{currencyUnit}</div>
     </article>
   );
 }
