@@ -48,6 +48,12 @@ function fmtDays(v: number | null): string {
   return `${Math.round(v)}일`;
 }
 
+function formatOldPair(stock: number | null, days: number | null): string {
+  if (stock === null && days === null) return '데이터 없음';
+  if (stock === null || days === null) return '데이터 일부 없음';
+  return `${fmtNum(stock)}·${fmtDays(days)}`;
+}
+
 function normalizeInput(raw: any): ExecutiveInsightInput {
   const normalizedMode = raw?.mode === 'YTD' ? 'YTD' : 'MTD';
   const asOfDate = String(raw?.asOfDate || raw?.asof_date || '').trim();
@@ -144,7 +150,7 @@ function buildSignals(input: ExecutiveInsightInput) {
       id: 'old',
       label: '과시즌',
       tone: toneByLevel(Math.max(invHkmc ?? 0, invTw ?? 0), 180, 120),
-      text: `과시즌 잔액/재고일수는 HKMC ${fmtNum(oldHkmc)}·${fmtDays(invHkmc)}, TW ${fmtNum(oldTw)}·${fmtDays(invTw)}입니다.`,
+      text: `과시즌 잔액/재고일수는 HKMC ${formatOldPair(oldHkmc, invHkmc)}, TW ${formatOldPair(oldTw, invTw)}입니다.`,
     },
   ];
 
@@ -180,7 +186,7 @@ function forceSalesBlockWithYtd(blocks: ExecutiveInsightBlock[], input: Executiv
   });
 }
 
-function forceSeasonTargetBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
+function forceSeasonBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
   const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
   const seasonTw = input.tw.seasonSellthrough ?? null;
   return blocks.map((b) => {
@@ -188,6 +194,20 @@ function forceSeasonTargetBlock(blocks: ExecutiveInsightBlock[], input: Executiv
     return {
       ...b,
       text: `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`,
+    };
+  });
+}
+
+function forceOldBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
+  const oldHkmc = input.hkmc.oldStock ?? null;
+  const oldTw = input.tw.oldStock ?? null;
+  const invHkmc = input.hkmc.invDays ?? null;
+  const invTw = input.tw.invDays ?? null;
+  return blocks.map((b) => {
+    if (b.id !== 'old') return b;
+    return {
+      ...b,
+      text: `과시즌 잔액/재고일수는 HKMC ${formatOldPair(oldHkmc, invHkmc)}, TW ${formatOldPair(oldTw, invTw)}입니다.`,
     };
   });
 }
@@ -228,6 +248,7 @@ function sanitizeInsightText(text: string): string {
     .replace(/HKMC\s*우위/gi, 'HKMC/TW 특성')
     .replace(/로 비교됩니다\./g, '입니다.')
     .replace(/비교됩니다\./g, '입니다.')
+    .replace(/N\/A[\/·]N\/A일?/g, '데이터 없음')
     .trim();
 }
 
@@ -237,12 +258,13 @@ function withMeta(
   input: ExecutiveInsightInput
 ): ExecutiveInsightResponse {
   const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
-  const seasonForced = forceSeasonTargetBlock(salesForced, input);
+  const seasonForced = forceSeasonBlock(salesForced, input);
+  const oldForced = forceOldBlock(seasonForced, input);
   return {
     ...payload,
     summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
     compareLine: '',
-    blocks: seasonForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
+    blocks: oldForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
     actions: payload.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
     meta: {
       model: meta.model,
@@ -324,7 +346,7 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v7', regionPart, input.brand, input.asOfDate]);
+    const cacheKey = buildKey(['insights', 'exec', 'v8', regionPart, input.brand, input.asOfDate]);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);

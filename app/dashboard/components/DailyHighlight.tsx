@@ -30,6 +30,13 @@ export default function DailyHighlight({
 }: DailyHighlightProps) {
   const [data, setData] = useState<ExecutiveInsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const isInsightInputReady =
+    !!hkmcSection1Data?.total_subtotal &&
+    !!twSection1Data?.total_subtotal &&
+    !!hkmcSection2Data?.header &&
+    !!twSection2Data?.header &&
+    !!hkmcSection3Data?.header &&
+    !!twSection3Data?.header;
 
   const inputPayload = useMemo(() => {
     return {
@@ -65,7 +72,7 @@ export default function DailyHighlight({
   ]);
 
   useEffect(() => {
-    if (!date || !brand) return;
+    if (!date || !brand || !isInsightInputReady) return;
     let mounted = true;
 
     async function fetchInsight() {
@@ -92,7 +99,7 @@ export default function DailyHighlight({
     return () => {
       mounted = false;
     };
-  }, [inputPayload, date, brand]);
+  }, [inputPayload, date, brand, isInsightInputReady]);
 
   const toneClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
     if (tone === 'positive') return 'text-emerald-700 bg-emerald-50';
