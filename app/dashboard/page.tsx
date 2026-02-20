@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import BrandSelect from './components/BrandSelect';
 import DailyHighlight from './components/DailyHighlight';
 import DateSelect from './components/DateSelect';
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [region, setRegion] = useState('HKMC');
   const [brand, setBrand] = useState('M');
   const [date, setDate] = useState('');
+  const [latestDate, setLatestDate] = useState('');
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isYtdMode, setIsYtdMode] = useState(false);
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
   const [section3Data, setSection3Data] = useState<any>(null);
+  const refreshedSummaryKeysRef = useRef<Set<string>>(new Set());
 
   const [hkmcSection1Data, setHkmcSection1Data] = useState<any>(null);
   const [hkmcSection2Data, setHkmcSection2Data] = useState<any>(null);
@@ -103,17 +105,29 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isSummaryView || !date || !brand) return;
 
+    let isCancelled = false;
+    const controller = new AbortController();
+
     const fetchSummaryData = async () => {
       try {
         const mode = isYtdMode ? 'ytd' : 'mtd';
+        const isLatest = !!latestDate && date === latestDate;
+        const summaryKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}`;
+        const shouldForceRefresh = isLatest && !refreshedSummaryKeysRef.current.has(summaryKey);
+        const fetchOptions = shouldForceRefresh
+          ? { cache: 'no-store' as const, signal: controller.signal }
+          : { signal: controller.signal };
+        const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const [hkmcS1, hkmcS2, hkmcS3, twS1, twS2, twS3] = await Promise.all([
-          fetch(`/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}&mode=${mode}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}`).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
+          fetch(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
         ]);
+
+        if (isCancelled) return;
 
         setHkmcSection1Data(hkmcS1);
         setHkmcSection2Data(hkmcS2);
@@ -127,7 +141,11 @@ export default function DashboardPage() {
           section2: hkmcS2 && twS2 ? 'success' : 'error',
           section3: hkmcS3 && twS3 ? 'success' : 'error',
         });
+        if (shouldForceRefresh) {
+          refreshedSummaryKeysRef.current.add(summaryKey);
+        }
       } catch (error) {
+        if (controller.signal.aborted || isCancelled) return;
         console.error('Error fetching summary data:', error);
         setDataLoadStatus({
           section1: 'error',
@@ -138,7 +156,12 @@ export default function DashboardPage() {
     };
 
     fetchSummaryData();
-  }, [isSummaryView, date, brand, isYtdMode, categoryFilter, section3CategoryFilter]);
+
+    return () => {
+      isCancelled = true;
+      controller.abort();
+    };
+  }, [isSummaryView, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate]);
 
   useEffect(() => {
     if (isSummaryView || !date || !brand || !region) return;
@@ -186,12 +209,22 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchMeta() {
       try {
-        const res = await fetch('/api/meta');
-        const data = await res.json();
+        const [metaRes, latestRes] = await Promise.all([
+          fetch('/api/meta'),
+          fetch(`/api/latest-date?region=HKMC&brand=${brand}`),
+        ]);
+        const data = await metaRes.json();
+        const latestData = latestRes.ok ? await latestRes.json() : null;
+        const resolvedLatestDate = latestData?.latest_date || '';
 
         if (data.available_dates && data.available_dates.length > 0) {
           setAvailableDates(data.available_dates);
-          setDate(data.available_dates[0]);
+          const initialDate = resolvedLatestDate || data.available_dates[0];
+          setDate(initialDate);
+          setLatestDate(initialDate);
+        } else if (resolvedLatestDate) {
+          setDate(resolvedLatestDate);
+          setLatestDate(resolvedLatestDate);
         }
       } catch (error) {
         console.error('Failed to fetch meta:', error);

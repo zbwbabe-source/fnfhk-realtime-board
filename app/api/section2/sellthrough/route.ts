@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const forceRefresh = searchParams.get('forceRefresh') === 'true';
     const categoryFilter =
       (searchParams.get('category_filter') || 'clothes').trim() === 'all' ? 'all' : 'clothes';
 
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       date,
+      force_refresh: forceRefresh,
       category_filter: categoryFilter,
       timestamp: new Date().toISOString(),
     });
@@ -58,7 +60,9 @@ export async function GET(request: NextRequest) {
 
     // Redis 스냅샷 조회 (필터별 키 분리)
     const snapshotResource = `sellthrough:${categoryFilter}`;
-    const snapshot = await getSnapshot<any>('SECTION2', snapshotResource, region, brand, date);
+    const snapshot = forceRefresh
+      ? null
+      : await getSnapshot<any>('SECTION2', snapshotResource, region, brand, date);
 
     if (snapshot) {
       // Redis HIT: 즉시 반환
