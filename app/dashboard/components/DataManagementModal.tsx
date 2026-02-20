@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type DataFileRow = {
   displayName: string;
@@ -17,11 +17,6 @@ type SqlTableRow = {
   tableName: string;
   usedBy: string[];
   purpose: string;
-  queryExamples?: Array<{
-    name: string;
-    source: string;
-    sql: string;
-  }>;
 };
 
 type DataManagementResponse = {
@@ -48,7 +43,6 @@ export default function DataManagementModal({ open, onClose }: DataManagementMod
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<DataManagementResponse | null>(null);
-  const [expandedTable, setExpandedTable] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -83,10 +77,8 @@ export default function DataManagementModal({ open, onClose }: DataManagementMod
       <div className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-xl bg-white shadow-xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">데이터관리</h2>
-            <p className="text-xs text-gray-500">
-              최종 업데이트: {formatDateTime(data?.lastUpdatedAt || null)}
-            </p>
+            <h2 className="text-lg font-semibold text-gray-900">데이터 관리</h2>
+            <p className="text-xs text-gray-500">최종 업데이트: {formatDateTime(data?.lastUpdatedAt || null)}</p>
           </div>
           <button
             onClick={onClose}
@@ -145,38 +137,13 @@ export default function DataManagementModal({ open, onClose }: DataManagementMod
                       </tr>
                     </thead>
                     <tbody>
-                      {data.sqlTables.map((table) => {
-                        const isOpen = expandedTable === table.tableName;
-                        return (
-                          <Fragment key={table.tableName}>
-                            <tr
-                              className="cursor-pointer border-t hover:bg-gray-50"
-                              onClick={() => setExpandedTable(isOpen ? null : table.tableName)}
-                            >
-                              <td className="px-3 py-2 font-medium">{table.tableName}</td>
-                              <td className="px-3 py-2">{table.purpose}</td>
-                              <td className="px-3 py-2">{table.usedBy.join(', ')}</td>
-                            </tr>
-                            {isOpen && (
-                              <tr className="border-t bg-gray-50/70">
-                                <td className="px-3 py-3" colSpan={3}>
-                                  <div className="space-y-3">
-                                    {(table.queryExamples || []).map((q) => (
-                                      <div key={`${table.tableName}-${q.name}`} className="rounded-md border bg-white p-3">
-                                        <div className="mb-1 text-xs font-semibold text-gray-700">{q.name}</div>
-                                        <div className="mb-2 text-xs text-gray-500">{q.source}</div>
-                                        <pre className="overflow-x-auto rounded bg-gray-900 p-3 text-xs text-gray-100">
-                                          <code>{q.sql}</code>
-                                        </pre>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
+                      {data.sqlTables.map((table) => (
+                        <tr key={table.tableName} className="border-t">
+                          <td className="px-3 py-2 font-medium">{table.tableName}</td>
+                          <td className="px-3 py-2">{table.purpose}</td>
+                          <td className="px-3 py-2">{table.usedBy.join(', ')}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
