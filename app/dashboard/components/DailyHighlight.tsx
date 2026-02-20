@@ -126,7 +126,6 @@ export default function DailyHighlight({
         <p className="text-sm text-gray-500">Generating insight...</p>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm font-semibold text-gray-900">{data?.summaryLine}</p>
           {data?.compareLine ? <p className="text-sm text-gray-700">{data.compareLine}</p> : null}
 
           <div className="space-y-2">

@@ -10,6 +10,7 @@ interface Section1CardProps {
   region: string;
   date: string;
   onYtdModeToggle?: () => void;
+  showSeasonCategory?: boolean;
 }
 
 type KpiBlock = {
@@ -27,6 +28,7 @@ export default function Section1Card({
   region,
   date,
   onYtdModeToggle,
+  showSeasonCategory = true,
 }: Section1CardProps) {
   const isTwRegion = region === 'TW';
   const salesLabel = isTwRegion
@@ -42,10 +44,10 @@ export default function Section1Card({
   };
 
   const formatRate = (rate: number | null | undefined) =>
-    typeof rate === 'number' && isFinite(rate) ? `${rate.toFixed(1)}%` : 'N/A';
+    typeof rate === 'number' && isFinite(rate) ? `${rate.toFixed(1)}%` : '-';
 
   const formatPercentPointDiff = (value: number | null | undefined) => {
-    if (typeof value !== 'number' || !isFinite(value)) return 'N/A';
+    if (typeof value !== 'number' || !isFinite(value)) return '-';
     if (value > 0) return `+${value.toFixed(1)}%p`;
     if (value < 0) return `\u25B3${Math.abs(value).toFixed(1)}%p`;
     return '0.0%p';
@@ -54,12 +56,12 @@ export default function Section1Card({
   const emptyKpis = {
     k1: {
       label: salesLabel,
-      value: 'N/A',
-      discountRate: 'N/A',
-      discountDiff: 'N/A',
+      value: '-',
+      discountRate: '-',
+      discountDiff: '-',
     } as KpiBlock,
-    k2: { label: t(language, brand === 'X' ? 'mom' : 'yoy'), value: 'N/A' } as KpiBlock,
-    k3: { label: t(language, 'progress'), value: 'N/A' } as KpiBlock,
+    k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
+    k3: { label: t(language, 'progress'), value: '-' } as KpiBlock,
   };
 
   const calculateKPIs = () => {
@@ -73,25 +75,24 @@ export default function Section1Card({
     }
 
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
-    const compareRate =
-      brand === 'X' ? (isYtdMode ? total.yoy_ytd : total.mom) : isYtdMode ? total.yoy_ytd : total.yoy;
+    const compareRate = isYtdMode ? total.yoy_ytd : total.yoy;
     const progress = isYtdMode ? total.progress_ytd : total.progress;
     const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
     const discountRateDiff = isYtdMode ? total.discount_rate_ytd_diff : total.discount_rate_mtd_diff;
 
-    const hasCompareRate = compareRate && compareRate !== 0;
+    const hasCompareRate = typeof compareRate === 'number' && isFinite(compareRate);
     const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
 
     return {
       k1: {
         label: salesLabel,
         value: formatCurrency(actual),
-        discountRate: hasDiscountRate ? formatRate(discountRate) : 'N/A',
+        discountRate: hasDiscountRate ? formatRate(discountRate) : '-',
         discountDiff: formatPercentPointDiff(discountRateDiff),
       } as KpiBlock,
       k2: {
-        label: hasCompareRate ? t(language, brand === 'X' ? 'mom' : 'yoy') : 'Discount Rate',
-        value: hasCompareRate ? `${compareRate.toFixed(0)}%` : hasDiscountRate ? `${discountRate.toFixed(1)}%` : 'N/A',
+        label: t(language, 'yoy'),
+        value: hasCompareRate ? `${compareRate.toFixed(0)}%` : '-',
       } as KpiBlock,
       k3: {
         label: t(language, 'progress'),
@@ -104,11 +105,11 @@ export default function Section1Card({
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
   const seasonCategorySales = section1Data?.season_category_sales;
   const seasonLabels = seasonCategorySales?.season_labels || {};
-  const detailMetrics = seasonCategorySales?.metrics
+  const detailMetrics = showSeasonCategory && seasonCategorySales?.metrics
     ? [
-        { key: 'currentSeason', title: `당시즌(${seasonLabels.current || '-'})` },
-        { key: 'nextSeason', title: `차시즌(${seasonLabels.next || '-'})` },
-        { key: 'pastSeason', title: `과시즌(${seasonLabels.past || '-'})` },
+        { key: 'currentSeason', title: `당시즌(${seasonLabels.current || '-'})`, apparelOnly: true },
+        { key: 'nextSeason', title: `차시즌(${seasonLabels.next || '-'})`, apparelOnly: true },
+        { key: 'pastSeason', title: `과시즌(${seasonLabels.past || '-'})`, apparelOnly: true },
         { key: 'hat', title: '모자' },
         { key: 'shoes', title: '신발' },
       ]
@@ -168,7 +169,17 @@ export default function Section1Card({
           <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k2.value}</p>
         </div>
         <div className="space-y-2 border-l border-gray-100 pl-3">
-          <p className="text-xs text-gray-500">{kpis.k3.label}</p>
+          <div className="group relative inline-block">
+            <p
+              className="cursor-help text-xs text-gray-500 underline decoration-dotted underline-offset-2"
+              title={language === 'ko' ? '영업목표 품의대비 진척률' : 'Progress vs approved sales target'}
+            >
+              {kpis.k3.label}
+            </p>
+            <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
+              {language === 'ko' ? '영업목표 품의대비 진척률' : 'Progress vs approved sales target'}
+            </div>
+          </div>
           <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k3.value}</p>
         </div>
       </div>
@@ -184,11 +195,21 @@ export default function Section1Card({
               const discountDiff = isYtdMode ? metric?.ytd_discount_rate_diff : metric?.mtd_discount_rate_diff;
               return (
                 <div key={item.key} className="rounded-lg border border-gray-100 bg-gray-50 p-2">
-                  <p className="text-[11px] font-medium text-gray-600">{item.title}</p>
-                  <p className="mt-1 text-base font-semibold tabular-nums text-gray-900">{formatCurrency(sales || 0)}</p>
-                  <p className="text-[10px] text-gray-500">{isTwRegion ? '실판매출(V+)' : '실판매출'}</p>
-                  <p className="mt-0.5 text-[11px] tabular-nums text-gray-600">
-                    YoY {typeof yoy === 'number' && isFinite(yoy) ? `${yoy.toFixed(0)}%` : 'N/A'}
+                  {item.apparelOnly ? (
+                    <div className="group relative block min-h-[30px]">
+                      <p className="cursor-help break-keep text-[11px] font-medium leading-tight text-gray-600 underline decoration-dotted underline-offset-2">
+                        {item.title}
+                      </p>
+                      <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
+                        {language === 'ko' ? '의류만' : 'Apparel only'}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="min-h-[30px] break-keep text-[11px] font-medium leading-tight text-gray-600">{item.title}</p>
+                  )}
+                  <p className="text-base font-semibold tabular-nums text-gray-900">{formatCurrency(sales || 0)}</p>
+                  <p className="text-[11px] tabular-nums text-gray-600">
+                      {typeof yoy === 'number' && isFinite(yoy) ? `${yoy.toFixed(0)}%` : '-'}
                   </p>
                   <p className="text-[11px] tabular-nums text-gray-600">
                     {language === 'ko' ? '할인율' : 'Discount Rate'} {formatRate(discountRate)} ({formatPercentPointDiff(discountDiff)})

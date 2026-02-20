@@ -132,32 +132,43 @@ export default function DashboardPage() {
           ? { cache: 'no-store' as const, signal: controller.signal }
           : { signal: controller.signal };
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
-        const [hkmcS1, hkmcS2, hkmcS3, twS1, twS2, twS3] = await Promise.all([
-          fetch(`/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-          fetch(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`, fetchOptions).then((r) => (r.ok ? r.json() : null)),
-        ]);
+        const fetchJson = async (url: string) => {
+          try {
+            const r = await fetch(url, fetchOptions);
+            return r.ok ? r.json() : null;
+          } catch (e: any) {
+            if (e?.name === 'AbortError') return null;
+            throw e;
+          }
+        };
 
+        // Start all requests together, but render Section1 first (top card perceived speed).
+        const hkmcS1Promise = fetchJson(`/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`);
+        const twS1Promise = fetchJson(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`);
+        const hkmcS2Promise = fetchJson(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
+        const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
+        const hkmcS3Promise = fetchJson(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`);
+        const twS3Promise = fetchJson(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`);
+
+        const [hkmcS1, twS1] = await Promise.all([hkmcS1Promise, twS1Promise]);
         if (isCancelled) return;
-
         setHkmcSection1Data(hkmcS1);
-        setHkmcSection2Data(hkmcS2);
-        setHkmcSection3Data(hkmcS3);
         setTwSection1Data(twS1);
-        setTwSection2Data(twS2);
-        setTwSection3Data(twS3);
+        setDataLoadStatus((prev) => ({ ...prev, section1: hkmcS1 && twS1 ? 'success' : 'error' }));
 
-        setDataLoadStatus({
-          section1: hkmcS1 && twS1 ? 'success' : 'error',
-          section2: hkmcS2 && twS2 ? 'success' : 'error',
-          section3: hkmcS3 && twS3 ? 'success' : 'error',
-        });
-        if (shouldForceRefresh) {
-          refreshedSummaryKeysRef.current.add(summaryKey);
-        }
+        const [hkmcS2, twS2] = await Promise.all([hkmcS2Promise, twS2Promise]);
+        if (isCancelled) return;
+        setHkmcSection2Data(hkmcS2);
+        setTwSection2Data(twS2);
+        setDataLoadStatus((prev) => ({ ...prev, section2: hkmcS2 && twS2 ? 'success' : 'error' }));
+
+        const [hkmcS3, twS3] = await Promise.all([hkmcS3Promise, twS3Promise]);
+        if (isCancelled) return;
+        setHkmcSection3Data(hkmcS3);
+        setTwSection3Data(twS3);
+        setDataLoadStatus((prev) => ({ ...prev, section3: hkmcS3 && twS3 ? 'success' : 'error' }));
+
+        if (shouldForceRefresh) refreshedSummaryKeysRef.current.add(summaryKey);
       } catch (error) {
         if (controller.signal.aborted || isCancelled) return;
         console.error('Error fetching summary data:', error);
@@ -444,6 +455,7 @@ export default function DashboardPage() {
                   region={region}
                   date={date}
                   onYtdModeToggle={() => setIsYtdMode(!isYtdMode)}
+                  showSeasonCategory={false}
                 />
                 <Section1StoreBarChart
                   region={region}

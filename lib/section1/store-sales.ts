@@ -714,6 +714,7 @@ export async function fetchSection1StoreSales({
     const mapping = getCategoryMapping(smallCode);
     const isHat = mapping.middle === 'Headwear';
     const isShoes = mapping.middle === 'Shoes';
+    const isApparel = ['OUTER', 'INNER', 'BOTTOM', 'Wear_etc'].includes(mapping.middle);
 
     const mtdTy = applyExchangeRate(parseFloat(row.MTD_ACT_TY || 0));
     const mtdLy = applyExchangeRate(parseFloat(row.MTD_ACT_LY || 0));
@@ -724,29 +725,31 @@ export async function fetchSection1StoreSales({
     const ytdTagTy = applyExchangeRate(parseFloat(row.YTD_TAG_TY || 0));
     const ytdTagLy = applyExchangeRate(parseFloat(row.YTD_TAG_LY || 0));
 
-    const seasonAgg = seasonRollup.get(sesn) || createSeasonCategoryAccumulator();
-    seasonAgg.mtd_ty += mtdTy;
-    seasonAgg.mtd_ly += mtdLy;
-    seasonAgg.ytd_ty += ytdTy;
-    seasonAgg.ytd_ly += ytdLy;
-    seasonAgg.mtd_tag_ty += mtdTagTy;
-    seasonAgg.mtd_tag_ly += mtdTagLy;
-    seasonAgg.ytd_tag_ty += ytdTagTy;
-    seasonAgg.ytd_tag_ly += ytdTagLy;
-    seasonRollup.set(sesn, seasonAgg);
+    if (isApparel) {
+      const seasonAgg = seasonRollup.get(sesn) || createSeasonCategoryAccumulator();
+      seasonAgg.mtd_ty += mtdTy;
+      seasonAgg.mtd_ly += mtdLy;
+      seasonAgg.ytd_ty += ytdTy;
+      seasonAgg.ytd_ly += ytdLy;
+      seasonAgg.mtd_tag_ty += mtdTagTy;
+      seasonAgg.mtd_tag_ly += mtdTagLy;
+      seasonAgg.ytd_tag_ty += ytdTagTy;
+      seasonAgg.ytd_tag_ly += ytdTagLy;
+      seasonRollup.set(sesn, seasonAgg);
 
-    if (sesnIdx !== null) {
-      if (pastCutoffIndex !== null && sesnIdx <= pastCutoffIndex) {
-        seasonCategoryAcc.past.mtd_ty += mtdTy;
-        seasonCategoryAcc.past.ytd_ty += ytdTy;
-        seasonCategoryAcc.past.mtd_tag_ty += mtdTagTy;
-        seasonCategoryAcc.past.ytd_tag_ty += ytdTagTy;
-      }
-      if (prevPastCutoffIndex !== null && sesnIdx <= prevPastCutoffIndex) {
-        seasonCategoryAcc.past.mtd_ly += mtdLy;
-        seasonCategoryAcc.past.ytd_ly += ytdLy;
-        seasonCategoryAcc.past.mtd_tag_ly += mtdTagLy;
-        seasonCategoryAcc.past.ytd_tag_ly += ytdTagLy;
+      if (sesnIdx !== null) {
+        if (pastCutoffIndex !== null && sesnIdx <= pastCutoffIndex) {
+          seasonCategoryAcc.past.mtd_ty += mtdTy;
+          seasonCategoryAcc.past.ytd_ty += ytdTy;
+          seasonCategoryAcc.past.mtd_tag_ty += mtdTagTy;
+          seasonCategoryAcc.past.ytd_tag_ty += ytdTagTy;
+        }
+        if (prevPastCutoffIndex !== null && sesnIdx <= prevPastCutoffIndex) {
+          seasonCategoryAcc.past.mtd_ly += mtdLy;
+          seasonCategoryAcc.past.ytd_ly += ytdLy;
+          seasonCategoryAcc.past.mtd_tag_ly += mtdTagLy;
+          seasonCategoryAcc.past.ytd_tag_ly += ytdTagLy;
+        }
       }
     }
 
@@ -824,9 +827,9 @@ export async function fetchSection1StoreSales({
       past: `~${pastCutoffSesn}`,
     },
     metrics: {
-      currentSeason: toMetric('당시즌', seasonCategoryAcc.current),
-      nextSeason: toMetric('차시즌', seasonCategoryAcc.next),
-      pastSeason: toMetric('과시즌', seasonCategoryAcc.past),
+      currentSeason: toMetric('당시즌의류', seasonCategoryAcc.current),
+      nextSeason: toMetric('차시즌의류', seasonCategoryAcc.next),
+      pastSeason: toMetric('과시즌의류', seasonCategoryAcc.past),
       hat: toMetric('모자', seasonCategoryAcc.hat),
       shoes: toMetric('신발', seasonCategoryAcc.shoes),
     },

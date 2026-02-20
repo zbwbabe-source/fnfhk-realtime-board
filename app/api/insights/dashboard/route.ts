@@ -16,6 +16,7 @@ export const maxDuration = 30;
 
 const MODEL = 'gpt-4o-mini';
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const EXEC_INSIGHT_USE_LLM = process.env.EXEC_INSIGHT_USE_LLM === 'true';
 
 function clampText(s: string, max: number): string {
   if (!s) return '';
@@ -154,7 +155,14 @@ function buildSignals(input: ExecutiveInsightInput) {
     },
   ];
 
-  const summaryLine = clampText('HKMC/TW 각 특성 속 당시즌 둔화가 차기 과시즌 부담으로 이어질 수 있습니다.', 80);
+  const summaryLine = clampText(
+    blocks
+      .map((b) => `${b.label} ${b.text}`)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+    80
+  );
   const compareLine = '';
 
   const actions = [
@@ -346,7 +354,7 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v8', regionPart, input.brand, input.asOfDate]);
+    const cacheKey = buildKey(['insights', 'exec', 'v9', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
@@ -376,8 +384,8 @@ export async function POST(req: Request) {
     let payload: Omit<ExecutiveInsightResponse, 'meta'>;
 
     try {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is missing');
+      if (!EXEC_INSIGHT_USE_LLM || !process.env.OPENAI_API_KEY) {
+        throw new Error('LLM path disabled');
       }
       payload = await generateExecutiveInsight(input);
     } catch {
