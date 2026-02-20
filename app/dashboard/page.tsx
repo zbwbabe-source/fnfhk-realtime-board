@@ -267,6 +267,63 @@ export default function DashboardPage() {
     fetchMeta();
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+
+    const checkLatestDate = async () => {
+      if (disposed || inFlight || document.visibilityState !== 'visible') return;
+      inFlight = true;
+
+      try {
+        const res = await fetch(`/api/latest-date?region=HKMC&brand=${brand}`, { cache: 'no-store' });
+        if (!res.ok) return;
+
+        const latestData = await res.json();
+        const nextLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+        if (!nextLatestDate || nextLatestDate === latestDate) return;
+
+        const wasViewingLatest = !date || date === latestDate;
+        setLatestDate(nextLatestDate);
+        setAvailableDates((prev) => (prev.includes(nextLatestDate) ? prev : [nextLatestDate, ...prev]));
+
+        if (wasViewingLatest) {
+          setDate(nextLatestDate);
+        }
+      } catch (error) {
+        console.error('Failed to auto-check latest date:', error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void checkLatestDate();
+    }, 3 * 60 * 1000);
+
+    const handleFocus = () => {
+      void checkLatestDate();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void checkLatestDate();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pageshow', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pageshow', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [brand, date, latestDate]);
+
   const allDataLoaded = dataLoadStatus.section1 === 'success' && dataLoadStatus.section2 === 'success' && dataLoadStatus.section3 === 'success';
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
   const anyDataError = dataLoadStatus.section1 === 'error' || dataLoadStatus.section2 === 'error' || dataLoadStatus.section3 === 'error';

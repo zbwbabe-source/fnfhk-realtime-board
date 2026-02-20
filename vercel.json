@@ -2,19 +2,19 @@
   "crons": [
     {
       "path": "/api/cron/daily-aggregate",
-      "schedule": "0 5 * * *"
+      "schedule": "0 20 * * *"
     },
     {
       "path": "/api/cron/section1-snapshot",
-      "schedule": "0 20 * * *"
+      "schedule": "15 20 * * *"
     },
     {
       "path": "/api/cron/section2-snapshot",
-      "schedule": "0 20 * * *"
+      "schedule": "20 20 * * *"
     },
     {
       "path": "/api/cron/section3-snapshot",
-      "schedule": "0 20 * * *"
+      "schedule": "25 20 * * *"
     },
     {
       "path": "/api/cron/insights-summary",
