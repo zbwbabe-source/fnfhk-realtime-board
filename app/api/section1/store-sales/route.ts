@@ -4,6 +4,10 @@ import { fetchSection1StoreSales } from '@/lib/section1/store-sales';
 
 export const dynamic = 'force-dynamic';
 
+function isLegacySnapshotPayload(payload: any): boolean {
+  return !payload?.season_category_sales?.metrics;
+}
+
 /**
  * GET /api/section1/store-sales
  * 
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
       ? null
       : await getSnapshot<any>('SECTION1', 'store-sales', region, brand, date);
 
-    if (snapshot) {
+    if (snapshot && !isLegacySnapshotPayload(snapshot.payload)) {
       // Redis HIT: 즉시 반환
       cacheHit = true;
       const durationMs = Date.now() - startTime;
@@ -76,6 +80,10 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.json(snapshot.payload);
+    }
+
+    if (snapshot && isLegacySnapshotPayload(snapshot.payload)) {
+      console.log('[section1] Legacy snapshot detected, regenerating', { region, brand, date });
     }
 
     console.log('[section1] ⏳ Cache MISS, executing Snowflake query...');
