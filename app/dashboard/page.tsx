@@ -14,21 +14,35 @@ import Section2Treemap from './components/Section2Treemap';
 import Section3Card from './components/Section3Card';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryView from './components/SummaryView';
+import DataManagementModal from './components/DataManagementModal';
 import { t, type Language } from '@/lib/translations';
 
+function getKstYesterdayString(): string {
+  const now = new Date();
+  const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
+  const kstTime = new Date(utcTime + 9 * 60 * 60000);
+  kstTime.setDate(kstTime.getDate() - 1);
+  const year = kstTime.getFullYear();
+  const month = String(kstTime.getMonth() + 1).padStart(2, '0');
+  const day = String(kstTime.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function DashboardPage() {
+  const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
   const [brand, setBrand] = useState('M');
-  const [date, setDate] = useState('');
-  const [latestDate, setLatestDate] = useState('');
+  const [date, setDate] = useState(fallbackDate);
+  const [latestDate, setLatestDate] = useState(fallbackDate);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [isYtdMode, setIsYtdMode] = useState(false);
   const [language, setLanguage] = useState<Language>('ko');
   const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [isSummaryView, setIsSummaryView] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
 
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
@@ -216,20 +230,26 @@ export default function DashboardPage() {
         const data = await metaRes.json();
         const latestData = latestRes.ok ? await latestRes.json() : null;
         const resolvedLatestDate = latestData?.latest_date || '';
+        const metaDates: string[] = Array.isArray(data.available_dates) ? data.available_dates : [];
+        const nextDates = [...metaDates];
 
-        if (data.available_dates && data.available_dates.length > 0) {
-          setAvailableDates(data.available_dates);
-          const initialDate = resolvedLatestDate || data.available_dates[0];
-          setDate(initialDate);
+        if (resolvedLatestDate && !nextDates.includes(resolvedLatestDate)) {
+          nextDates.unshift(resolvedLatestDate);
+        }
+
+        if (nextDates.length > 0) {
+          setAvailableDates(nextDates);
+          const initialDate = resolvedLatestDate || nextDates[0];
+          setDate((prev) => (prev === initialDate ? prev : initialDate));
           setLatestDate(initialDate);
         } else if (resolvedLatestDate) {
-          setDate(resolvedLatestDate);
+          setDate((prev) => (prev === resolvedLatestDate ? prev : resolvedLatestDate));
           setLatestDate(resolvedLatestDate);
         }
       } catch (error) {
         console.error('Failed to fetch meta:', error);
       } finally {
-        setLoading(false);
+        setMetaLoading(false);
       }
     }
 
@@ -240,7 +260,7 @@ export default function DashboardPage() {
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
   const anyDataError = dataLoadStatus.section1 === 'error' || dataLoadStatus.section2 === 'error' || dataLoadStatus.section3 === 'error';
 
-  if (loading) {
+  if (metaLoading && !date) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-xl text-gray-600">{language === 'ko' ? '로딩 중...' : 'Loading...'}</div>
@@ -260,23 +280,31 @@ export default function DashboardPage() {
                 {language === 'ko' ? '업데이트' : 'Updated'} {date || '-'} | {language === 'ko' ? '기준일' : 'asOf'} {date || '-'}
               </p>
             </div>
-            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setLanguage('ko')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'ko' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
-                }`}
+                onClick={() => setIsDataManagementOpen(true)}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
-                KR
+                데이터관리
               </button>
-              <button
-                onClick={() => setLanguage('en')}
-                className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'en' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                EN
-              </button>
+              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <button
+                  onClick={() => setLanguage('ko')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors ${
+                    language === 'ko' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  KR
+                </button>
+                <button
+                  onClick={() => setLanguage('en')}
+                  className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors ${
+                    language === 'en' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  EN
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -320,7 +348,7 @@ export default function DashboardPage() {
 
             {!isSummaryView && <RegionToggle value={region} onChange={setRegion} />}
             <BrandSelect value={brand} onChange={setBrand} />
-            <DateSelect value={date} onChange={setDate} availableDates={availableDates} />
+            <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} />
 
             <div className="ml-auto flex items-center gap-2">
               {anyDataLoading && (
@@ -493,6 +521,7 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      <DataManagementModal open={isDataManagementOpen} onClose={() => setIsDataManagementOpen(false)} />
     </div>
   );
 }

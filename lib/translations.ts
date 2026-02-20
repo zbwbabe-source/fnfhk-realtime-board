@@ -16,7 +16,7 @@ export const translations = {
     refreshData: '데이터 새로고침',
     
     // Summary Cards
-    section1Title: '1. 매장별매출',
+    section1Title: '1. 실판매출',
     section1Subtitle: 'Store Sales',
     section2Title: '2. 당시즌판매율',
     section2Subtitle: 'In-season Sell-through',
@@ -160,7 +160,7 @@ export const translations = {
     refreshData: 'Refresh Data',
     
     // Summary Cards
-    section1Title: '1. Store Sales',
+    section1Title: '1. Actual Sales',
     section1Subtitle: 'Store Sales',
     section2Title: '2. In-season Sell-through',
     section2Subtitle: 'In-season Sell-through',

@@ -2,6 +2,8 @@ import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
 import { loadWeightDataServer, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
+import { getSeasonCode } from '@/lib/date-utils';
+import { getCategoryMapping } from '@/lib/category-utils';
 import targetData from '@/data/target.json';
 
 /**
@@ -27,6 +29,40 @@ function calculateYtdTargetForStore(
   }
 
   return ytdTarget;
+}
+
+type SeasonPart = 'S' | 'F';
+
+function parseSeasonCode(sesn: string): { yy: number; part: SeasonPart } | null {
+  const m = (sesn || '').match(/^(\d{2})([SF])$/);
+  if (!m) return null;
+  return { yy: Number(m[1]), part: m[2] as SeasonPart };
+}
+
+function seasonIndex(sesn: string): number | null {
+  const parsed = parseSeasonCode(sesn);
+  if (!parsed) return null;
+  return parsed.yy * 2 + (parsed.part === 'S' ? 0 : 1);
+}
+
+function getNextSeasonCode(currentSesn: string): string {
+  const parsed = parseSeasonCode(currentSesn);
+  if (!parsed) return '';
+  const nextYear = parsed.part === 'F' ? parsed.yy + 1 : parsed.yy;
+  const nextPart: SeasonPart = parsed.part === 'F' ? 'S' : 'F';
+  return `${String(nextYear).padStart(2, '0')}${nextPart}`;
+}
+
+function getPastSeasonCutoff(currentSesn: string): string {
+  const parsed = parseSeasonCode(currentSesn);
+  if (!parsed) return '';
+  return `${String(parsed.yy - 1).padStart(2, '0')}${parsed.part}`;
+}
+
+function getPrevYearSeasonCode(sesn: string): string {
+  const parsed = parseSeasonCode(sesn);
+  if (!parsed) return '';
+  return `${String(parsed.yy - 1).padStart(2, '0')}${parsed.part}`;
 }
 
 export interface StoreSalesPayload {
@@ -55,6 +91,7 @@ export interface StoreSalesPayload {
   tw_online_subtotal: any;
   tw_subtotal: any;
   total_subtotal: any;
+  season_category_sales: any;
 }
 
 /**
@@ -110,6 +147,7 @@ export async function fetchSection1StoreSales({
       tw_online_subtotal: null,
       tw_subtotal: null,
       total_subtotal: null,
+      season_category_sales: null,
     };
   }
 
@@ -119,6 +157,9 @@ export async function fetchSection1StoreSales({
   const asofDate = new Date(date);
   const year = asofDate.getFullYear();
   const month = asofDate.getMonth() + 1;
+  const currentSesn = getSeasonCode(asofDate);
+  const nextSesn = getNextSeasonCode(currentSesn);
+  const pastCutoffSesn = getPastSeasonCutoff(currentSesn);
 
   // 목표값 데이터 로드 (period 기준)
   const periodKey = `${year}-${String(month).padStart(2, '0')}`;
@@ -171,6 +212,13 @@ export async function fetchSection1StoreSales({
           END
         ) AS mtd_tag,
         
+        SUM(
+          CASE
+            WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+            THEN TAG_SALE_AMT ELSE 0
+          END
+        ) AS mtd_tag_py,
+        
         /* YTD ACT */
         SUM(
           CASE
@@ -193,7 +241,14 @@ export async function fetchSection1StoreSales({
             WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
             THEN TAG_SALE_AMT ELSE 0
           END
-        ) AS ytd_tag
+        ) AS ytd_tag,
+        
+        SUM(
+          CASE
+            WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+            THEN TAG_SALE_AMT ELSE 0
+          END
+        ) AS ytd_tag_py
         
       FROM SAP_FNF.DW_HMD_SALE_D
       WHERE
@@ -208,6 +263,7 @@ export async function fetchSection1StoreSales({
       mtd_act_py,
       mtd_act_pm,
       mtd_tag,
+      mtd_tag_py,
       CASE
         WHEN mtd_act_py > 0
         THEN (mtd_act / mtd_act_py) * 100
@@ -221,6 +277,7 @@ export async function fetchSection1StoreSales({
       ytd_act,
       ytd_act_py,
       ytd_tag,
+      ytd_tag_py,
       CASE
         WHEN ytd_act_py > 0
         THEN (ytd_act / ytd_act_py) * 100
@@ -240,11 +297,15 @@ export async function fetchSection1StoreSales({
     date,
     date, // MTD TAG current
     date,
+    date, // MTD TAG PY
+    date,
     date, // YTD ACT current
     date,
     date, // YTD ACT PY
     date,
     date, // YTD TAG current
+    date,
+    date, // YTD TAG PY
     brand, // brand filter
     date,
     date, // date range filter
@@ -294,6 +355,7 @@ export async function fetchSection1StoreSales({
     const mtd_act_py = row ? applyExchangeRate(parseFloat(row.MTD_ACT_PY || 0)) : 0;
     const mtd_act_pm = row ? applyExchangeRate(parseFloat(row.MTD_ACT_PM || 0)) : 0;
     const mtd_tag = row ? applyExchangeRate(parseFloat(row.MTD_TAG || 0)) : 0;
+    const mtd_tag_py = row ? applyExchangeRate(parseFloat(row.MTD_TAG_PY || 0)) : 0;
     const yoy = row ? parseFloat(row.YOY || 0) : 0;
     const mom = row ? parseFloat(row.MOM || 0) : 0;
 
@@ -301,11 +363,18 @@ export async function fetchSection1StoreSales({
     const ytd_act = row ? applyExchangeRate(parseFloat(row.YTD_ACT || 0)) : 0;
     const ytd_act_py = row ? applyExchangeRate(parseFloat(row.YTD_ACT_PY || 0)) : 0;
     const ytd_tag = row ? applyExchangeRate(parseFloat(row.YTD_TAG || 0)) : 0;
+    const ytd_tag_py = row ? applyExchangeRate(parseFloat(row.YTD_TAG_PY || 0)) : 0;
     const yoy_ytd = row ? parseFloat(row.YOY_YTD || 0) : 0;
 
     // 할인율 계산: 1 - (ACT / TAG)
     const discount_rate_mtd = mtd_tag > 0 ? (1 - mtd_act / mtd_tag) * 100 : 0;
     const discount_rate_ytd = ytd_tag > 0 ? (1 - ytd_act / ytd_tag) * 100 : 0;
+    const discount_rate_mtd_ly = mtd_tag_py > 0 ? (1 - mtd_act_py / mtd_tag_py) * 100 : null;
+    const discount_rate_ytd_ly = ytd_tag_py > 0 ? (1 - ytd_act_py / ytd_tag_py) * 100 : null;
+    const discount_rate_mtd_diff =
+      discount_rate_mtd_ly === null ? null : discount_rate_mtd - discount_rate_mtd_ly;
+    const discount_rate_ytd_diff =
+      discount_rate_ytd_ly === null ? null : discount_rate_ytd - discount_rate_ytd_ly;
 
     // MTD 목표값 가져오기 (환율 적용)
     const targetInfo = targetsByStore[storeInfo.store_code];
@@ -346,6 +415,10 @@ export async function fetchSection1StoreSales({
       monthEndProjection,
       projectedYoY,
       discount_rate_mtd,
+      discount_rate_mtd_ly,
+      discount_rate_mtd_diff,
+      mtd_tag,
+      mtd_tag_py,
 
       // YTD 데이터
       ytd_target,
@@ -354,6 +427,10 @@ export async function fetchSection1StoreSales({
       ytd_act_py,
       yoy_ytd,
       discount_rate_ytd,
+      discount_rate_ytd_ly,
+      discount_rate_ytd_diff,
+      ytd_tag,
+      ytd_tag_py,
 
       forecast: null,
     };
@@ -400,16 +477,28 @@ export async function fetchSection1StoreSales({
     const mtd_act = stores.reduce((sum, s) => sum + s.mtd_act, 0);
     const mtd_act_py = stores.reduce((sum, s) => sum + s.mtd_act_py, 0);
     const mtd_act_pm = stores.reduce((sum, s) => sum + s.mtd_act_pm, 0);
+    const mtd_tag = stores.reduce((sum, s) => sum + (s.mtd_tag || 0), 0);
+    const mtd_tag_py = stores.reduce((sum, s) => sum + (s.mtd_tag_py || 0), 0);
     const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
     const yoy = mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0;
     const mom = mtd_act_pm > 0 ? (mtd_act / mtd_act_pm) * 100 : 0;
+    const discount_rate_mtd = mtd_tag > 0 ? (1 - mtd_act / mtd_tag) * 100 : 0;
+    const discount_rate_mtd_ly = mtd_tag_py > 0 ? (1 - mtd_act_py / mtd_tag_py) * 100 : null;
+    const discount_rate_mtd_diff =
+      discount_rate_mtd_ly === null ? null : discount_rate_mtd - discount_rate_mtd_ly;
 
     // YTD 합계
     const ytd_target = stores.reduce((sum, s) => sum + s.ytd_target, 0);
     const ytd_act = stores.reduce((sum, s) => sum + s.ytd_act, 0);
     const ytd_act_py = stores.reduce((sum, s) => sum + s.ytd_act_py, 0);
+    const ytd_tag = stores.reduce((sum, s) => sum + (s.ytd_tag || 0), 0);
+    const ytd_tag_py = stores.reduce((sum, s) => sum + (s.ytd_tag_py || 0), 0);
     const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
     const yoy_ytd = ytd_act_py > 0 ? (ytd_act / ytd_act_py) * 100 : 0;
+    const discount_rate_ytd = ytd_tag > 0 ? (1 - ytd_act / ytd_tag) * 100 : 0;
+    const discount_rate_ytd_ly = ytd_tag_py > 0 ? (1 - ytd_act_py / ytd_tag_py) * 100 : null;
+    const discount_rate_ytd_diff =
+      discount_rate_ytd_ly === null ? null : discount_rate_ytd - discount_rate_ytd_ly;
 
     // 합계의 월말환산 계산
     const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
@@ -433,6 +522,9 @@ export async function fetchSection1StoreSales({
       mom,
       monthEndProjection,
       projectedYoY,
+      discount_rate_mtd,
+      discount_rate_mtd_ly,
+      discount_rate_mtd_diff,
 
       // YTD
       ytd_target,
@@ -440,6 +532,9 @@ export async function fetchSection1StoreSales({
       progress_ytd,
       ytd_act_py,
       yoy_ytd,
+      discount_rate_ytd,
+      discount_rate_ytd_ly,
+      discount_rate_ytd_diff,
 
       forecast: null,
     };
@@ -490,6 +585,253 @@ export async function fetchSection1StoreSales({
     total_subtotal = calculateSubtotal(all_stores, 'HKMC 전체', 'HKMC', '전체');
   }
 
+  const seasonCategoryQuery = `
+    SELECT
+      SESN AS sesn,
+      SUBSTR(PART_CD, 3, 2) AS category_small,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS mtd_act_ty,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS mtd_tag_ty,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS mtd_act_ly,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS mtd_tag_ly,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS ytd_act_ty,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS ytd_tag_ty,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS ytd_act_ly,
+      SUM(
+        CASE
+          WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS ytd_tag_ly
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE
+      (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+      AND LOCAL_SHOP_CD IN (${storeCodes})
+      AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND TO_DATE(?)
+      AND SESN IS NOT NULL
+    GROUP BY SESN, category_small
+  `;
+
+  const seasonCategoryRows = await executeSnowflakeQuery(seasonCategoryQuery, [
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    date,
+    brand,
+    date,
+    date,
+  ]);
+
+  type SeasonCategoryAccumulator = {
+    mtd_ty: number;
+    mtd_ly: number;
+    ytd_ty: number;
+    ytd_ly: number;
+    mtd_tag_ty: number;
+    mtd_tag_ly: number;
+    ytd_tag_ty: number;
+    ytd_tag_ly: number;
+  };
+
+  const createSeasonCategoryAccumulator = (): SeasonCategoryAccumulator => ({
+    mtd_ty: 0,
+    mtd_ly: 0,
+    ytd_ty: 0,
+    ytd_ly: 0,
+    mtd_tag_ty: 0,
+    mtd_tag_ly: 0,
+    ytd_tag_ty: 0,
+    ytd_tag_ly: 0,
+  });
+
+  const seasonCategoryAcc = {
+    current: createSeasonCategoryAccumulator(),
+    next: createSeasonCategoryAccumulator(),
+    past: createSeasonCategoryAccumulator(),
+    hat: createSeasonCategoryAccumulator(),
+    shoes: createSeasonCategoryAccumulator(),
+  };
+
+  const pastCutoffIndex = seasonIndex(pastCutoffSesn);
+  const currentIndex = seasonIndex(currentSesn);
+  const nextIndex = seasonIndex(nextSesn);
+  const prevCurrentSesn = getPrevYearSeasonCode(currentSesn);
+  const prevNextSesn = getPrevYearSeasonCode(nextSesn);
+  const prevPastCutoffSesn = getPrevYearSeasonCode(pastCutoffSesn);
+  const prevPastCutoffIndex = seasonIndex(prevPastCutoffSesn);
+  const seasonRollup = new Map<string, SeasonCategoryAccumulator>();
+
+  seasonCategoryRows.forEach((row: any) => {
+    const sesn = (row.SESN || '').trim();
+    const sesnIdx = seasonIndex(sesn);
+    const smallCode = (row.CATEGORY_SMALL || '').trim();
+    const mapping = getCategoryMapping(smallCode);
+    const isHat = mapping.middle === 'Headwear';
+    const isShoes = mapping.middle === 'Shoes';
+
+    const mtdTy = applyExchangeRate(parseFloat(row.MTD_ACT_TY || 0));
+    const mtdLy = applyExchangeRate(parseFloat(row.MTD_ACT_LY || 0));
+    const mtdTagTy = applyExchangeRate(parseFloat(row.MTD_TAG_TY || 0));
+    const mtdTagLy = applyExchangeRate(parseFloat(row.MTD_TAG_LY || 0));
+    const ytdTy = applyExchangeRate(parseFloat(row.YTD_ACT_TY || 0));
+    const ytdLy = applyExchangeRate(parseFloat(row.YTD_ACT_LY || 0));
+    const ytdTagTy = applyExchangeRate(parseFloat(row.YTD_TAG_TY || 0));
+    const ytdTagLy = applyExchangeRate(parseFloat(row.YTD_TAG_LY || 0));
+
+    const seasonAgg = seasonRollup.get(sesn) || createSeasonCategoryAccumulator();
+    seasonAgg.mtd_ty += mtdTy;
+    seasonAgg.mtd_ly += mtdLy;
+    seasonAgg.ytd_ty += ytdTy;
+    seasonAgg.ytd_ly += ytdLy;
+    seasonAgg.mtd_tag_ty += mtdTagTy;
+    seasonAgg.mtd_tag_ly += mtdTagLy;
+    seasonAgg.ytd_tag_ty += ytdTagTy;
+    seasonAgg.ytd_tag_ly += ytdTagLy;
+    seasonRollup.set(sesn, seasonAgg);
+
+    if (sesnIdx !== null) {
+      if (pastCutoffIndex !== null && sesnIdx <= pastCutoffIndex) {
+        seasonCategoryAcc.past.mtd_ty += mtdTy;
+        seasonCategoryAcc.past.ytd_ty += ytdTy;
+        seasonCategoryAcc.past.mtd_tag_ty += mtdTagTy;
+        seasonCategoryAcc.past.ytd_tag_ty += ytdTagTy;
+      }
+      if (prevPastCutoffIndex !== null && sesnIdx <= prevPastCutoffIndex) {
+        seasonCategoryAcc.past.mtd_ly += mtdLy;
+        seasonCategoryAcc.past.ytd_ly += ytdLy;
+        seasonCategoryAcc.past.mtd_tag_ly += mtdTagLy;
+        seasonCategoryAcc.past.ytd_tag_ly += ytdTagLy;
+      }
+    }
+
+    if (isHat) {
+      seasonCategoryAcc.hat.mtd_ty += mtdTy;
+      seasonCategoryAcc.hat.mtd_ly += mtdLy;
+      seasonCategoryAcc.hat.ytd_ty += ytdTy;
+      seasonCategoryAcc.hat.ytd_ly += ytdLy;
+      seasonCategoryAcc.hat.mtd_tag_ty += mtdTagTy;
+      seasonCategoryAcc.hat.mtd_tag_ly += mtdTagLy;
+      seasonCategoryAcc.hat.ytd_tag_ty += ytdTagTy;
+      seasonCategoryAcc.hat.ytd_tag_ly += ytdTagLy;
+    } else if (isShoes) {
+      seasonCategoryAcc.shoes.mtd_ty += mtdTy;
+      seasonCategoryAcc.shoes.mtd_ly += mtdLy;
+      seasonCategoryAcc.shoes.ytd_ty += ytdTy;
+      seasonCategoryAcc.shoes.ytd_ly += ytdLy;
+      seasonCategoryAcc.shoes.mtd_tag_ty += mtdTagTy;
+      seasonCategoryAcc.shoes.mtd_tag_ly += mtdTagLy;
+      seasonCategoryAcc.shoes.ytd_tag_ty += ytdTagTy;
+      seasonCategoryAcc.shoes.ytd_tag_ly += ytdTagLy;
+    }
+  });
+
+  const currentTy = seasonRollup.get(currentSesn);
+  const currentLy = seasonRollup.get(prevCurrentSesn);
+  const nextTy = seasonRollup.get(nextSesn);
+  const nextLy = seasonRollup.get(prevNextSesn);
+
+  seasonCategoryAcc.current.mtd_ty = currentTy?.mtd_ty || 0;
+  seasonCategoryAcc.current.ytd_ty = currentTy?.ytd_ty || 0;
+  seasonCategoryAcc.current.mtd_ly = currentLy?.mtd_ly || 0;
+  seasonCategoryAcc.current.ytd_ly = currentLy?.ytd_ly || 0;
+  seasonCategoryAcc.current.mtd_tag_ty = currentTy?.mtd_tag_ty || 0;
+  seasonCategoryAcc.current.ytd_tag_ty = currentTy?.ytd_tag_ty || 0;
+  seasonCategoryAcc.current.mtd_tag_ly = currentLy?.mtd_tag_ly || 0;
+  seasonCategoryAcc.current.ytd_tag_ly = currentLy?.ytd_tag_ly || 0;
+
+  seasonCategoryAcc.next.mtd_ty = nextTy?.mtd_ty || 0;
+  seasonCategoryAcc.next.ytd_ty = nextTy?.ytd_ty || 0;
+  seasonCategoryAcc.next.mtd_ly = nextLy?.mtd_ly || 0;
+  seasonCategoryAcc.next.ytd_ly = nextLy?.ytd_ly || 0;
+  seasonCategoryAcc.next.mtd_tag_ty = nextTy?.mtd_tag_ty || 0;
+  seasonCategoryAcc.next.ytd_tag_ty = nextTy?.ytd_tag_ty || 0;
+  seasonCategoryAcc.next.mtd_tag_ly = nextLy?.mtd_tag_ly || 0;
+  seasonCategoryAcc.next.ytd_tag_ly = nextLy?.ytd_tag_ly || 0;
+
+  const toMetric = (label: string, m: SeasonCategoryAccumulator) => {
+    const mtdDiscountRate = m.mtd_tag_ty > 0 ? (1 - m.mtd_ty / m.mtd_tag_ty) * 100 : null;
+    const mtdDiscountRateLy = m.mtd_tag_ly > 0 ? (1 - m.mtd_ly / m.mtd_tag_ly) * 100 : null;
+    const ytdDiscountRate = m.ytd_tag_ty > 0 ? (1 - m.ytd_ty / m.ytd_tag_ty) * 100 : null;
+    const ytdDiscountRateLy = m.ytd_tag_ly > 0 ? (1 - m.ytd_ly / m.ytd_tag_ly) * 100 : null;
+
+    return {
+      label,
+      mtd_act: m.mtd_ty,
+      mtd_yoy: m.mtd_ly > 0 ? (m.mtd_ty / m.mtd_ly) * 100 : null,
+      mtd_discount_rate: mtdDiscountRate,
+      mtd_discount_rate_ly: mtdDiscountRateLy,
+      mtd_discount_rate_diff:
+        mtdDiscountRate !== null && mtdDiscountRateLy !== null ? mtdDiscountRate - mtdDiscountRateLy : null,
+      ytd_act: m.ytd_ty,
+      ytd_yoy: m.ytd_ly > 0 ? (m.ytd_ty / m.ytd_ly) * 100 : null,
+      ytd_discount_rate: ytdDiscountRate,
+      ytd_discount_rate_ly: ytdDiscountRateLy,
+      ytd_discount_rate_diff:
+        ytdDiscountRate !== null && ytdDiscountRateLy !== null ? ytdDiscountRate - ytdDiscountRateLy : null,
+    };
+  };
+
+  const seasonCategorySales = {
+    season_labels: {
+      current: currentSesn,
+      next: nextSesn,
+      past: `~${pastCutoffSesn}`,
+    },
+    metrics: {
+      currentSeason: toMetric('당시즌', seasonCategoryAcc.current),
+      nextSeason: toMetric('차시즌', seasonCategoryAcc.next),
+      pastSeason: toMetric('과시즌', seasonCategoryAcc.past),
+      hat: toMetric('모자', seasonCategoryAcc.hat),
+      shoes: toMetric('신발', seasonCategoryAcc.shoes),
+    },
+  };
+
   return {
     asof_date: date,
     region,
@@ -516,5 +858,6 @@ export async function fetchSection1StoreSales({
     tw_online_subtotal,
     tw_subtotal,
     total_subtotal,
+    season_category_sales: seasonCategorySales,
   };
 }
