@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { stat } from 'fs/promises';
 import path from 'path';
+import { getRedisClient } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,8 @@ type SqlTableConfig = {
   usedBy: string[];
   purpose: string;
 };
+
+type FileUpdateLog = Record<string, string>;
 
 const DATA_FILES: DataFileConfig[] = [
   { displayName: 'FNF HKMCTW Store code.csv', relativePath: 'FNF HKMCTW Store code.csv', kind: 'upload', usedBy: ['Store master conversion source'], source: 'data/store_master.json' },
@@ -49,6 +52,8 @@ const SQL_TABLES: SqlTableConfig[] = [
   },
 ];
 
+const FILE_UPDATE_LOG_KEY = 'fnfhk:data-management:file-updated-at';
+
 async function safeStatIso(filePath: string): Promise<string | null> {
   try {
     const fileStat = await stat(filePath);
@@ -58,9 +63,42 @@ async function safeStatIso(filePath: string): Promise<string | null> {
   }
 }
 
+function asIsoOrNull(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+function pickLatestIso(...values: Array<string | null | undefined>): string | null {
+  const valid = values
+    .map(asIsoOrNull)
+    .filter((v): v is string => !!v)
+    .map((v) => ({ iso: v, t: new Date(v).getTime() }));
+  if (valid.length === 0) return null;
+  valid.sort((a, b) => b.t - a.t);
+  return valid[0].iso;
+}
+
+async function readFileUpdateLog(): Promise<FileUpdateLog> {
+  try {
+    const redis = getRedisClient();
+    const value = await redis.get<FileUpdateLog>(FILE_UPDATE_LOG_KEY);
+    if (!value || typeof value !== 'object') return {};
+    return value;
+  } catch {
+    return {};
+  }
+}
+
+async function writeFileUpdateLog(nextLog: FileUpdateLog): Promise<void> {
+  const redis = getRedisClient();
+  await redis.set(FILE_UPDATE_LOG_KEY, nextLog);
+}
+
 export async function GET() {
   try {
     const cwd = process.cwd();
+    const updateLog = await readFileUpdateLog();
 
     const fileRows = await Promise.all(
       DATA_FILES.map(async (item) => {
@@ -82,7 +120,12 @@ export async function GET() {
 
         // In deployed environments, uploaded raw files may not exist.
         // Fallback to derived source file timestamp so upload rows still show a meaningful update time.
-        let updatedAt = rawUpdatedAt;
+        const sourceUpdatedAt =
+          item.kind === 'upload' && item.source ? await safeStatIso(path.join(cwd, item.source)) : null;
+        const loggedUpdatedAt = updateLog[item.relativePath] || (item.source ? updateLog[item.source] : null);
+
+        // Prefer whichever is newer among detected file timestamp and persisted upload log.
+        let updatedAt = pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
         if (!updatedAt && item.kind === 'upload' && item.source) {
           const sourcePath = path.join(cwd, item.source);
           updatedAt = await safeStatIso(sourcePath);
@@ -108,10 +151,43 @@ export async function GET() {
       files: fileRows,
       sqlTables: SQL_TABLES,
       notes: {
-        uploadHistoryScope: 'Shows latest detectable timestamp for each upload/derived file. Upload rows fallback to derived source timestamp when raw file is unavailable in deployment.',
+        uploadHistoryScope: 'Shows latest detectable timestamp for each upload/derived file. In deployment, persisted upload log (Redis) is used when filesystem timestamps are unavailable.',
       },
     });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to build data management status', message: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    const adminSecret = process.env.DATA_MANAGEMENT_SECRET || process.env.CRON_SECRET;
+    if (adminSecret && authHeader !== `Bearer ${adminSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const relativePath = String(body?.relativePath || '').trim();
+    const requestedUpdatedAt = asIsoOrNull(body?.updatedAt || null) || new Date().toISOString();
+    const matched = DATA_FILES.find((f) => f.relativePath === relativePath);
+    if (!matched) {
+      return NextResponse.json({ error: 'Unknown file path', relativePath }, { status: 400 });
+    }
+
+    const log = await readFileUpdateLog();
+    log[relativePath] = requestedUpdatedAt;
+    if (matched.kind === 'upload' && matched.source) {
+      log[matched.source] = requestedUpdatedAt;
+    }
+    await writeFileUpdateLog(log);
+
+    return NextResponse.json({
+      ok: true,
+      relativePath,
+      updatedAt: requestedUpdatedAt,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Failed to update upload log', message: error.message }, { status: 500 });
   }
 }
