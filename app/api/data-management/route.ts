@@ -137,15 +137,11 @@ export async function GET() {
           item.kind === 'upload' && item.source ? await safeStatIso(path.join(cwd, item.source)) : null;
         const loggedUpdatedAt =
           getManualLogTime(updateLog, item.relativePath) || getManualLogTime(updateLog, item.source);
-        // Upload rows should show explicit upload-log time only (truthful in deployment).
-        // In development, allow local file timestamps for convenience.
-        // Derived rows can use file timestamps.
-        const updatedAt =
-          item.kind === 'upload'
-            ? isProduction
-              ? loggedUpdatedAt
-              : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt)
-            : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
+        // Production: use explicit manual log only for both upload/derived rows.
+        // Development: keep local file timestamp convenience.
+        const updatedAt = isProduction
+          ? loggedUpdatedAt
+          : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
 
         return {
           ...item,
@@ -168,8 +164,8 @@ export async function GET() {
       sqlTables: SQL_TABLES,
       notes: {
         uploadHistoryScope: isProduction
-          ? 'Production: upload rows use explicit upload-log timestamps (Redis). If not logged, they appear as "-".'
-          : 'Development: upload rows prefer local file timestamps and merge with upload-log timestamps.',
+          ? 'Production: upload/derived rows use explicit upload-log timestamps (Redis) only. If not logged, they appear as "-".'
+          : 'Development: local file timestamps are shown and merged with upload-log timestamps.',
       },
     });
   } catch (error: any) {
