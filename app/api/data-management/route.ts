@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, stat } from 'fs/promises';
+import { stat } from 'fs/promises';
 import path from 'path';
-import { createHash } from 'crypto';
 import { getRedisClient } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +20,6 @@ type SqlTableConfig = {
 };
 
 type FileUpdateLog = Record<string, string>;
-type FileHashLog = Record<string, string>;
 
 const DATA_FILES: DataFileConfig[] = [
   { displayName: 'FNF HKMCTW Store code.csv', relativePath: 'FNF HKMCTW Store code.csv', kind: 'upload', usedBy: ['Store master conversion source'], source: 'data/store_master.json' },
@@ -55,7 +53,6 @@ const SQL_TABLES: SqlTableConfig[] = [
 ];
 
 const FILE_UPDATE_LOG_KEY = 'fnfhk:data-management:file-updated-at';
-const FILE_HASH_LOG_KEY = 'fnfhk:data-management:file-content-hash';
 
 async function safeStatIso(filePath: string): Promise<string | null> {
   try {
@@ -98,39 +95,10 @@ async function writeFileUpdateLog(nextLog: FileUpdateLog): Promise<void> {
   await redis.set(FILE_UPDATE_LOG_KEY, nextLog);
 }
 
-async function readFileHashLog(): Promise<FileHashLog> {
-  try {
-    const redis = getRedisClient();
-    const value = await redis.get<FileHashLog>(FILE_HASH_LOG_KEY);
-    if (!value || typeof value !== 'object') return {};
-    return value;
-  } catch {
-    return {};
-  }
-}
-
-async function writeFileHashLog(nextLog: FileHashLog): Promise<void> {
-  const redis = getRedisClient();
-  await redis.set(FILE_HASH_LOG_KEY, nextLog);
-}
-
-async function safeContentHash(filePath: string): Promise<string | null> {
-  try {
-    const raw = await readFile(filePath);
-    return createHash('sha1').update(raw).digest('hex');
-  } catch {
-    return null;
-  }
-}
-
 export async function GET() {
   try {
     const cwd = process.cwd();
     const updateLog = await readFileUpdateLog();
-    const hashLog = await readFileHashLog();
-    let shouldWriteUpdateLog = false;
-    let shouldWriteHashLog = false;
-    const nowIso = new Date().toISOString();
 
     const fileRows = await Promise.all(
       DATA_FILES.map(async (item) => {
@@ -155,28 +123,12 @@ export async function GET() {
         const sourceUpdatedAt =
           item.kind === 'upload' && item.source ? await safeStatIso(path.join(cwd, item.source)) : null;
         const loggedUpdatedAt = updateLog[item.relativePath] || (item.source ? updateLog[item.source] : null);
-
-        const hashTargetRelPath =
-          rawUpdatedAt ? item.relativePath : item.kind === 'upload' && item.source ? item.source : item.relativePath;
-        const hashTargetAbsPath = path.join(cwd, hashTargetRelPath);
-        const contentHash = await safeContentHash(hashTargetAbsPath);
-        if (contentHash) {
-          const prevHash = hashLog[hashTargetRelPath];
-          if (!prevHash || prevHash !== contentHash) {
-            hashLog[hashTargetRelPath] = contentHash;
-            updateLog[item.relativePath] = nowIso;
-            if (item.source) updateLog[item.source] = nowIso;
-            shouldWriteHashLog = true;
-            shouldWriteUpdateLog = true;
-          }
-        }
-
-        // Prefer whichever is newer among detected file timestamp and persisted upload log.
-        let updatedAt = pickLatestIso(rawUpdatedAt, sourceUpdatedAt, updateLog[item.relativePath], loggedUpdatedAt);
-        if (!updatedAt && item.kind === 'upload' && item.source) {
-          const sourcePath = path.join(cwd, item.source);
-          updatedAt = await safeStatIso(sourcePath);
-        }
+        // Upload rows should show explicit upload-log time only (truthful in deployment).
+        // Derived rows can use file timestamps.
+        const updatedAt =
+          item.kind === 'upload'
+            ? asIsoOrNull(loggedUpdatedAt)
+            : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
 
         return {
           ...item,
@@ -186,13 +138,6 @@ export async function GET() {
         };
       })
     );
-
-    if (shouldWriteHashLog) {
-      await writeFileHashLog(hashLog);
-    }
-    if (shouldWriteUpdateLog) {
-      await writeFileUpdateLog(updateLog);
-    }
 
     const timestamps = fileRows
       .map((f) => (f.updatedAt ? new Date(f.updatedAt).getTime() : 0))
@@ -205,7 +150,7 @@ export async function GET() {
       files: fileRows,
       sqlTables: SQL_TABLES,
       notes: {
-        uploadHistoryScope: 'Shows latest detectable timestamp for each upload/derived file. In deployment, persisted upload log (Redis) is used when filesystem timestamps are unavailable.',
+        uploadHistoryScope: 'Upload rows show only explicit upload-log timestamps (Redis). If not logged, they appear as "-".',
       },
     });
   } catch (error: any) {
