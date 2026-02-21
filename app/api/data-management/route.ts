@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stat } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import path from 'path';
 import { getRedisClient } from '@/lib/cache';
 
@@ -24,6 +24,7 @@ type FileUpdateEntry = {
   source: 'manual';
 };
 type FileUpdateLog = Record<string, FileUpdateEntry | string>;
+type FileTimestampSnapshot = Record<string, string>;
 
 const DATA_FILES: DataFileConfig[] = [
   { displayName: 'FNF HKMCTW Store code.csv', relativePath: 'FNF HKMCTW Store code.csv', kind: 'upload', usedBy: ['Store master conversion source'], source: 'data/store_master.json' },
@@ -57,6 +58,7 @@ const SQL_TABLES: SqlTableConfig[] = [
 ];
 
 const FILE_UPDATE_LOG_KEY = 'fnfhk:data-management:file-updated-at';
+const FILE_TIMESTAMP_SNAPSHOT_PATH = 'data/upload_timestamps.json';
 
 async function safeStatIso(filePath: string): Promise<string | null> {
   try {
@@ -107,10 +109,23 @@ function getManualLogTime(log: FileUpdateLog, key: string | undefined): string |
   return asIsoOrNull(entry.updatedAt);
 }
 
+async function readTimestampSnapshot(cwd: string): Promise<FileTimestampSnapshot> {
+  try {
+    const fullPath = path.join(cwd, FILE_TIMESTAMP_SNAPSHOT_PATH);
+    const raw = await readFile(fullPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed as FileTimestampSnapshot;
+  } catch {
+    return {};
+  }
+}
+
 export async function GET() {
   try {
     const cwd = process.cwd();
     const updateLog = await readFileUpdateLog();
+    const timestampSnapshot = await readTimestampSnapshot(cwd);
     const isProduction = process.env.NODE_ENV === 'production';
 
     const fileRows = await Promise.all(
@@ -137,11 +152,15 @@ export async function GET() {
           item.kind === 'upload' && item.source ? await safeStatIso(path.join(cwd, item.source)) : null;
         const loggedUpdatedAt =
           getManualLogTime(updateLog, item.relativePath) || getManualLogTime(updateLog, item.source);
+        const snapshotUpdatedAt = asIsoOrNull(
+          timestampSnapshot[item.relativePath] || (item.source ? timestampSnapshot[item.source] : null)
+        );
         // Production: use explicit manual log only for both upload/derived rows.
+        // If manual log is missing in production, use snapshot captured from development at deploy time.
         // Development: keep local file timestamp convenience.
         const updatedAt = isProduction
-          ? loggedUpdatedAt
-          : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
+          ? pickLatestIso(loggedUpdatedAt, snapshotUpdatedAt)
+          : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt, snapshotUpdatedAt);
 
         return {
           ...item,
@@ -164,7 +183,7 @@ export async function GET() {
       sqlTables: SQL_TABLES,
       notes: {
         uploadHistoryScope: isProduction
-          ? 'Production: upload/derived rows use explicit upload-log timestamps (Redis) only. If not logged, they appear as "-".'
+          ? 'Production: manual upload-log (Redis) first, fallback to deploy-time snapshot from development.'
           : 'Development: local file timestamps are shown and merged with upload-log timestamps.',
       },
     });
