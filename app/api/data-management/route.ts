@@ -19,7 +19,11 @@ type SqlTableConfig = {
   purpose: string;
 };
 
-type FileUpdateLog = Record<string, string>;
+type FileUpdateEntry = {
+  updatedAt: string;
+  source: 'manual';
+};
+type FileUpdateLog = Record<string, FileUpdateEntry | string>;
 
 const DATA_FILES: DataFileConfig[] = [
   { displayName: 'FNF HKMCTW Store code.csv', relativePath: 'FNF HKMCTW Store code.csv', kind: 'upload', usedBy: ['Store master conversion source'], source: 'data/store_master.json' },
@@ -95,6 +99,14 @@ async function writeFileUpdateLog(nextLog: FileUpdateLog): Promise<void> {
   await redis.set(FILE_UPDATE_LOG_KEY, nextLog);
 }
 
+function getManualLogTime(log: FileUpdateLog, key: string | undefined): string | null {
+  if (!key) return null;
+  const entry = log[key];
+  if (!entry || typeof entry !== 'object') return null;
+  if (entry.source !== 'manual') return null;
+  return asIsoOrNull(entry.updatedAt);
+}
+
 export async function GET() {
   try {
     const cwd = process.cwd();
@@ -122,12 +134,13 @@ export async function GET() {
         // Fallback to derived source file timestamp so upload rows still show a meaningful update time.
         const sourceUpdatedAt =
           item.kind === 'upload' && item.source ? await safeStatIso(path.join(cwd, item.source)) : null;
-        const loggedUpdatedAt = updateLog[item.relativePath] || (item.source ? updateLog[item.source] : null);
+        const loggedUpdatedAt =
+          getManualLogTime(updateLog, item.relativePath) || getManualLogTime(updateLog, item.source);
         // Upload rows should show explicit upload-log time only (truthful in deployment).
         // Derived rows can use file timestamps.
         const updatedAt =
           item.kind === 'upload'
-            ? asIsoOrNull(loggedUpdatedAt)
+            ? loggedUpdatedAt
             : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
 
         return {
@@ -168,6 +181,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const relativePath = String(body?.relativePath || '').trim();
+    if (body?.action === 'clearUploadLogs') {
+      await writeFileUpdateLog({});
+      return NextResponse.json({ ok: true, action: 'clearUploadLogs' });
+    }
+
     const requestedUpdatedAt = asIsoOrNull(body?.updatedAt || null) || new Date().toISOString();
     const matched = DATA_FILES.find((f) => f.relativePath === relativePath);
     if (!matched) {
@@ -175,9 +193,9 @@ export async function POST(request: NextRequest) {
     }
 
     const log = await readFileUpdateLog();
-    log[relativePath] = requestedUpdatedAt;
+    log[relativePath] = { updatedAt: requestedUpdatedAt, source: 'manual' };
     if (matched.kind === 'upload' && matched.source) {
-      log[matched.source] = requestedUpdatedAt;
+      log[matched.source] = { updatedAt: requestedUpdatedAt, source: 'manual' };
     }
     await writeFileUpdateLog(log);
 
