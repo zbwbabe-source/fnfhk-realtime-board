@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile, stat } from 'fs/promises';
+import { stat } from 'fs/promises';
 import path from 'path';
 import { getRedisClient } from '@/lib/cache';
+import timestampSnapshotData from '@/data/upload_timestamps.json';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,6 @@ const SQL_TABLES: SqlTableConfig[] = [
 ];
 
 const FILE_UPDATE_LOG_KEY = 'fnfhk:data-management:file-updated-at';
-const FILE_TIMESTAMP_SNAPSHOT_PATH = 'data/upload_timestamps.json';
 
 async function safeStatIso(filePath: string): Promise<string | null> {
   try {
@@ -109,23 +109,14 @@ function getManualLogTime(log: FileUpdateLog, key: string | undefined): string |
   return asIsoOrNull(entry.updatedAt);
 }
 
-async function readTimestampSnapshot(cwd: string): Promise<FileTimestampSnapshot> {
-  try {
-    const fullPath = path.join(cwd, FILE_TIMESTAMP_SNAPSHOT_PATH);
-    const raw = await readFile(fullPath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed as FileTimestampSnapshot;
-  } catch {
-    return {};
-  }
-}
-
 export async function GET() {
   try {
     const cwd = process.cwd();
     const updateLog = await readFileUpdateLog();
-    const timestampSnapshot = await readTimestampSnapshot(cwd);
+    const timestampSnapshot: FileTimestampSnapshot =
+      timestampSnapshotData && typeof timestampSnapshotData === 'object'
+        ? (timestampSnapshotData as FileTimestampSnapshot)
+        : {};
     const isProduction = process.env.NODE_ENV === 'production';
 
     const fileRows = await Promise.all(
