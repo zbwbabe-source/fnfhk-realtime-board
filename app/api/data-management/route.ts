@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stat } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import path from 'path';
 import { getRedisClient } from '@/lib/cache';
 import timestampSnapshotData from '@/data/upload_timestamps.json';
@@ -18,7 +18,9 @@ type SqlTableConfig = {
   tableName: string;
   usedBy: string[];
   purpose: string;
+  sourceFiles: SqlSourceConfig[];
 };
+type SqlSourceConfig = { filePath: string; label: string };
 
 type FileUpdateEntry = {
   updatedAt: string;
@@ -45,16 +47,32 @@ const SQL_TABLES: SqlTableConfig[] = [
     tableName: 'SAP_FNF.DW_HMD_SALE_D',
     usedBy: ['/api/latest-date', '/api/section1/store-sales', '/api/section1/monthly-trend', '/api/section2/sellthrough', '/api/section2/treemap', '/api/section3/old-season-inventory'],
     purpose: 'Sales source table',
+    sourceFiles: [
+      { filePath: 'app/api/latest-date/route.ts', label: 'Latest Date API' },
+      { filePath: 'lib/section1/store-sales.ts', label: 'Section1 Store Sales' },
+      { filePath: 'lib/section1/monthly-trend.ts', label: 'Section1 Monthly Trend' },
+      { filePath: 'lib/section2/sellthrough.ts', label: 'Section2 Sellthrough' },
+      { filePath: 'lib/section2/treemap.ts', label: 'Section2 Treemap' },
+      { filePath: 'lib/section3Query.ts', label: 'Section3 Query' },
+    ],
   },
   {
     tableName: 'SAP_FNF.DW_HMD_STOCK_SNAP_D',
     usedBy: ['/api/section2/sellthrough', '/api/section3/old-season-inventory'],
     purpose: 'Stock snapshot table',
+    sourceFiles: [
+      { filePath: 'lib/section2/sellthrough.ts', label: 'Section2 Sellthrough' },
+      { filePath: 'lib/section3Query.ts', label: 'Section3 Query' },
+    ],
   },
   {
     tableName: 'SAP_FNF.PREP_HMD_STOCK',
     usedBy: ['/api/section2/sellthrough', '/api/section3/old-season-inventory'],
     purpose: 'Pre-aggregated stock table',
+    sourceFiles: [
+      { filePath: 'lib/section2/sellthrough.ts', label: 'Section2 Sellthrough' },
+      { filePath: 'lib/section3Query.ts', label: 'Section3 Query' },
+    ],
   },
 ];
 
@@ -109,6 +127,67 @@ function getManualLogTime(log: FileUpdateLog, key: string | undefined): string |
   return asIsoOrNull(entry.updatedAt);
 }
 
+function calcLineNumber(content: string, index: number): number {
+  return content.slice(0, index).split('\n').length;
+}
+
+function inferQueryName(content: string, index: number, fallback: string): string {
+  const lookback = content.slice(Math.max(0, index - 240), index);
+  const lines = lookback.split('\n').reverse();
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const match = line.match(/^const\s+([A-Za-z0-9_]+)\s*=/);
+    if (match) return match[1];
+  }
+  return fallback;
+}
+
+function normalizeSql(sql: string): string {
+  return sql
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, ''))
+    .join('\n')
+    .trim();
+}
+
+function extractQueriesFromSource(content: string, tableName: string, sourceLabel: string, filePath: string) {
+  const results: Array<{ name: string; source: string; sql: string }> = [];
+  const regex = /`([\s\S]*?)`/g;
+  let i = 0;
+  for (const match of content.matchAll(regex)) {
+    const raw = match[1];
+    if (!raw) continue;
+    if (!raw.includes(tableName)) continue;
+    if (!/\b(SELECT|WITH|FROM)\b/i.test(raw)) continue;
+
+    const index = match.index ?? 0;
+    const line = calcLineNumber(content, index);
+    const name = inferQueryName(content, index, `query_${++i}`);
+    results.push({
+      name: `${sourceLabel}.${name}`,
+      source: `${filePath}:${line}`,
+      sql: normalizeSql(raw),
+    });
+  }
+  return results;
+}
+
+async function buildQueryExamples(cwd: string, table: SqlTableConfig) {
+  const examples: Array<{ name: string; source: string; sql: string }> = [];
+  for (const src of table.sourceFiles) {
+    const fullPath = path.join(cwd, src.filePath);
+    try {
+      const content = await readFile(fullPath, 'utf-8');
+      const extracted = extractQueriesFromSource(content, table.tableName, src.label, src.filePath);
+      examples.push(...extracted);
+    } catch {
+      // non-fatal
+    }
+  }
+  return examples;
+}
+
 export async function GET() {
   try {
     const cwd = process.cwd();
@@ -118,6 +197,7 @@ export async function GET() {
         ? (timestampSnapshotData as FileTimestampSnapshot)
         : {};
     const isProduction = process.env.NODE_ENV === 'production';
+    const isDevelopment = !isProduction;
 
     const fileRows = await Promise.all(
       DATA_FILES.map(async (item) => {
@@ -167,15 +247,34 @@ export async function GET() {
       .filter((t) => t > 0);
     const lastUpdatedAt = timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString() : null;
 
+    const sqlTables = isDevelopment
+      ? await Promise.all(
+          SQL_TABLES.map(async (table) => ({
+            tableName: table.tableName,
+            usedBy: table.usedBy,
+            purpose: table.purpose,
+            queryExamples: await buildQueryExamples(cwd, table),
+          }))
+        )
+      : SQL_TABLES.map((table) => ({
+          tableName: table.tableName,
+          usedBy: table.usedBy,
+          purpose: table.purpose,
+        }));
+
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       lastUpdatedAt,
       files: fileRows,
-      sqlTables: SQL_TABLES,
+      sqlTables,
+      isDevelopment,
       notes: {
         uploadHistoryScope: isProduction
           ? 'Production: manual upload-log (Redis) first, fallback to deploy-time snapshot from development.'
           : 'Development: local file timestamps are shown and merged with upload-log timestamps.',
+        sqlSourceScope: isDevelopment
+          ? 'Development only: SQL query examples extracted from source files.'
+          : 'Production: SQL table metadata only.',
       },
     });
   } catch (error: any) {
