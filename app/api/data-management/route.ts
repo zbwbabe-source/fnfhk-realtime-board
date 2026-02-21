@@ -111,6 +111,7 @@ export async function GET() {
   try {
     const cwd = process.cwd();
     const updateLog = await readFileUpdateLog();
+    const isProduction = process.env.NODE_ENV === 'production';
 
     const fileRows = await Promise.all(
       DATA_FILES.map(async (item) => {
@@ -137,10 +138,13 @@ export async function GET() {
         const loggedUpdatedAt =
           getManualLogTime(updateLog, item.relativePath) || getManualLogTime(updateLog, item.source);
         // Upload rows should show explicit upload-log time only (truthful in deployment).
+        // In development, allow local file timestamps for convenience.
         // Derived rows can use file timestamps.
         const updatedAt =
           item.kind === 'upload'
-            ? loggedUpdatedAt
+            ? isProduction
+              ? loggedUpdatedAt
+              : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt)
             : pickLatestIso(rawUpdatedAt, sourceUpdatedAt, loggedUpdatedAt);
 
         return {
@@ -163,7 +167,9 @@ export async function GET() {
       files: fileRows,
       sqlTables: SQL_TABLES,
       notes: {
-        uploadHistoryScope: 'Upload rows show only explicit upload-log timestamps (Redis). If not logged, they appear as "-".',
+        uploadHistoryScope: isProduction
+          ? 'Production: upload rows use explicit upload-log timestamps (Redis). If not logged, they appear as "-".'
+          : 'Development: upload rows prefer local file timestamps and merge with upload-log timestamps.',
       },
     });
   } catch (error: any) {
