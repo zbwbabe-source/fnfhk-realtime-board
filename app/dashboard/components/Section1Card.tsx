@@ -124,13 +124,6 @@ export default function Section1Card({
     return 'text-red-700 bg-red-50 border-red-200';
   };
 
-  const getProgressColor = (progress: number | null) => {
-    if (progress === null) return 'text-gray-600 bg-gray-100';
-    if (progress >= 90) return 'text-green-700 bg-green-50 border-green-200';
-    if (progress >= 70) return 'text-orange-700 bg-orange-50 border-orange-200';
-    return 'text-red-700 bg-red-50 border-red-200';
-  };
-
   const getDiscountDiffColor = (diff: number | null) => {
     if (diff === null) return 'text-gray-600';
     if (diff > 0) return 'text-red-600';
@@ -329,11 +322,6 @@ export default function Section1Card({
             </div>
           </div>
           <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k3.value}</p>
-          <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getProgressColor((kpis.k3 as any).rawValue)}`}>
-            {(kpis.k3 as any).rawValue !== null 
-              ? ((kpis.k3 as any).rawValue >= 90 ? '✓ 우수' : (kpis.k3 as any).rawValue >= 70 ? '△ 보통' : '⚠ 저조')
-              : '-'}
-          </span>
         </div>
       </div>
 
