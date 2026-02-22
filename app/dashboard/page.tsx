@@ -131,10 +131,14 @@ export default function DashboardPage() {
         const fetchOptions = shouldForceRefresh
           ? { cache: 'no-store' as const, signal: controller.signal }
           : { signal: controller.signal };
+        const section3FetchOptions = { signal: controller.signal };
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
-        const fetchJson = async (url: string) => {
+        const fetchJson = async (
+          url: string,
+          options: RequestInit = fetchOptions
+        ) => {
           try {
-            const r = await fetch(url, fetchOptions);
+            const r = await fetch(url, options);
             return r.ok ? r.json() : null;
           } catch (e: any) {
             if (e?.name === 'AbortError') return null;
@@ -147,8 +151,14 @@ export default function DashboardPage() {
         const twS1Promise = fetchJson(`/api/section1/store-sales?region=TW&brand=${brand}&date=${date}&mode=${mode}${forceRefreshParam}`);
         const hkmcS2Promise = fetchJson(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
-        const hkmcS3Promise = fetchJson(`/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`);
-        const twS3Promise = fetchJson(`/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}${forceRefreshParam}`);
+        const hkmcS3Promise = fetchJson(
+          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`,
+          section3FetchOptions
+        );
+        const twS3Promise = fetchJson(
+          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`,
+          section3FetchOptions
+        );
 
         const [hkmcS1, twS1] = await Promise.all([hkmcS1Promise, twS1Promise]);
         if (isCancelled) return;

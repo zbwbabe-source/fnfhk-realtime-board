@@ -177,14 +177,23 @@ export default function Section3Card({
         </div>
 
         <div className="space-y-2 border-l border-gray-100 pl-3">
-          <p className="text-xs text-gray-500">{kpis.k2.label}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-500">{kpis.k2.label}</p>
+            {periodStartInfo && (
+              <div className="flex items-center gap-1.5 rounded-md bg-orange-50 px-2 py-1">
+                <svg className="h-3.5 w-3.5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-xs font-medium text-orange-900">{periodStartInfo}</p>
+              </div>
+            )}
+          </div>
           <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k2.value}</p>
           {kpis.k2.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
             </span>
           )}
-          {periodStartInfo && <p className="mt-1 text-[11px] leading-tight text-gray-500">{periodStartInfo}</p>}
         </div>
 
         <div className="space-y-2 border-l border-gray-100 pl-3">

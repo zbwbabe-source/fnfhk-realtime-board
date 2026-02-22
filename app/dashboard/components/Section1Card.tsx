@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 
 interface Section1CardProps {
@@ -20,6 +21,18 @@ type KpiBlock = {
   discountDiff?: string;
 };
 
+type DetailView = 'season' | 'top5' | 'worst5';
+
+type StoreMetricCard = {
+  key: string;
+  title: string;
+  sales: number;
+  prevSales: number;
+  yoy: number | null;
+  discountRate: number | null;
+  discountDiff: number | null;
+};
+
 export default function Section1Card({
   isYtdMode,
   section1Data,
@@ -30,6 +43,7 @@ export default function Section1Card({
   onYtdModeToggle,
   showSeasonCategory = true,
 }: Section1CardProps) {
+  const [detailView, setDetailView] = useState<DetailView>('season');
   const isTwRegion = region === 'TW';
   const salesLabel = isTwRegion
     ? t(language, 'actualSalesVPlus')
@@ -103,6 +117,54 @@ export default function Section1Card({
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
   const seasonCategorySales = section1Data?.season_category_sales;
   const seasonLabels = seasonCategorySales?.season_labels || {};
+
+  const storeMetricCards = useMemo<StoreMetricCard[]>(() => {
+    if (!section1Data || typeof section1Data !== 'object') return [];
+
+    const rawStores = Object.entries(section1Data)
+      .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
+      .flatMap(([, value]) => value as any[])
+      .filter((store) => store && typeof store === 'object')
+      .filter((store) => (store.channel || '') !== '온라인');
+
+    const dedupedByCode = new Map<string, any>();
+    rawStores.forEach((store) => {
+      const code = String(store.shop_cd || store.shop_name || '');
+      if (!code) return;
+      if (!dedupedByCode.has(code)) dedupedByCode.set(code, store);
+    });
+
+    const cards = [...dedupedByCode.values()].map((store) => {
+      const sales = isYtdMode ? Number(store.ytd_act || 0) : Number(store.mtd_act || 0);
+      const prevSales = isYtdMode ? Number(store.ytd_act_py || 0) : Number(store.mtd_act_py || 0);
+      const yoyRaw = isYtdMode ? store.yoy_ytd : store.yoy;
+      const discountRateRaw = isYtdMode ? store.discount_rate_ytd : store.discount_rate_mtd;
+      const discountDiffRaw = isYtdMode ? store.discount_rate_ytd_diff : store.discount_rate_mtd_diff;
+
+      return {
+        key: String(store.shop_cd || store.shop_name || ''),
+        title: String(store.shop_name || store.shop_cd || '-'),
+        sales,
+        prevSales,
+        yoy: typeof yoyRaw === 'number' && isFinite(yoyRaw) ? yoyRaw : null,
+        discountRate: typeof discountRateRaw === 'number' && isFinite(discountRateRaw) ? discountRateRaw : null,
+        discountDiff: typeof discountDiffRaw === 'number' && isFinite(discountDiffRaw) ? discountDiffRaw : null,
+      };
+    });
+
+    cards.sort((a, b) => b.sales - a.sales);
+    return cards;
+  }, [section1Data, isYtdMode]);
+
+  const top5StoreCards = storeMetricCards.slice(0, 5);
+  const worst5StoreCards = storeMetricCards
+    .filter((item) => {
+      const isClosed = item.prevSales > 0 && item.sales <= 0;
+      return item.sales > 0 && !isClosed;
+    })
+    .slice(-5)
+    .sort((a, b) => b.sales - a.sales);
+
   const detailMetrics = showSeasonCategory && seasonCategorySales?.metrics
     ? [
         { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
@@ -113,16 +175,77 @@ export default function Section1Card({
       ]
     : [];
 
+  const detailCards =
+    detailView === 'season'
+      ? detailMetrics.map((item) => {
+          const metric = seasonCategorySales.metrics[item.key];
+          return {
+            key: String(item.key),
+            title: item.title,
+            apparelOnly: item.apparelOnly,
+            sales: isYtdMode ? metric?.ytd_act : metric?.mtd_act,
+            yoy: isYtdMode ? metric?.ytd_yoy : metric?.mtd_yoy,
+            discountRate: isYtdMode ? metric?.ytd_discount_rate : metric?.mtd_discount_rate,
+            discountDiff: isYtdMode ? metric?.ytd_discount_rate_diff : metric?.mtd_discount_rate_diff,
+          };
+        })
+      : (detailView === 'top5' ? top5StoreCards : worst5StoreCards).map((item) => ({
+          ...item,
+          apparelOnly: false,
+        }));
+
   return (
     <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1">
-          <h3 className="leading-tight text-base font-semibold text-gray-900">{t(language, 'section1Title')}</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="leading-tight text-base font-semibold text-gray-900">{t(language, 'section1Title')}</h3>
+            {onYtdModeToggle && (
+              <div className="flex items-center gap-2 rounded-lg bg-purple-50 px-3 py-1.5">
+                <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm font-medium text-purple-900">
+                  {isYtdMode
+                    ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
+                    : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`}
+                </p>
+              </div>
+            )}
+            {showSeasonCategory && (
+              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <button
+                  onClick={() => setDetailView('season')}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    detailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '시즌기준' : 'Season Basis'}
+                </button>
+                <button
+                  onClick={() => setDetailView('top5')}
+                  className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                    detailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '매장 TOP5' : 'Store TOP5'}
+                </button>
+                <button
+                  onClick={() => setDetailView('worst5')}
+                  className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                    detailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '매장 Worst5' : 'Store Worst5'}
+                </button>
+              </div>
+            )}
+          </div>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section1Subtitle')}</p>
         </div>
 
         {onYtdModeToggle && (
-          <div className="shrink-0 space-y-1.5 text-right">
+          <div className="shrink-0">
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => {
@@ -145,11 +268,6 @@ export default function Section1Card({
                 {t(language, 'ytdToggle')}
               </button>
             </div>
-            <p className="text-[10px] leading-tight text-gray-500">
-              {isYtdMode
-                ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
-                : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`}
-            </p>
           </div>
         )}
       </div>
@@ -182,35 +300,30 @@ export default function Section1Card({
         </div>
       </div>
 
-      {detailMetrics.length > 0 && (
+      {detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-            {detailMetrics.map((item) => {
-              const metric = seasonCategorySales.metrics[item.key];
-              const sales = isYtdMode ? metric?.ytd_act : metric?.mtd_act;
-              const yoy = isYtdMode ? metric?.ytd_yoy : metric?.mtd_yoy;
-              const discountRate = isYtdMode ? metric?.ytd_discount_rate : metric?.mtd_discount_rate;
-              const discountDiff = isYtdMode ? metric?.ytd_discount_rate_diff : metric?.mtd_discount_rate_diff;
+            {detailCards.map((item) => {
               return (
-                <div key={item.key} className="rounded-lg border border-gray-100 bg-gray-50 p-2">
+                <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
                   {item.apparelOnly ? (
-                    <div className="group relative block min-h-[30px]">
-                      <p className="cursor-help break-keep text-[11px] font-medium leading-tight text-gray-600 underline decoration-dotted underline-offset-2">
+                    <div className="group relative block min-h-[36px]">
+                      <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
                         {item.title}
                       </p>
-                      <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
+                      <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-md group-hover:block">
                         {t(language, 'apparelOnly')}
                       </div>
                     </div>
                   ) : (
-                    <p className="min-h-[30px] break-keep text-[11px] font-medium leading-tight text-gray-600">{item.title}</p>
+                    <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                   )}
-                  <p className="text-base font-semibold tabular-nums text-gray-900">{formatCurrency(sales || 0)}</p>
-                  <p className="text-[11px] tabular-nums text-gray-600">
-                      {typeof yoy === 'number' && isFinite(yoy) ? `${yoy.toFixed(0)}%` : '-'}
+                  <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
+                  <p className="mt-0.5 text-xs tabular-nums text-gray-700">
+                      {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
                   </p>
-                  <p className="text-[11px] tabular-nums text-gray-600">
-                    {t(language, 'discountRateLabel')} {formatRate(discountRate)} ({formatPercentPointDiff(discountDiff)})
+                  <p className="mt-0.5 text-xs tabular-nums text-gray-600">
+                    {t(language, 'discountRateLabel')} {formatRate(item.discountRate)} ({formatPercentPointDiff(item.discountDiff)})
                   </p>
                 </div>
               );
