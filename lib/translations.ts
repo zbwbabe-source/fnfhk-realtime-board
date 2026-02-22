@@ -130,8 +130,25 @@ export const translations = {
     detailView: '상세 보기',
     hkmcRegion: 'HKMC',
     twRegion: 'TW',
+    hkmcDetail: 'HKMC 상세',
+    twDetail: 'TW 상세',
+    dataManagement: '데이터관리',
+    updated: '업데이트',
+    asOf: '기준일',
+    insightAsOf: '인사이트 기준일',
     dailyHighlight: '오늘의 하이라이트',
     highlightPlaceholder: 'AI가 오늘의 주요 인사이트를 분석 중입니다...',
+
+    // Summary Card Detail Labels
+    actualSalesVPlus: '실판매출 (V+)',
+    currentSeason: '당시즌',
+    nextSeason: '차시즌',
+    pastSeason: '과시즌',
+    hat: '모자',
+    shoes: '신발',
+    discountRateLabel: '할인율',
+    progressVsApproved: '영업목표 품의대비 진척률',
+    apparelOnly: '의류만',
     
     // Common
     year1: '1년차',
@@ -274,8 +291,25 @@ export const translations = {
     detailView: 'Detail View',
     hkmcRegion: 'HKMC',
     twRegion: 'TW',
+    hkmcDetail: 'HKMC Detail',
+    twDetail: 'TW Detail',
+    dataManagement: 'Data Management',
+    updated: 'Updated',
+    asOf: 'asOf',
+    insightAsOf: 'Insight as of',
     dailyHighlight: 'Daily Highlight',
     highlightPlaceholder: 'AI is analyzing key insights for today...',
+
+    // Summary Card Detail Labels
+    actualSalesVPlus: 'Actual Sales (V+)',
+    currentSeason: 'Current Season',
+    nextSeason: 'Next Season',
+    pastSeason: 'Old Season',
+    hat: 'Headwear',
+    shoes: 'Shoes',
+    discountRateLabel: 'Discount Rate',
+    progressVsApproved: 'Progress vs approved sales target',
+    apparelOnly: 'Apparel only',
     
     // Common
     year1: 'Year 1',

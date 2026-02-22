@@ -32,9 +32,7 @@ export default function Section1Card({
 }: Section1CardProps) {
   const isTwRegion = region === 'TW';
   const salesLabel = isTwRegion
-    ? language === 'ko'
-      ? '실판매출 (V+)'
-      : 'Actual Sales (V+)'
+    ? t(language, 'actualSalesVPlus')
     : t(language, isYtdMode ? 'ytdActual' : 'monthlyActual');
 
   const formatCurrency = (num: number) => {
@@ -107,11 +105,11 @@ export default function Section1Card({
   const seasonLabels = seasonCategorySales?.season_labels || {};
   const detailMetrics = showSeasonCategory && seasonCategorySales?.metrics
     ? [
-        { key: 'currentSeason', title: `당시즌(${seasonLabels.current || '-'})`, apparelOnly: true },
-        { key: 'nextSeason', title: `차시즌(${seasonLabels.next || '-'})`, apparelOnly: true },
-        { key: 'pastSeason', title: `과시즌(${seasonLabels.past || '-'})`, apparelOnly: true },
-        { key: 'hat', title: '모자' },
-        { key: 'shoes', title: '신발' },
+        { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
+        { key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true },
+        { key: 'pastSeason', title: `${t(language, 'pastSeason')}(${seasonLabels.past || '-'})`, apparelOnly: true },
+        { key: 'hat', title: t(language, 'hat') },
+        { key: 'shoes', title: t(language, 'shoes') },
       ]
     : [];
 
@@ -161,7 +159,7 @@ export default function Section1Card({
           <p className="text-xs text-gray-500">{kpis.k1.label}</p>
           <p className="text-3xl font-semibold tabular-nums text-gray-900">{kpis.k1.value}</p>
           <p className="text-[11px] tabular-nums text-gray-600">
-            {language === 'ko' ? '할인율' : 'Discount Rate'} {kpis.k1.discountRate} ({kpis.k1.discountDiff})
+            {t(language, 'discountRateLabel')} {kpis.k1.discountRate} ({kpis.k1.discountDiff})
           </p>
         </div>
         <div className="space-y-2 border-l border-gray-100 pl-3">
@@ -172,12 +170,12 @@ export default function Section1Card({
           <div className="group relative inline-block">
             <p
               className="cursor-help text-xs text-gray-500 underline decoration-dotted underline-offset-2"
-              title={language === 'ko' ? '영업목표 품의대비 진척률' : 'Progress vs approved sales target'}
+              title={t(language, 'progressVsApproved')}
             >
               {kpis.k3.label}
             </p>
             <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
-              {language === 'ko' ? '영업목표 품의대비 진척률' : 'Progress vs approved sales target'}
+              {t(language, 'progressVsApproved')}
             </div>
           </div>
           <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k3.value}</p>
@@ -201,7 +199,7 @@ export default function Section1Card({
                         {item.title}
                       </p>
                       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
-                        {language === 'ko' ? '의류만' : 'Apparel only'}
+                        {t(language, 'apparelOnly')}
                       </div>
                     </div>
                   ) : (
@@ -212,7 +210,7 @@ export default function Section1Card({
                       {typeof yoy === 'number' && isFinite(yoy) ? `${yoy.toFixed(0)}%` : '-'}
                   </p>
                   <p className="text-[11px] tabular-nums text-gray-600">
-                    {language === 'ko' ? '할인율' : 'Discount Rate'} {formatRate(discountRate)} ({formatPercentPointDiff(discountDiff)})
+                    {t(language, 'discountRateLabel')} {formatRate(discountRate)} ({formatPercentPointDiff(discountDiff)})
                   </p>
                 </div>
               );
