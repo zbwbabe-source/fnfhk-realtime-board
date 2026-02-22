@@ -220,7 +220,7 @@ export default function Section1Card({
                     detailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '시즌기준' : 'Season Basis'}
+                  {language === 'ko' ? '시즌별' : 'Season Basis'}
                 </button>
                 <button
                   onClick={() => setDetailView('top5')}
@@ -228,7 +228,7 @@ export default function Section1Card({
                     detailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '매장 TOP5' : 'Store TOP5'}
+                  {language === 'ko' ? '상위5' : 'Top5'}
                 </button>
                 <button
                   onClick={() => setDetailView('worst5')}
@@ -236,7 +236,7 @@ export default function Section1Card({
                     detailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '매장 Worst5' : 'Store Worst5'}
+                  {language === 'ko' ? '하위5' : 'Worst5'}
                 </button>
               </div>
             )}
