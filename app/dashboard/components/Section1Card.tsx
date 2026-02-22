@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { getStoreShortCode } from '@/lib/store-name-utils';
+import { getStoreArea } from '@/lib/store-area-utils';
 
 interface Section1CardProps {
   isYtdMode: boolean;
@@ -26,6 +28,9 @@ type DetailView = 'season' | 'top5' | 'worst5';
 type StoreMetricCard = {
   key: string;
   title: string;
+  storeCode: string;
+  fullName: string;
+  area: number | null;
   sales: number;
   prevSales: number;
   yoy: number | null;
@@ -157,10 +162,18 @@ export default function Section1Card({
       const yoyRaw = isYtdMode ? store.yoy_ytd : store.yoy;
       const discountRateRaw = isYtdMode ? store.discount_rate_ytd : store.discount_rate_mtd;
       const discountDiffRaw = isYtdMode ? store.discount_rate_ytd_diff : store.discount_rate_mtd_diff;
+      
+      const storeCode = String(store.shop_cd || '');
+      const fullName = String(store.shop_name || store.shop_cd || '-');
+      const asofDate = date ? new Date(date) : undefined;
+      const area = storeCode ? getStoreArea(storeCode, asofDate) : null;
 
       return {
         key: String(store.shop_cd || store.shop_name || ''),
         title: String(store.shop_name || store.shop_cd || '-'),
+        storeCode,
+        fullName,
+        area,
         sales,
         prevSales,
         yoy: typeof yoyRaw === 'number' && isFinite(yoyRaw) ? yoyRaw : null,
@@ -336,6 +349,11 @@ export default function Section1Card({
                 ? (item.discountDiff > 0 ? 'text-red-600' : item.discountDiff < 0 ? 'text-green-600' : 'text-gray-600')
                 : 'text-gray-600';
               
+              // 매장 카드인지 시즌 카드인지 확인
+              const isStoreCard = detailView !== 'season';
+              const shortCode = isStoreCard && 'storeCode' in item ? getStoreShortCode(item.fullName || item.title) : null;
+              const storeArea = isStoreCard && 'area' in item ? item.area : null;
+              
               return (
                 <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
                   {item.apparelOnly ? (
@@ -345,6 +363,18 @@ export default function Section1Card({
                       </p>
                       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-md group-hover:block">
                         {t(language, 'apparelOnly')}
+                      </div>
+                    </div>
+                  ) : isStoreCard ? (
+                    <div className="group relative block min-h-[36px]">
+                      <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800">
+                        {shortCode || item.title}
+                      </p>
+                      <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
+                        <p className="font-semibold">{item.fullName || item.title}</p>
+                        <p className="mt-1 text-gray-300">
+                          {storeArea !== null ? `${storeArea}평` : language === 'ko' ? '면적 정보 없음' : 'No area data'}
+                        </p>
                       </div>
                     </div>
                   ) : (
