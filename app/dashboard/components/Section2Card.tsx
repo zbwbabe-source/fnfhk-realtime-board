@@ -92,9 +92,9 @@ export default function Section2Card({
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500">{t(language, 'sellRate')}</p>
-          <p className="text-3xl font-semibold tabular-nums text-gray-900">{sellthrough.toFixed(1)}%</p>
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-3 border border-green-100">
+          <p className="text-xs font-medium text-gray-600">{t(language, 'sellRate')}</p>
+          <p className="text-4xl font-bold tabular-nums text-gray-900">{sellthrough.toFixed(1)}%</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(sellthroughYoyPp, 0)}`}>
             {formatPp(sellthroughYoyPp)}
           </span>
@@ -102,7 +102,7 @@ export default function Section2Card({
 
         <div className="space-y-2 border-l border-gray-100 pl-3">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeSales')}</p>
-          <p className="text-base font-semibold tabular-nums text-gray-900">{formatCurrency(totalSales)}</p>
+          <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalSales)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(salesYoyPct, 100)}`}>
             {formatYoy(salesYoyPct)}
           </span>
@@ -110,7 +110,7 @@ export default function Section2Card({
 
         <div className="space-y-2 border-l border-gray-100 pl-3">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeInbound')}</p>
-          <p className="text-base font-semibold tabular-nums text-gray-900">{formatCurrency(totalInbound)}</p>
+          <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalInbound)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(inboundYoyPct, 100)}`}>
             {formatYoy(inboundYoyPct)}
           </span>

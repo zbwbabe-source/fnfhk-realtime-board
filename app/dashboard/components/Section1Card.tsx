@@ -101,19 +101,43 @@ export default function Section1Card({
         value: formatCurrency(actual),
         discountRate: hasDiscountRate ? formatRate(discountRate) : '-',
         discountDiff: formatPercentPointDiff(discountRateDiff),
-      } as KpiBlock,
+        rawDiscountDiff: typeof discountRateDiff === 'number' && isFinite(discountRateDiff) ? discountRateDiff : null,
+      } as KpiBlock & { rawDiscountDiff: number | null },
       k2: {
         label: t(language, 'yoy'),
         value: hasCompareRate ? `${compareRate.toFixed(0)}%` : '-',
-      } as KpiBlock,
+        rawValue: hasCompareRate ? compareRate : null,
+      } as KpiBlock & { rawValue: number | null },
       k3: {
         label: t(language, 'progress'),
         value: `${progress.toFixed(1)}%`,
-      } as KpiBlock,
+        rawValue: typeof progress === 'number' && isFinite(progress) ? progress : null,
+      } as KpiBlock & { rawValue: number | null },
     };
   };
 
   const kpis = calculateKPIs();
+  
+  const getYoyColor = (yoy: number | null) => {
+    if (yoy === null) return 'text-gray-600 bg-gray-100';
+    if (yoy >= 100) return 'text-green-700 bg-green-50 border-green-200';
+    return 'text-red-700 bg-red-50 border-red-200';
+  };
+
+  const getProgressColor = (progress: number | null) => {
+    if (progress === null) return 'text-gray-600 bg-gray-100';
+    if (progress >= 90) return 'text-green-700 bg-green-50 border-green-200';
+    if (progress >= 70) return 'text-orange-700 bg-orange-50 border-orange-200';
+    return 'text-red-700 bg-red-50 border-red-200';
+  };
+
+  const getDiscountDiffColor = (diff: number | null) => {
+    if (diff === null) return 'text-gray-600';
+    if (diff > 0) return 'text-red-600';
+    if (diff < 0) return 'text-green-600';
+    return 'text-gray-600';
+  };
+
   const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
   const seasonCategorySales = section1Data?.season_category_sales;
   const seasonLabels = seasonCategorySales?.season_labels || {};
@@ -273,16 +297,24 @@ export default function Section1Card({
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <p className="text-xs text-gray-500">{kpis.k1.label}</p>
-          <p className="text-3xl font-semibold tabular-nums text-gray-900">{kpis.k1.value}</p>
-          <p className="text-[11px] tabular-nums text-gray-600">
-            {t(language, 'discountRateLabel')} {kpis.k1.discountRate} ({kpis.k1.discountDiff})
+        <div className="space-y-1 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 p-3 border border-blue-100">
+          <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
+          <p className="text-4xl font-bold tabular-nums text-gray-900">{kpis.k1.value}</p>
+          <p className="text-xs tabular-nums">
+            <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
+            <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
+              ({kpis.k1.discountDiff})
+            </span>
           </p>
         </div>
         <div className="space-y-2 border-l border-gray-100 pl-3">
           <p className="text-xs text-gray-500">{kpis.k2.label}</p>
-          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k2.value}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k2.value}</p>
+          <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
+            {(kpis.k2 as any).rawValue !== null 
+              ? ((kpis.k2 as any).rawValue >= 100 ? '↗ 성장' : '↘ 감소')
+              : '-'}
+          </span>
         </div>
         <div className="space-y-2 border-l border-gray-100 pl-3">
           <div className="group relative inline-block">
@@ -296,7 +328,12 @@ export default function Section1Card({
               {t(language, 'progressVsApproved')}
             </div>
           </div>
-          <p className="text-base font-semibold tabular-nums text-gray-900">{kpis.k3.value}</p>
+          <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k3.value}</p>
+          <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getProgressColor((kpis.k3 as any).rawValue)}`}>
+            {(kpis.k3 as any).rawValue !== null 
+              ? ((kpis.k3 as any).rawValue >= 90 ? '✓ 우수' : (kpis.k3 as any).rawValue >= 70 ? '△ 보통' : '⚠ 저조')
+              : '-'}
+          </span>
         </div>
       </div>
 
@@ -304,6 +341,13 @@ export default function Section1Card({
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {detailCards.map((item) => {
+              const yoyColor = item.yoy !== null && typeof item.yoy === 'number' && isFinite(item.yoy)
+                ? (item.yoy >= 100 ? 'text-green-700' : 'text-red-700')
+                : 'text-gray-700';
+              const discountDiffColor = item.discountDiff !== null && typeof item.discountDiff === 'number' && isFinite(item.discountDiff)
+                ? (item.discountDiff > 0 ? 'text-red-600' : item.discountDiff < 0 ? 'text-green-600' : 'text-gray-600')
+                : 'text-gray-600';
+              
               return (
                 <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
                   {item.apparelOnly ? (
@@ -319,11 +363,14 @@ export default function Section1Card({
                     <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                   )}
                   <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
-                  <p className="mt-0.5 text-xs tabular-nums text-gray-700">
+                  <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
                       {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
                   </p>
-                  <p className="mt-0.5 text-xs tabular-nums text-gray-600">
-                    {t(language, 'discountRateLabel')} {formatRate(item.discountRate)} ({formatPercentPointDiff(item.discountDiff)})
+                  <p className="mt-0.5 text-xs tabular-nums">
+                    <span className="text-gray-600">{t(language, 'discountRateLabel')} {formatRate(item.discountRate)}</span>{' '}
+                    <span className={`font-semibold ${discountDiffColor}`}>
+                      ({formatPercentPointDiff(item.discountDiff)})
+                    </span>
                   </p>
                 </div>
               );
