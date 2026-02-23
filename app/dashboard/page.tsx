@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import BrandSelect from './components/BrandSelect';
 import DailyHighlight from './components/DailyHighlight';
 import DateSelect from './components/DateSelect';
-import RegionToggle from './components/RegionToggle';
 import Section1Card from './components/Section1Card';
 import Section1StoreBarChart from './components/Section1StoreBarChart';
 import Section1Table from './components/Section1Table';
@@ -41,7 +40,7 @@ export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section1DetailViewMode, setSection1DetailViewMode] = useState<'season' | 'top5' | 'worst5'>('season');
-  const [isSummaryView, setIsSummaryView] = useState(true);
+  const [activeTab, setActiveTab] = useState<'summary' | 'hkmc' | 'tw'>('summary');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
 
@@ -76,7 +75,7 @@ export default function DashboardPage() {
       section3: 'loading',
     });
 
-    if (isSummaryView) {
+    if (activeTab === 'summary') {
       setHkmcSection1Data(null);
       setHkmcSection2Data(null);
       setHkmcSection3Data(null);
@@ -88,7 +87,7 @@ export default function DashboardPage() {
       setSection2Data(null);
       setSection3Data(null);
     }
-  }, [region, brand, date, isSummaryView]);
+  }, [region, brand, date, activeTab]);
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -118,7 +117,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!isSummaryView || !date || !brand) return;
+    if (activeTab !== 'summary' || !date || !brand) return;
 
     let isCancelled = false;
     const controller = new AbortController();
@@ -197,10 +196,10 @@ export default function DashboardPage() {
       isCancelled = true;
       controller.abort();
     };
-  }, [isSummaryView, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate]);
+  }, [activeTab, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate]);
 
   useEffect(() => {
-    if (isSummaryView || !date || !brand || !region) return;
+    if (activeTab === 'summary' || !date || !brand || !region) return;
 
     let isCancelled = false;
     const controller = new AbortController();
@@ -240,7 +239,7 @@ export default function DashboardPage() {
       isCancelled = true;
       controller.abort();
     };
-  }, [isSummaryView, region, brand, date, availableDates, refreshKey]);
+  }, [activeTab, region, brand, date, availableDates, refreshKey]);
 
   useEffect(() => {
     async function fetchMeta() {
@@ -393,39 +392,45 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-4">
-            {isSummaryView ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setRegion('HKMC');
-                    setIsSummaryView(false);
-                  }}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  {t(language, 'hkmcDetail')}
-                </button>
-                <button
-                  onClick={() => {
-                    setRegion('TW');
-                    setIsSummaryView(false);
-                  }}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  {t(language, 'twDetail')}
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsSummaryView(true)}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  {t(language, 'summary')}
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab('summary')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'summary' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {t(language, 'summary')}
+              </button>
+              <button
+                onClick={() => {
+                  setRegion('HKMC');
+                  setActiveTab('hkmc');
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'hkmc' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {t(language, 'hkmcDetail')}
+              </button>
+              <button
+                onClick={() => {
+                  setRegion('TW');
+                  setActiveTab('tw');
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'tw' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {t(language, 'twDetail')}
+              </button>
+            </div>
 
-            {!isSummaryView && <RegionToggle value={region} onChange={setRegion} />}
             <BrandSelect value={brand} onChange={setBrand} />
             <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} />
 
@@ -477,7 +482,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 pb-8 space-y-6">
-        {isSummaryView ? (
+        {activeTab === 'summary' ? (
           <>
             {date && (
               <DailyHighlight
