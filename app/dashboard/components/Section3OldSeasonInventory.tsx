@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 
 interface Section3Props {
@@ -85,6 +85,7 @@ export default function Section3OldSeasonInventory({
   const [error, setError] = useState<string | null>(null);
   const requestSeqRef = React.useRef(0);
   const lastContextRef = React.useRef('');
+  const prefetchedAllRef = React.useRef<Set<string>>(new Set());
 
   // ?뺤옣 ?곹깭 愿由?
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -109,11 +110,10 @@ export default function Section3OldSeasonInventory({
       setError(null);
 
       try {
+        // Use cache by default to avoid long-running repeated queries.
+        const shouldForceRefresh = false;
         const contextKey = `${region}|${brand}|${date}`;
-        const shouldForceRefresh = contextKey !== lastContextRef.current;
-        if (shouldForceRefresh) {
-          lastContextRef.current = contextKey;
-        }
+        lastContextRef.current = contextKey;
 
         const params = new URLSearchParams({
           region,
@@ -143,6 +143,23 @@ export default function Section3OldSeasonInventory({
         }
         console.log('??Section3: Received data:', json);
         setData(json);
+
+        // Warm up 'all' dataset in background so switching from clothes -> all is fast.
+        if (categoryFilter === 'clothes') {
+          const prefetchKey = `${region}|${brand}|${date}|all`;
+          if (!prefetchedAllRef.current.has(prefetchKey)) {
+            prefetchedAllRef.current.add(prefetchKey);
+            const allParams = new URLSearchParams({
+              region,
+              brand,
+              date,
+              category_filter: 'all',
+            });
+            fetch(`/api/section3/old-season-inventory?${allParams}`).catch(() => {
+              prefetchedAllRef.current.delete(prefetchKey);
+            });
+          }
+        }
         
         // 遺紐?而댄룷?뚰듃濡??곗씠???꾨떖
         if (onDataChange) {
@@ -404,9 +421,31 @@ export default function Section3OldSeasonInventory({
     return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
   });
 
+  const categoryBucketsByYear = (() => {
+    const map = new Map<string, CategoryRow[]>();
+    for (const cat of data.categories) {
+      const key = cat.year_bucket;
+      const arr = map.get(key);
+      if (arr) arr.push(cat);
+      else map.set(key, [cat]);
+    }
+    return map;
+  })();
+
+  const skuBucketsByYearCat = (() => {
+    const map = new Map<string, SKURow[]>();
+    for (const sku of data.skus) {
+      const key = `${sku.year_bucket}__${sku.cat2}`;
+      const arr = map.get(key);
+      if (arr) arr.push(sku);
+      else map.set(key, [sku]);
+    }
+    return map;
+  })();
+
   // ?곗감蹂?移댄뀒怨좊━ ?꾪꽣留?諛??뺣젹
   const getCategoriesForYear = (yearBucket: string) => {
-    let cats = data.categories.filter(cat => cat.year_bucket === yearBucket);
+    let cats = [...(categoryBucketsByYear.get(yearBucket) || [])];
     
     if (catSortConfig) {
       cats = [...cats].sort((a, b) => {
@@ -426,7 +465,13 @@ export default function Section3OldSeasonInventory({
 
   // 移댄뀒怨좊━蹂?SKU ?꾪꽣留?諛??뺣젹
   const getSKUsForCategory = (yearBucket: string, cat2: string) => {
-    let skus = data.skus.filter(sku => sku.year_bucket === yearBucket && sku.cat2 === cat2);
+    let skus = [...(skuBucketsByYearCat.get(`${yearBucket}__${cat2}`) || [])];
+    // PREP base fallback key (e.g. XXSK) is an internal join key, not a real product code.
+    skus = skus.filter((sku) => {
+      const code = (sku.prdt_cd || '').toUpperCase();
+      const c = (cat2 || '').toUpperCase();
+      return !(code.startsWith('XX') && code.length === 4 && code.slice(2) === c);
+    });
     
     if (skuSortConfig) {
       skus = [...skus].sort((a, b) => {
@@ -694,6 +739,7 @@ export default function Section3OldSeasonInventory({
                         const catKey = `${year.year_bucket}_${cat.cat2}`;
                         const isCatExpanded = expandedCategories.has(catKey);
                         const skus = getSKUsForCategory(year.year_bucket, cat.cat2);
+                        const hasSkuDetails = skus.length > 0;
                         
                         // 移댄뀒怨좊━蹂??뺤껜?ш퀬鍮꾩쨷 怨꾩궛
                         const catStagnantRatio = cat.curr_stock_amt > 0 
@@ -702,7 +748,12 @@ export default function Section3OldSeasonInventory({
 
                         return (
                           <React.Fragment key={catKey}>
-                            <tr className="bg-green-50 hover:bg-green-100 cursor-pointer transition-colors" onClick={() => toggleCategory(year.year_bucket, cat.cat2)}>
+                            <tr
+                              className={`bg-green-50 transition-colors ${hasSkuDetails ? 'hover:bg-green-100 cursor-pointer' : ''}`}
+                              onClick={() => {
+                                if (hasSkuDetails) toggleCategory(year.year_bucket, cat.cat2);
+                              }}
+                            >
                               <td className="px-3 py-2 font-medium border-r border-gray-100">{cat.cat2}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.base_stock_amt)}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.curr_stock_amt)}</td>
@@ -722,7 +773,9 @@ export default function Section3OldSeasonInventory({
                                 {formatInvDays(cat.inv_days_raw, cat.inv_days)}
                               </td>
                               <td className="px-2 py-2 text-center">
-                                <span className="text-blue-600 text-xs">{isCatExpanded ? '▼' : '▶'}</span>
+                                <span className={`text-xs ${hasSkuDetails ? 'text-blue-600' : 'text-gray-400'}`}>
+                                  {hasSkuDetails ? (isCatExpanded ? '▼' : '▶') : '-'}
+                                </span>
                               </td>
                             </tr>
 

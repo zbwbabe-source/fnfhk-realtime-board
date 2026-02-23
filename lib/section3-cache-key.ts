@@ -1,6 +1,6 @@
 import { buildKey } from '@/lib/cache';
 
-export const SECTION3_CACHE_SCHEMA_VERSION = 'v2';
+export const SECTION3_CACHE_SCHEMA_VERSION = 'v12';
 
 export function buildSection3OldSeasonCacheKey(
   region: string,
@@ -18,4 +18,3 @@ export function buildSection3OldSeasonCacheKey(
     categoryFilter,
   ]);
 }
-

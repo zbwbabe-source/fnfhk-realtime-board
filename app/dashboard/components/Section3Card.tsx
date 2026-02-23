@@ -8,6 +8,8 @@ interface Section3CardProps {
   region: string;
   categoryFilter: 'clothes' | 'all';
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
+  periodInfoPlacement?: 'inline' | 'footer';
+  compactMainMetric?: boolean;
 }
 
 export default function Section3Card({
@@ -16,6 +18,8 @@ export default function Section3Card({
   region,
   categoryFilter,
   onCategoryFilterChange,
+  periodInfoPlacement = 'inline',
+  compactMainMetric = false,
 }: Section3CardProps) {
   const formatCurrency = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -30,10 +34,10 @@ export default function Section3Card({
 
   const getPeriodStartInfo = () => {
     if (section3Data?.period_start_date) {
-      const periodStart = section3Data.period_start_date;
-      const year = periodStart.slice(2, 4);
-      const month = periodStart.slice(5, 7);
-      const day = periodStart.slice(8, 10);
+      const startDate = section3Data.period_start_date;
+      const year = startDate.slice(2, 4);
+      const month = startDate.slice(5, 7);
+      const day = startDate.slice(8, 10);
 
       return language === 'ko'
         ? `(${year}/${parseInt(month)}/${parseInt(day)}~)`
@@ -168,7 +172,7 @@ export default function Section3Card({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 p-3 border border-amber-100">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className="text-4xl font-bold tabular-nums text-gray-900">{kpis.k1.value}</p>
+          <p className={`${compactMainMetric ? 'text-2xl' : 'text-3xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           {kpis.k1.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
@@ -179,7 +183,7 @@ export default function Section3Card({
         <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <div className="flex items-center gap-2">
             <p className="text-xs text-gray-500">{kpis.k2.label}</p>
-            {periodStartInfo && (
+            {periodStartInfo && periodInfoPlacement === 'inline' && (
               <div className="flex items-center gap-1.5 rounded-md bg-orange-50 px-2 py-1">
                 <svg className="h-3.5 w-3.5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -208,7 +212,14 @@ export default function Section3Card({
         </div>
       </div>
 
-      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{currencyUnit}</div>
+      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+        {currencyUnit}
+        {periodStartInfo && periodInfoPlacement === 'footer' && (
+          <span className="ml-2">
+            | {language === 'ko' ? `소진재고액 기준 ${periodStartInfo}` : `Depleted-stock period ${periodStartInfo}`}
+          </span>
+        )}
+      </div>
     </article>
   );
 }

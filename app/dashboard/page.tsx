@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [section2Data, setSection2Data] = useState<any>(null);
   const [section3Data, setSection3Data] = useState<any>(null);
   const refreshedSummaryKeysRef = useRef<Set<string>>(new Set());
+  const prefetchedSummaryS3KeysRef = useRef<Set<string>>(new Set());
 
   const [hkmcSection1Data, setHkmcSection1Data] = useState<any>(null);
   const [hkmcSection2Data, setHkmcSection2Data] = useState<any>(null);
@@ -74,19 +75,6 @@ export default function DashboardPage() {
       section2: 'loading',
       section3: 'loading',
     });
-
-    if (activeTab === 'summary') {
-      setHkmcSection1Data(null);
-      setHkmcSection2Data(null);
-      setHkmcSection3Data(null);
-      setTwSection1Data(null);
-      setTwSection2Data(null);
-      setTwSection3Data(null);
-    } else {
-      setSection1Data(null);
-      setSection2Data(null);
-      setSection3Data(null);
-    }
   }, [region, brand, date, activeTab]);
 
   const handleRefresh = () => {
@@ -135,10 +123,16 @@ export default function DashboardPage() {
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const fetchJson = async (
           url: string,
-          options: RequestInit = fetchOptions
+          options: RequestInit = fetchOptions,
+          timeoutMs = 30000
         ) => {
           try {
-            const r = await fetch(url, options);
+            const fetchPromise = fetch(url, options);
+            const timeoutPromise = new Promise<null>((resolve) =>
+              setTimeout(() => resolve(null), timeoutMs)
+            );
+            const r = (await Promise.race([fetchPromise, timeoutPromise])) as Response | null;
+            if (!r) return null;
             return r.ok ? r.json() : null;
           } catch (e: any) {
             if (e?.name === 'AbortError') return null;
@@ -153,11 +147,13 @@ export default function DashboardPage() {
         const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const hkmcS3Promise = fetchJson(
           `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`,
-          section3FetchOptions
+          section3FetchOptions,
+          150000
         );
         const twS3Promise = fetchJson(
           `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}`,
-          section3FetchOptions
+          section3FetchOptions,
+          150000
         );
 
         const [hkmcS1, twS1] = await Promise.all([hkmcS1Promise, twS1Promise]);
@@ -177,6 +173,22 @@ export default function DashboardPage() {
         setHkmcSection3Data(hkmcS3);
         setTwSection3Data(twS3);
         setDataLoadStatus((prev) => ({ ...prev, section3: hkmcS3 && twS3 ? 'success' : 'error' }));
+
+        // Warm up opposite section3 category in summary (clothes <-> all)
+        const oppositeS3Filter = section3CategoryFilter === 'clothes' ? 'all' : 'clothes';
+        const prefetchS3Key = `${brand}|${date}|${oppositeS3Filter}`;
+        if (!prefetchedSummaryS3KeysRef.current.has(prefetchS3Key)) {
+          prefetchedSummaryS3KeysRef.current.add(prefetchS3Key);
+          const warmUrls = [
+            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}`,
+            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}`,
+          ];
+          Promise.all(
+            warmUrls.map((u) =>
+              fetch(u, { signal: controller.signal }).catch(() => null)
+            )
+          ).catch(() => null);
+        }
 
         if (shouldForceRefresh) refreshedSummaryKeysRef.current.add(summaryKey);
       } catch (error) {
@@ -550,6 +562,7 @@ export default function DashboardPage() {
                   categoryFilter={categoryFilter}
                   onCategoryFilterChange={setCategoryFilter}
                   region={region}
+                  compactMainMetric={true}
                 />
                 <Section2Treemap region={region} brand={brand} date={date} language={language} />
               </div>
@@ -561,6 +574,8 @@ export default function DashboardPage() {
                   region={region}
                   categoryFilter={section3CategoryFilter}
                   onCategoryFilterChange={setSection3CategoryFilter}
+                  periodInfoPlacement="footer"
+                  compactMainMetric={true}
                 />
               </div>
             </div>

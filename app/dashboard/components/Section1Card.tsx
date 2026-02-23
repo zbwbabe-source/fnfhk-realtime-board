@@ -317,7 +317,7 @@ export default function Section1Card({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 p-3 border border-blue-100">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className="text-4xl font-bold tabular-nums text-gray-900">{kpis.k1.value}</p>
+          <p className={`${showSeasonCategory ? 'text-3xl' : 'text-2xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           <p className="text-xs tabular-nums">
             <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
             <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>

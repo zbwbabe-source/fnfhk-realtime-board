@@ -8,6 +8,7 @@ interface Section2CardProps {
   categoryFilter: 'clothes' | 'all';
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   region: string;
+  compactMainMetric?: boolean;
 }
 
 export default function Section2Card({
@@ -16,6 +17,7 @@ export default function Section2Card({
   categoryFilter,
   onCategoryFilterChange,
   region,
+  compactMainMetric = false,
 }: Section2CardProps) {
   const formatCurrency = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -94,7 +96,7 @@ export default function Section2Card({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-3 border border-green-100">
           <p className="text-xs font-medium text-gray-600">{t(language, 'sellRate')}</p>
-          <p className="text-4xl font-bold tabular-nums text-gray-900">{sellthrough.toFixed(1)}%</p>
+          <p className={`${compactMainMetric ? 'text-2xl' : 'text-4xl'} font-bold leading-tight tabular-nums text-gray-900`}>{sellthrough.toFixed(1)}%</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(sellthroughYoyPp, 0)}`}>
             {formatPp(sellthroughYoyPp)}
           </span>

@@ -165,9 +165,23 @@ function buildSignals(input: ExecutiveInsightInput) {
   );
   const compareLine = '';
 
+  const dynamicP2 =
+    seasonTw !== null || seasonHkmc !== null || invTw !== null || invHkmc !== null
+      ? (() => {
+          const focusRegion = (salesTw ?? 0) < (salesHkmc ?? 0) ? 'TW' : 'HKMC';
+          const focusSeason = focusRegion === 'TW' ? seasonTw : seasonHkmc;
+          const focusInvDays = focusRegion === 'TW' ? invTw : invHkmc;
+          const focusOldStock = focusRegion === 'TW' ? oldTw : oldHkmc;
+          if (focusInvDays !== null) {
+            return `${focusRegion} 판매율 ${fmtRate(focusSeason)}·재고일수 ${fmtDays(focusInvDays)}·재고 ${fmtNum(focusOldStock)} 기준으로 하위 카테고리 3개를 지정하고 2주 할인·재배치 실행안을 확정.`;
+          }
+          return `${focusRegion} 소진 지표가 낮은 카테고리를 우선 지정하고 2주 할인·재배치 실행안을 확정.`;
+        })()
+      : '소진 지표가 낮은 카테고리를 우선 지정하고 2주 할인·재배치 실행안을 확정.';
+
   const actions = [
     { priority: 'P1' as const, text: 'TW 당시즌 소진 둔화 → 차기 과시즌 부담 전이 가능, 선제 소진 대책을 즉시 점검.' },
-    { priority: 'P2' as const, text: 'HKMC/TW 매출 YoY 차이는 채널·상품군 구성 차이 여부를 우선 점검.' },
+    { priority: 'P2' as const, text: dynamicP2 },
     { priority: 'P3' as const, text: '과시즌 재고일수 상위 구간 중심으로 할인·재배치 우선순위를 재설정.' },
   ];
 
@@ -265,6 +279,9 @@ function withMeta(
   meta: { cached: boolean; generatedAt: string; ttlSeconds: number; model: string },
   input: ExecutiveInsightInput
 ): ExecutiveInsightResponse {
+  const dynamicP2 = buildSignals(input).actions.find((a) => a.priority === 'P2')?.text || '';
+  const p2GenericPattern = /채널.?상품군 구성 차이 여부를 우선 점검\.?/;
+
   const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
   const seasonForced = forceSeasonBlock(salesForced, input);
   const oldForced = forceOldBlock(seasonForced, input);
@@ -273,7 +290,10 @@ function withMeta(
     summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
     compareLine: '',
     blocks: oldForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
-    actions: payload.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
+    actions: payload.actions.map((a) => {
+      const text = a.priority === 'P2' && p2GenericPattern.test(a.text) ? dynamicP2 : a.text;
+      return { ...a, text: sanitizeInsightText(text) };
+    }),
     meta: {
       model: meta.model,
       cached: meta.cached,
@@ -354,7 +374,7 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v9', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
+    const cacheKey = buildKey(['insights', 'exec', 'v10', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);

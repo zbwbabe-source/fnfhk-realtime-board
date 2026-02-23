@@ -34,6 +34,7 @@ Rules:
 - blocks must be fixed 3 items in the given order.
 - actions up to 3 items, priorities in order P1/P2/P3.
 - P1 must include this viewpoint: "TW 당시즌 소진 둔화 → 차기 과시즌 부담 전이 가능".
+- Avoid generic action text like "채널·상품군 구성 차이 여부 점검". Actions must be specific and time-bounded.
 - YoY must be integer percent (e.g., 215%).
 - Sell-through must be 1 decimal (e.g., 64.8%).
 - Do not use "실행안 확정".
