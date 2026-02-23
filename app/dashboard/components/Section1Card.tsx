@@ -241,7 +241,7 @@ export default function Section1Card({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h3 className="leading-tight text-base font-semibold text-gray-900">{t(language, 'section1Title')}</h3>
+            <h3 className="leading-tight text-base font-semibold text-gray-900 whitespace-nowrap">{t(language, 'section1Title')}</h3>
             {onYtdModeToggle && (
               <div className="flex items-center gap-2 rounded-lg bg-purple-50 px-3 py-1.5">
                 <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
