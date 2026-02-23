@@ -22,9 +22,10 @@ Generate ONE JSON object with this exact schema:
     { "id": "old", "label": "과시즌", "tone": "positive|neutral|warning|critical", "text": "one sentence" }
   ],
   "actions": [
-    { "priority": "P1", "text": "action sentence" },
-    { "priority": "P2", "text": "action sentence" },
-    { "priority": "P3", "text": "action sentence" }
+    { "priority": "HKMC-1", "text": "action sentence" },
+    { "priority": "HKMC-2", "text": "action sentence" },
+    { "priority": "TW-1", "text": "action sentence" },
+    { "priority": "TW-2", "text": "action sentence" }
   ]
 }
 
@@ -32,8 +33,23 @@ Rules:
 - Keep summaryLine within 80 chars.
 - Keep compareLine within 120 chars.
 - blocks must be fixed 3 items in the given order.
-- actions up to 3 items, priorities in order P1/P2/P3.
-- P1 must include this viewpoint: "TW 당시즌 소진 둔화 → 차기 과시즌 부담 전이 가능".
+- actions must be fixed 4 items in this order:
+  1) HKMC-1
+  2) HKMC-2
+  3) TW-1
+  4) TW-2
+- Each action must be specific, numeric when possible, and time-bounded (e.g., this week / 2 weeks / month-end).
+- Season close date is fixed at 2/28.
+- Use SIGNALS.seasonTwProjectedEom (projected TW in-season sell-through at season close),
+  calculated by season pace conversion from 9/1 to as-of date.
+- If SIGNALS.seasonTwProjectedEom is below 65, TW-1 must explicitly mention:
+  "판매 막달 기준, TW 당시즌재고가 차기 과시즌으로 전환될 수 있음"
+  and include a preventive action with a deadline.
+- TW-1 writing style should be clean 2-sentence format (no labels like 리스크/현황/실행):
+  Example style:
+  "시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 61.3%로 차기 과시즌 전환 리스크가 있음.
+   당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검."
+- Do not use vague phrases such as "YoY 기준으로 우선순위를 운영".
 - Avoid generic action text like "채널·상품군 구성 차이 여부 점검". Actions must be specific and time-bounded.
 - YoY must be integer percent (e.g., 215%).
 - Sell-through must be 1 decimal (e.g., 64.8%).

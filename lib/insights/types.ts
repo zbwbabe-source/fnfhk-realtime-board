@@ -8,7 +8,7 @@ export interface ExecutiveInsightBlock {
 }
 
 export interface ExecutiveInsightAction {
-  priority: 'P1' | 'P2' | 'P3';
+  priority: 'HKMC-1' | 'HKMC-2' | 'TW-1' | 'TW-2';
   text: string;
 }
 

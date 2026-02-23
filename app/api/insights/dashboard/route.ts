@@ -55,6 +55,59 @@ function formatOldPair(stock: number | null, days: number | null): string {
   return `${fmtNum(stock)}·${fmtDays(days)}`;
 }
 
+function parseDateParts(isoDate: string): { year: number; month: number; day: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return { year, month, day };
+}
+
+function projectSeasonEndSellthrough(currentRate: number | null, asOfDate: string): number | null {
+  if (currentRate === null) return null;
+  const parts = parseDateParts(asOfDate);
+  if (!parts) return null;
+  // FW season pacing projection: 9/1 ~ 2/28
+  const seasonStartYear = parts.month >= 9 ? parts.year : parts.year - 1;
+  const seasonStart = new Date(Date.UTC(seasonStartYear, 8, 1)); // 9/1
+  const seasonEnd = new Date(Date.UTC(seasonStartYear + 1, 1, 28)); // 2/28
+  const asOf = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const clampedAsOf = asOf > seasonEnd ? seasonEnd : asOf;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const elapsed = Math.max(1, Math.floor((clampedAsOf.getTime() - seasonStart.getTime()) / msPerDay) + 1);
+  const total = Math.max(1, Math.floor((seasonEnd.getTime() - seasonStart.getTime()) / msPerDay) + 1);
+  const projected = (currentRate / elapsed) * total;
+  return Math.min(100, Math.max(0, projected));
+}
+
+function buildRegionActions(
+  region: 'HKMC' | 'TW',
+  salesYoy: number | null,
+  seasonSellthrough: number | null,
+  projectedSeasonEndSellthrough: number | null,
+  oldStock: number | null,
+  invDays: number | null
+): [string, string] {
+  const action1 =
+    region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
+      ? `시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 차기 과시즌 전환 리스크가 있음. 당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
+      : seasonSellthrough === null
+        ? `${region} 당시즌 판매율 데이터 점검이 필요함. 데이터 공백 SKU를 이번 주 내 보정하고 월말까지 실행 성과를 점검.`
+        : seasonSellthrough < 60
+          ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 부담이 높음. 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
+          : `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`;
+
+  const invThreshold = invDays === null ? null : invDays >= 300 ? '999+일 구간' : invDays >= 180 ? '장기재고 구간' : '일반 구간';
+  const oldPart =
+    oldStock === null || invDays === null
+      ? `${region} 과시즌 데이터 정합성 점검이 필요함. 데이터 소스와 집계키를 이번 주 내 재검증.`
+      : `${region} 과시즌 재고 ${fmtNum(oldStock)}, 재고일수 ${fmtDays(invDays)} (${invThreshold}) 수준임. 2주 내 대상 SKU를 정리하고 주 1회 추적.`;
+
+  return [action1, oldPart];
+}
+
 function normalizeInput(raw: any): ExecutiveInsightInput {
   const normalizedMode = raw?.mode === 'YTD' ? 'YTD' : 'MTD';
   const asOfDate = String(raw?.asOfDate || raw?.asof_date || '').trim();
@@ -126,6 +179,8 @@ function buildSignals(input: ExecutiveInsightInput) {
   const salesYtdTw = input.tw.salesYtdYoy ?? null;
   const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
   const seasonTw = input.tw.seasonSellthrough ?? null;
+  const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, input.asOfDate);
+  const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, input.asOfDate);
   const oldHkmc = input.hkmc.oldStock ?? null;
   const oldTw = input.tw.oldStock ?? null;
   const invHkmc = input.hkmc.invDays ?? null;
@@ -165,24 +220,21 @@ function buildSignals(input: ExecutiveInsightInput) {
   );
   const compareLine = '';
 
-  const dynamicP2 =
-    seasonTw !== null || seasonHkmc !== null || invTw !== null || invHkmc !== null
-      ? (() => {
-          const focusRegion = (salesTw ?? 0) < (salesHkmc ?? 0) ? 'TW' : 'HKMC';
-          const focusSeason = focusRegion === 'TW' ? seasonTw : seasonHkmc;
-          const focusInvDays = focusRegion === 'TW' ? invTw : invHkmc;
-          const focusOldStock = focusRegion === 'TW' ? oldTw : oldHkmc;
-          if (focusInvDays !== null) {
-            return `${focusRegion} 판매율 ${fmtRate(focusSeason)}·재고일수 ${fmtDays(focusInvDays)}·재고 ${fmtNum(focusOldStock)} 기준으로 하위 카테고리 3개를 지정하고 2주 할인·재배치 실행안을 확정.`;
-          }
-          return `${focusRegion} 소진 지표가 낮은 카테고리를 우선 지정하고 2주 할인·재배치 실행안을 확정.`;
-        })()
-      : '소진 지표가 낮은 카테고리를 우선 지정하고 2주 할인·재배치 실행안을 확정.';
+  const [hkmcAction1, hkmcAction2] = buildRegionActions(
+    'HKMC',
+    salesHkmc,
+    seasonHkmc,
+    seasonHkmcProjectedEom,
+    oldHkmc,
+    invHkmc
+  );
+  const [twAction1, twAction2] = buildRegionActions('TW', salesTw, seasonTw, seasonTwProjectedEom, oldTw, invTw);
 
   const actions = [
-    { priority: 'P1' as const, text: 'TW 당시즌 소진 둔화 → 차기 과시즌 부담 전이 가능, 선제 소진 대책을 즉시 점검.' },
-    { priority: 'P2' as const, text: dynamicP2 },
-    { priority: 'P3' as const, text: '과시즌 재고일수 상위 구간 중심으로 할인·재배치 우선순위를 재설정.' },
+    { priority: 'HKMC-1' as const, text: hkmcAction1 },
+    { priority: 'HKMC-2' as const, text: hkmcAction2 },
+    { priority: 'TW-1' as const, text: twAction1 },
+    { priority: 'TW-2' as const, text: twAction2 },
   ];
 
   return {
@@ -190,6 +242,9 @@ function buildSignals(input: ExecutiveInsightInput) {
     compareLine,
     blocks,
     actions,
+    seasonEndDate: `${input.asOfDate.slice(0, 4)}-02-28`,
+    seasonHkmcProjectedEom,
+    seasonTwProjectedEom,
   };
 }
 
@@ -243,7 +298,7 @@ function validateResponseShape(obj: any): obj is Omit<ExecutiveInsightResponse, 
   if (obj.title !== 'Executive Insight') return false;
   if (typeof obj.asOfLabel !== 'string' || typeof obj.summaryLine !== 'string' || typeof obj.compareLine !== 'string') return false;
   if (!Array.isArray(obj.blocks) || obj.blocks.length !== 3) return false;
-  if (!Array.isArray(obj.actions) || obj.actions.length > 3) return false;
+  if (!Array.isArray(obj.actions) || obj.actions.length !== 4) return false;
 
   const expectedIds = ['sales', 'season', 'old'];
   for (let i = 0; i < 3; i += 1) {
@@ -252,9 +307,10 @@ function validateResponseShape(obj: any): obj is Omit<ExecutiveInsightResponse, 
       return false;
     }
   }
+  const expectedPriorities = ['HKMC-1', 'HKMC-2', 'TW-1', 'TW-2'];
   for (let i = 0; i < obj.actions.length; i += 1) {
     const a = obj.actions[i];
-    if (!a || (a.priority !== 'P1' && a.priority !== 'P2' && a.priority !== 'P3') || typeof a.text !== 'string') {
+    if (!a || a.priority !== expectedPriorities[i] || typeof a.text !== 'string') {
       return false;
     }
   }
@@ -270,6 +326,8 @@ function sanitizeInsightText(text: string): string {
     .replace(/HKMC\s*우위/gi, 'HKMC/TW 특성')
     .replace(/로 비교됩니다\./g, '입니다.')
     .replace(/비교됩니다\./g, '입니다.')
+    .replace(/(?:HKMC|TW)\s*실판매출\s*YoY[^.]*기준으로 우선순위를 운영함\.?\s*/g, '')
+    .replace(/실판매출\s*YoY[^.]*기준으로 우선순위를 운영함\.?\s*/g, '')
     .replace(/N\/A[\/·]N\/A일?/g, '데이터 없음')
     .trim();
 }
@@ -279,9 +337,6 @@ function withMeta(
   meta: { cached: boolean; generatedAt: string; ttlSeconds: number; model: string },
   input: ExecutiveInsightInput
 ): ExecutiveInsightResponse {
-  const dynamicP2 = buildSignals(input).actions.find((a) => a.priority === 'P2')?.text || '';
-  const p2GenericPattern = /채널.?상품군 구성 차이 여부를 우선 점검\.?/;
-
   const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
   const seasonForced = forceSeasonBlock(salesForced, input);
   const oldForced = forceOldBlock(seasonForced, input);
@@ -290,10 +345,7 @@ function withMeta(
     summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
     compareLine: '',
     blocks: oldForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
-    actions: payload.actions.map((a) => {
-      const text = a.priority === 'P2' && p2GenericPattern.test(a.text) ? dynamicP2 : a.text;
-      return { ...a, text: sanitizeInsightText(text) };
-    }),
+    actions: payload.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
     meta: {
       model: meta.model,
       cached: meta.cached,
@@ -374,7 +426,7 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v10', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
+    const cacheKey = buildKey(['insights', 'exec', 'v15', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
