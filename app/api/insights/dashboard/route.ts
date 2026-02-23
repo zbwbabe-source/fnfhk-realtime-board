@@ -88,7 +88,8 @@ function buildRegionActions(
   seasonSellthrough: number | null,
   projectedSeasonEndSellthrough: number | null,
   oldStock: number | null,
-  invDays: number | null
+  invDays: number | null,
+  stagnantRatio: number | null
 ): [string, string] {
   const action1 =
     region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
@@ -101,9 +102,11 @@ function buildRegionActions(
 
   const invThreshold = invDays === null ? null : invDays >= 300 ? '999+일 구간' : invDays >= 180 ? '장기재고 구간' : '일반 구간';
   const oldPart =
-    oldStock === null || invDays === null
+    oldStock === null
       ? `${region} 과시즌 데이터 정합성 점검이 필요함. 데이터 소스와 집계키를 이번 주 내 재검증.`
-      : `${region} 과시즌 재고 ${fmtNum(oldStock)}, 재고일수 ${fmtDays(invDays)} (${invThreshold}) 수준임. 2주 내 대상 SKU를 정리하고 주 1회 추적.`;
+      : stagnantRatio === null
+        ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
+        : `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDays(invDays)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`;
 
   return [action1, oldPart];
 }
@@ -120,6 +123,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     seasonSellthrough: toNumber(raw?.section2?.hkmc_sellthrough),
     oldStock: toNumber(raw?.section3?.hkmc_curr_stock),
     invDays: toNumber(raw?.section3?.hkmc_inv_days),
+    stagnantRatio: toNumber(raw?.section3?.hkmc_stagnant_ratio),
   };
 
   const twFromLegacy = raw?.tw ?? {
@@ -128,6 +132,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     seasonSellthrough: toNumber(raw?.section2?.tw_sellthrough),
     oldStock: toNumber(raw?.section3?.tw_curr_stock),
     invDays: toNumber(raw?.section3?.tw_inv_days),
+    stagnantRatio: toNumber(raw?.section3?.tw_stagnant_ratio),
   };
 
   const hkmc: ExecutiveRegionInput = {
@@ -136,6 +141,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     seasonSellthrough: toNumber(hkmcFromLegacy?.seasonSellthrough),
     oldStock: toNumber(hkmcFromLegacy?.oldStock),
     invDays: toNumber(hkmcFromLegacy?.invDays),
+    stagnantRatio: toNumber(hkmcFromLegacy?.stagnantRatio),
   };
 
   const tw: ExecutiveRegionInput = {
@@ -144,6 +150,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     seasonSellthrough: toNumber(twFromLegacy?.seasonSellthrough),
     oldStock: toNumber(twFromLegacy?.oldStock),
     invDays: toNumber(twFromLegacy?.invDays),
+    stagnantRatio: toNumber(twFromLegacy?.stagnantRatio),
   };
 
   return {
@@ -179,6 +186,8 @@ function buildSignals(input: ExecutiveInsightInput) {
   const salesYtdTw = input.tw.salesYtdYoy ?? null;
   const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
   const seasonTw = input.tw.seasonSellthrough ?? null;
+  const stagnantRatioHkmc = input.hkmc.stagnantRatio ?? null;
+  const stagnantRatioTw = input.tw.stagnantRatio ?? null;
   const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, input.asOfDate);
   const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, input.asOfDate);
   const oldHkmc = input.hkmc.oldStock ?? null;
@@ -226,9 +235,18 @@ function buildSignals(input: ExecutiveInsightInput) {
     seasonHkmc,
     seasonHkmcProjectedEom,
     oldHkmc,
-    invHkmc
+    invHkmc,
+    stagnantRatioHkmc
   );
-  const [twAction1, twAction2] = buildRegionActions('TW', salesTw, seasonTw, seasonTwProjectedEom, oldTw, invTw);
+  const [twAction1, twAction2] = buildRegionActions(
+    'TW',
+    salesTw,
+    seasonTw,
+    seasonTwProjectedEom,
+    oldTw,
+    invTw,
+    stagnantRatioTw
+  );
 
   const actions = [
     { priority: 'HKMC-1' as const, text: hkmcAction1 },
@@ -426,7 +444,7 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v15', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
+    const cacheKey = buildKey(['insights', 'exec', 'v16', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);

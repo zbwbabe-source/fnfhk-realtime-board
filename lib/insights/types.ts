@@ -35,6 +35,7 @@ export interface ExecutiveRegionInput {
   seasonSellthrough?: number | null;
   oldStock?: number | null;
   invDays?: number | null;
+  stagnantRatio?: number | null;
 }
 
 export interface ExecutiveInsightInput {

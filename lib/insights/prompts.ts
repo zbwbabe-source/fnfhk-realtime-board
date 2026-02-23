@@ -50,6 +50,7 @@ Rules:
   "시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 61.3%로 차기 과시즌 전환 리스크가 있음.
    당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검."
 - Do not use vague phrases such as "YoY 기준으로 우선순위를 운영".
+- For HKMC-2 and TW-2, prefer "정체재고비중(%) + 과시즌재고" wording first, then action.
 - Avoid generic action text like "채널·상품군 구성 차이 여부 점검". Actions must be specific and time-bounded.
 - YoY must be integer percent (e.g., 215%).
 - Sell-through must be 1 decimal (e.g., 64.8%).

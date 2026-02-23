@@ -50,6 +50,10 @@ export default function DailyHighlight({
         seasonSellthrough: hkmcSection2Data?.header?.overall_sellthrough ?? null,
         oldStock: hkmcSection3Data?.header?.curr_stock_amt ?? null,
         invDays: hkmcSection3Data?.header?.inv_days ?? null,
+        stagnantRatio:
+          (hkmcSection3Data?.header?.curr_stock_amt || 0) > 0
+            ? ((hkmcSection3Data?.header?.stagnant_stock_amt || 0) / hkmcSection3Data?.header?.curr_stock_amt) * 100
+            : null,
       },
       tw: {
         salesMtdYoy: twSection1Data?.total_subtotal?.yoy ?? null,
@@ -57,6 +61,10 @@ export default function DailyHighlight({
         seasonSellthrough: twSection2Data?.header?.overall_sellthrough ?? null,
         oldStock: twSection3Data?.header?.curr_stock_amt ?? null,
         invDays: twSection3Data?.header?.inv_days ?? null,
+        stagnantRatio:
+          (twSection3Data?.header?.curr_stock_amt || 0) > 0
+            ? ((twSection3Data?.header?.stagnant_stock_amt || 0) / twSection3Data?.header?.curr_stock_amt) * 100
+            : null,
       },
     };
   }, [
