@@ -35,14 +35,14 @@ export default function Section2Card({
   const inboundYoyPct = header?.inbound_yoy_pct as number | null | undefined;
 
   const formatPp = (v: number | null | undefined) => {
-    if (v === null || v === undefined) return 'vs LY N/A';
+    if (v === null || v === undefined) return 'N/A';
     if (v > 0) {
-      return `vs LY +${v.toFixed(1)}%p`;
+      return `+${v.toFixed(1)}%p`;
     }
     if (v < 0) {
-      return `vs LY -${Math.abs(v).toFixed(1)}%p`;
+      return `${v.toFixed(1)}%p`;
     }
-    return 'vs LY 0.0%p';
+    return '0.0%p';
   };
 
   const formatYoy = (v: number | null | undefined) => {
