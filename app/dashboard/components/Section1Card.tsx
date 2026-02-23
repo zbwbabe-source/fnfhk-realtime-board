@@ -325,7 +325,7 @@ export default function Section1Card({
             </span>
           </p>
         </div>
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <p className="text-xs text-gray-500">{kpis.k2.label}</p>
           <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k2.value}</p>
           <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
@@ -334,7 +334,7 @@ export default function Section1Card({
               : '-'}
           </span>
         </div>
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <div className="group relative inline-block">
             <p
               className="cursor-help text-xs text-gray-500 underline decoration-dotted underline-offset-2"

@@ -100,7 +100,7 @@ export default function Section2Card({
           </span>
         </div>
 
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeSales')}</p>
           <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalSales)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(salesYoyPct, 100)}`}>
@@ -108,7 +108,7 @@ export default function Section2Card({
           </span>
         </div>
 
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeInbound')}</p>
           <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalInbound)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(inboundYoyPct, 100)}`}>

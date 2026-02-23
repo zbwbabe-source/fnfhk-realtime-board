@@ -176,7 +176,7 @@ export default function Section3Card({
           )}
         </div>
 
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <div className="flex items-center gap-2">
             <p className="text-xs text-gray-500">{kpis.k2.label}</p>
             {periodStartInfo && (
@@ -196,7 +196,7 @@ export default function Section3Card({
           )}
         </div>
 
-        <div className="space-y-2 border-l border-gray-100 pl-3">
+        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
           <p className="text-xs text-gray-500">{kpis.k3.label}</p>
           <p className="text-xl font-bold tabular-nums text-gray-900">{kpis.k3.value}</p>
           {kpis.k3.subValue && (
