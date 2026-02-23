@@ -14,6 +14,8 @@ interface Section1CardProps {
   date: string;
   onYtdModeToggle?: () => void;
   showSeasonCategory?: boolean;
+  detailViewMode?: DetailView;
+  onDetailViewModeChange?: (view: DetailView) => void;
 }
 
 type KpiBlock = {
@@ -47,8 +49,18 @@ export default function Section1Card({
   date,
   onYtdModeToggle,
   showSeasonCategory = true,
+  detailViewMode,
+  onDetailViewModeChange,
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
+  const activeDetailView = detailViewMode ?? detailView;
+  const setActiveDetailView = (view: DetailView) => {
+    if (onDetailViewModeChange) {
+      onDetailViewModeChange(view);
+      return;
+    }
+    setDetailView(view);
+  };
   const isTwRegion = region === 'TW';
   const salesLabel = isTwRegion
     ? t(language, 'actualSalesVPlus')
@@ -206,7 +218,7 @@ export default function Section1Card({
     : [];
 
   const detailCards =
-    detailView === 'season'
+    activeDetailView === 'season'
       ? detailMetrics.map((item) => {
           const metric = seasonCategorySales.metrics[item.key];
           return {
@@ -219,7 +231,7 @@ export default function Section1Card({
             discountDiff: isYtdMode ? metric?.ytd_discount_rate_diff : metric?.mtd_discount_rate_diff,
           };
         })
-      : (detailView === 'top5' ? top5StoreCards : worst5StoreCards).map((item) => ({
+      : (activeDetailView === 'top5' ? top5StoreCards : worst5StoreCards).map((item) => ({
           ...item,
           apparelOnly: false,
         }));
@@ -245,28 +257,28 @@ export default function Section1Card({
             {showSeasonCategory && (
               <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
-                  onClick={() => setDetailView('season')}
+                  onClick={() => setActiveDetailView('season')}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    detailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '시즌별' : 'Season Basis'}
+                  {language === 'ko' ? '시즌' : 'Season'}
                 </button>
                 <button
-                  onClick={() => setDetailView('top5')}
+                  onClick={() => setActiveDetailView('top5')}
                   className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
-                    detailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '상위5' : 'Top5'}
+                  {language === 'ko' ? '상위' : 'Top'}
                 </button>
                 <button
-                  onClick={() => setDetailView('worst5')}
+                  onClick={() => setActiveDetailView('worst5')}
                   className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
-                    detailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '하위5' : 'Worst5'}
+                  {language === 'ko' ? '하위' : 'Bottom'}
                 </button>
               </div>
             )}
@@ -350,9 +362,10 @@ export default function Section1Card({
                 : 'text-gray-600';
               
               // 매장 카드인지 시즌 카드인지 확인
-              const isStoreCard = detailView !== 'season';
-              const shortCode = isStoreCard && 'storeCode' in item ? getStoreShortCode(item.fullName || item.title) : null;
-              const storeArea = isStoreCard && 'area' in item ? item.area : null;
+              const isStoreCard = activeDetailView !== 'season';
+              const storeFullName = isStoreCard ? String((item as any).fullName || item.title) : '';
+              const shortCode = isStoreCard ? getStoreShortCode(storeFullName) : null;
+              const storeArea = isStoreCard ? ((item as any).area as number | null | undefined) ?? null : null;
               
               return (
                 <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
@@ -371,7 +384,7 @@ export default function Section1Card({
                         {shortCode || item.title}
                       </p>
                       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
-                        <p className="font-semibold">{item.fullName || item.title}</p>
+                        <p className="font-semibold">{storeFullName || item.title}</p>
                         <p className="mt-1 text-gray-300">
                           {storeArea !== null ? `${storeArea}평` : language === 'ko' ? '면적 정보 없음' : 'No area data'}
                         </p>

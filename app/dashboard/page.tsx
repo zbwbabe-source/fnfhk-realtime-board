@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [language, setLanguage] = useState<Language>('ko');
   const [categoryFilter, setCategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
+  const [section1DetailViewMode, setSection1DetailViewMode] = useState<'season' | 'top5' | 'worst5'>('season');
   const [isSummaryView, setIsSummaryView] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
@@ -508,6 +509,8 @@ export default function DashboardPage() {
               section3CategoryFilter={section3CategoryFilter}
               onCategoryFilterChange={setCategoryFilter}
               onSection3CategoryFilterChange={setSection3CategoryFilter}
+              section1DetailViewMode={section1DetailViewMode}
+              onSection1DetailViewModeChange={setSection1DetailViewMode}
             />
           </>
         ) : (

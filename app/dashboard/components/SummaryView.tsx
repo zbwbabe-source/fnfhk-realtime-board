@@ -21,6 +21,8 @@ interface SummaryViewProps {
   section3CategoryFilter: 'clothes' | 'all';
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   onSection3CategoryFilterChange: (filter: 'clothes' | 'all') => void;
+  section1DetailViewMode: 'season' | 'top5' | 'worst5';
+  onSection1DetailViewModeChange: (view: 'season' | 'top5' | 'worst5') => void;
 }
 
 export default function SummaryView({
@@ -39,6 +41,8 @@ export default function SummaryView({
   section3CategoryFilter,
   onCategoryFilterChange,
   onSection3CategoryFilterChange,
+  section1DetailViewMode,
+  onSection1DetailViewModeChange,
 }: SummaryViewProps) {
   const RegionColumn = ({
     regionCode,
@@ -70,6 +74,8 @@ export default function SummaryView({
           region={regionCode}
           date={date}
           onYtdModeToggle={onYtdModeToggle}
+          detailViewMode={section1DetailViewMode}
+          onDetailViewModeChange={onSection1DetailViewModeChange}
         />
         <Section2Card
           section2Data={section2Data}
