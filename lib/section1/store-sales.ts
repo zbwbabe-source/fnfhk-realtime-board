@@ -398,9 +398,11 @@ export async function fetchSection1StoreSales({
     // 환산 YoY 계산 (MTD 기준)
     const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
 
+    const resolvedShopName = storeInfo.store_code === 'MC4' ? 'Senado Outlet' : (storeInfo.store_name || storeInfo.store_code);
+
     const record = {
       shop_cd: storeInfo.store_code,
-      shop_name: storeInfo.store_name || storeInfo.store_code,
+      shop_name: resolvedShopName,
       country: storeInfo.country,
       channel: storeInfo.channel,
 

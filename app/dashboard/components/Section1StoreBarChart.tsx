@@ -67,6 +67,7 @@ interface ChartDataPoint {
   name: string; // 원본 매장명 (full name)
   shortCode: string; // 축약 코드 (X축 표시용)
   shop_cd: string;
+  channelKey: string;
   sales: number; // 실판매출 또는 평당매출/1일
   yoy_raw: number | null; // 원본 YoY% (툴팁용)
   yoy_clamped: number | null; // 150%로 제한된 YoY% (차트 표시용)
@@ -94,7 +95,7 @@ export default function Section1StoreBarChart({
   // 상태 관리
   const [isYtdMode, setIsYtdMode] = useState(false); // false: 당월(MTD), true: 누적(YTD)
   const [showSalesPerArea, setShowSalesPerArea] = useState(false); // false: 실판매출, true: 평당매출
-  const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, 마카오, HK온라인, TW정상, TW아울렛, TW온라인
+  const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, MC정상, MC아울렛, HK온라인, TW정상, TW아울렛, TW온라인
   const [isModalOpen, setIsModalOpen] = useState(false); // 확대 모달 상태
   const [yoyAxisMax, setYoyAxisMax] = useState<100 | 150 | 200 | 300 | 400 | 500>(150); // YoY 축 최대값
 
@@ -170,7 +171,8 @@ export default function Section1StoreBarChart({
   const channelColors: Record<string, string> = {
     'HK정상': '#93C5FD',
     'HK아울렛': '#FCA5A5',
-    '마카오': '#86EFAC',
+    'MC정상': '#86EFAC',
+    'MC아울렛': '#FB923C',
     'HK온라인': '#C4B5FD',
     'TW정상': '#FDE047',
     'TW아울렛': '#FDA4AF',
@@ -220,7 +222,7 @@ export default function Section1StoreBarChart({
         // 채널명 매핑
         let storeChannel = '';
         if (store.country === 'MC') {
-          storeChannel = '마카오'; // 마카오는 정상/아울렛 구분 없이 '마카오'로 통합
+          storeChannel = store.shop_cd === 'MC4' || store.channel === '아울렛' ? 'MC아울렛' : 'MC정상';
         } else if (store.country === 'TW') {
           // TW의 경우
           if (store.channel === '온라인') {
@@ -253,7 +255,7 @@ export default function Section1StoreBarChart({
       // 채널명 매핑
       let storeChannel = '';
       if (store.country === 'MC') {
-        storeChannel = '마카오';
+        storeChannel = store.shop_cd === 'MC4' || store.channel === '아울렛' ? 'MC아울렛' : 'MC정상';
       } else if (store.country === 'TW') {
         if (store.channel === '온라인') {
           storeChannel = 'TW온라인';
@@ -304,13 +306,14 @@ export default function Section1StoreBarChart({
       }
 
       // 매장명과 축약 코드
-      const fullName = store.shop_name || store.shop_cd;
-      const shortCode = getStoreShortCode(fullName);
+      const fullName = store.shop_cd === 'MC4' ? 'Senado Outlet' : (store.shop_name || store.shop_cd);
+      const shortCode = store.shop_cd === 'MC4' ? 'SNO' : getStoreShortCode(fullName);
 
       return {
         name: fullName,
         shortCode,
         shop_cd: store.shop_cd,
+        channelKey: storeChannel,
         sales,
         yoy_raw: yoyRawAdjusted,
         yoy_clamped: yoyClamped,
@@ -323,25 +326,40 @@ export default function Section1StoreBarChart({
 
     // 매출 높은 순으로 정렬 (채널 순서 고려)
     // 1. 채널별로 그룹화
-    const hkNormal = result.filter(r => r.color === channelColors['HK정상']);
-    const hkOutlet = result.filter(r => r.color === channelColors['HK아울렛']);
-    const macao = result.filter(r => r.color === channelColors['마카오']);
-    const hkOnline = result.filter(r => r.color === channelColors['HK온라인']);
-    const twNormal = result.filter(r => r.color === channelColors['TW정상']);
-    const twOutlet = result.filter(r => r.color === channelColors['TW아울렛']);
-    const twOnline = result.filter(r => r.color === channelColors['TW온라인']);
+    const hkNormal = result.filter(r => r.channelKey === 'HK정상');
+    const hkOutlet = result.filter(r => r.channelKey === 'HK아울렛');
+    const mcNormal = result.filter(r => r.channelKey === 'MC정상');
+    const mcOutlet = result.filter(r => r.channelKey === 'MC아울렛');
+    const hkOnline = result.filter(r => r.channelKey === 'HK온라인');
+    const twNormal = result.filter(r => r.channelKey === 'TW정상');
+    const twOutlet = result.filter(r => r.channelKey === 'TW아울렛');
+    const twOnline = result.filter(r => r.channelKey === 'TW온라인');
 
     // 2. 각 채널 내에서 매출 높은 순으로 정렬
     hkNormal.sort((a, b) => b.sales - a.sales);
     hkOutlet.sort((a, b) => b.sales - a.sales);
-    macao.sort((a, b) => b.sales - a.sales);
+    mcNormal.sort((a, b) => b.sales - a.sales);
+    mcOutlet.sort((a, b) => b.sales - a.sales);
     hkOnline.sort((a, b) => b.sales - a.sales);
     twNormal.sort((a, b) => b.sales - a.sales);
     twOutlet.sort((a, b) => b.sales - a.sales);
     twOnline.sort((a, b) => b.sales - a.sales);
 
-    // 3. 채널 순서대로 합치기
-    const sortedResult = [...hkNormal, ...hkOutlet, ...macao, ...hkOnline, ...twNormal, ...twOutlet, ...twOnline];
+    // 3. 채널 순서대로 합치기 (MC아울렛은 LDN 다음)
+    let mcOrdered = [...mcNormal];
+    if (mcOutlet.length > 0) {
+      const ldnIndex = mcOrdered.findIndex((row) => row.shortCode === 'LDN' || row.shop_cd === 'MC2');
+      if (ldnIndex >= 0) {
+        mcOrdered = [
+          ...mcOrdered.slice(0, ldnIndex + 1),
+          ...mcOutlet,
+          ...mcOrdered.slice(ldnIndex + 1),
+        ];
+      } else {
+        mcOrdered = [...mcOrdered, ...mcOutlet];
+      }
+    }
+    const sortedResult = [...hkNormal, ...hkOutlet, ...mcOrdered, ...hkOnline, ...twNormal, ...twOutlet, ...twOnline];
 
     console.log('📊 차트 데이터 생성 완료:', sortedResult.length, '개');
     console.log('샘플:', sortedResult.slice(0, 3));
@@ -629,7 +647,8 @@ export default function Section1StoreBarChart({
               <>
             <option value="HK정상">HK정상</option>
             <option value="HK아울렛">HK아울렛</option>
-            <option value="마카오">마카오</option>
+            <option value="MC정상">MC정상</option>
+            <option value="MC아울렛">MC아울렛</option>
             <option value="HK온라인">HK온라인</option>
               </>
             ) : (
@@ -704,7 +723,11 @@ export default function Section1StoreBarChart({
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-            <span className="text-[9px] text-gray-600">마카오</span>
+            <span className="text-[9px] text-gray-600">MC정상</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FB923C' }}></div>
+            <span className="text-[9px] text-gray-600">MC아울렛</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
@@ -924,7 +947,8 @@ export default function Section1StoreBarChart({
                   <>
                 <option value="HK정상">HK정상</option>
                 <option value="HK아울렛">HK아울렛</option>
-                <option value="마카오">마카오</option>
+                <option value="MC정상">MC정상</option>
+                <option value="MC아울렛">MC아울렛</option>
                 <option value="HK온라인">HK온라인</option>
                   </>
                 ) : (
@@ -1244,7 +1268,11 @@ export default function Section1StoreBarChart({
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-                <span className="text-sm text-gray-700">마카오</span>
+                <span className="text-sm text-gray-700">MC정상</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FB923C' }}></div>
+                <span className="text-sm text-gray-700">MC아울렛</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
