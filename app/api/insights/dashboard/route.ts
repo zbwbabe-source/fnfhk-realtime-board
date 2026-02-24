@@ -409,8 +409,8 @@ function withMeta(
   input: ExecutiveInsightInput
 ): ExecutiveInsightResponse {
   const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+  const localized = buildSignals(input, language);
   if (language === 'en') {
-    const localized = buildSignals(input, 'en');
     return {
       ...payload,
       summaryLine: localized.summaryLine,
@@ -434,7 +434,8 @@ function withMeta(
     summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
     compareLine: '',
     blocks: oldForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
-    actions: payload.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
+    // Always bind action text to current numeric inputs (no stale/hallucinated constants).
+    actions: localized.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
     meta: {
       model: meta.model,
       cached: meta.cached,
@@ -505,6 +506,24 @@ function resolveTtlSeconds(input: ExecutiveInsightInput): number {
   return input.asOfDate === today ? 3600 : 12 * 3600;
 }
 
+function buildInputSignature(input: ExecutiveInsightInput): string {
+  const f = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(1) : 'na');
+  return [
+    f(input.hkmc.salesMtdYoy),
+    f(input.hkmc.salesYtdYoy),
+    f(input.hkmc.seasonSellthrough),
+    f(input.hkmc.oldStock),
+    f(input.hkmc.invDays),
+    f(input.hkmc.stagnantRatio),
+    f(input.tw.salesMtdYoy),
+    f(input.tw.salesYtdYoy),
+    f(input.tw.seasonSellthrough),
+    f(input.tw.oldStock),
+    f(input.tw.invDays),
+    f(input.tw.stagnantRatio),
+  ].join('_');
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -518,7 +537,18 @@ export async function POST(req: Request) {
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
     const languagePart: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
-    const cacheKey = buildKey(['insights', 'exec', 'v18', languagePart, regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
+    const inputSignature = buildInputSignature(input);
+    const cacheKey = buildKey([
+      'insights',
+      'exec',
+      'v19',
+      languagePart,
+      regionPart,
+      input.brand,
+      input.asOfDate,
+      input.mode || 'MTD',
+      inputSignature,
+    ]);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
