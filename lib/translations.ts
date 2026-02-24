@@ -138,6 +138,9 @@ export const translations = {
     insightAsOf: '인사이트 기준일',
     dailyHighlight: '오늘의 하이라이트',
     highlightPlaceholder: 'AI가 오늘의 주요 인사이트를 분석 중입니다...',
+    executiveInsightTitle: 'Executive Insight',
+    aiRecommendedStrategy: 'AI 추천 전략',
+    generatingInsight: '인사이트 생성 중...',
 
     // Summary Card Detail Labels
     actualSalesVPlus: '실판매출 (V+)',
@@ -299,6 +302,9 @@ export const translations = {
     insightAsOf: 'Insight as of',
     dailyHighlight: 'Daily Highlight',
     highlightPlaceholder: 'AI is analyzing key insights for today...',
+    executiveInsightTitle: 'Executive Insight',
+    aiRecommendedStrategy: 'AI Recommended Strategy',
+    generatingInsight: 'Generating insight...',
 
     // Summary Card Detail Labels
     actualSalesVPlus: 'Actual Sales (V+)',

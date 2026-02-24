@@ -43,6 +43,7 @@ export interface ExecutiveInsightInput {
   brand: string;
   asOfDate: string;
   mode?: 'MTD' | 'YTD';
+  language?: 'ko' | 'en';
   isToday?: boolean;
   hkmc: ExecutiveRegionInput;
   tw: ExecutiveRegionInput;

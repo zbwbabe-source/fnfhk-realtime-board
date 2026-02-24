@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { type Language } from '@/lib/translations';
+import { t, type Language } from '@/lib/translations';
 import type { ExecutiveInsightResponse } from '@/lib/insights/types';
 
 interface DailyHighlightProps {
@@ -20,6 +20,7 @@ interface DailyHighlightProps {
 export default function DailyHighlight({
   date,
   brand,
+  language,
   isYtdMode,
   hkmcSection1Data,
   hkmcSection2Data,
@@ -43,6 +44,7 @@ export default function DailyHighlight({
       brand,
       asOfDate: date,
       mode: isYtdMode ? 'YTD' : 'MTD',
+      language,
       region: 'ALL',
       hkmc: {
         salesMtdYoy: hkmcSection1Data?.total_subtotal?.yoy ?? null,
@@ -71,6 +73,7 @@ export default function DailyHighlight({
     brand,
     date,
     isYtdMode,
+    language,
     hkmcSection1Data,
     hkmcSection2Data,
     hkmcSection3Data,
@@ -126,12 +129,12 @@ export default function DailyHighlight({
   return (
     <section className="mb-6 rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">{data?.title || 'Executive Insight'}</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{data?.title || t(language, 'executiveInsightTitle')}</h2>
         <p className="text-xs text-gray-500">{data?.asOfLabel || `${date} | ${brand} | ${isYtdMode ? 'YTD' : 'MTD'}`}</p>
       </div>
 
       {loading && !data ? (
-        <p className="text-sm text-gray-500">Generating insight...</p>
+        <p className="text-sm text-gray-500">{t(language, 'generatingInsight')}</p>
       ) : (
         <div className="space-y-3">
           {data?.compareLine ? <p className="text-sm text-gray-700">{data.compareLine}</p> : null}
@@ -146,6 +149,7 @@ export default function DailyHighlight({
           </div>
 
           <div className="space-y-1 pt-1">
+            <h3 className="text-sm font-semibold text-gray-900">{t(language, 'aiRecommendedStrategy')}</h3>
             {(data?.actions || []).map((action) => (
               <p key={action.priority} className="text-sm text-gray-700">
                 <span className="font-semibold text-gray-900">{action.priority}.</span> {action.text}

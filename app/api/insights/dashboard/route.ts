@@ -17,6 +17,7 @@ export const maxDuration = 30;
 const MODEL = 'gpt-4o-mini';
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const EXEC_INSIGHT_USE_LLM = process.env.EXEC_INSIGHT_USE_LLM === 'true';
+type InsightLanguage = 'ko' | 'en';
 
 function clampText(s: string, max: number): string {
   if (!s) return '';
@@ -49,10 +50,21 @@ function fmtDays(v: number | null): string {
   return `${Math.round(v)}일`;
 }
 
+function fmtDaysByLang(v: number | null, language: InsightLanguage): string {
+  if (v === null) return 'N/A';
+  return language === 'ko' ? `${Math.round(v)}일` : `${Math.round(v)} days`;
+}
+
 function formatOldPair(stock: number | null, days: number | null): string {
   if (stock === null && days === null) return '데이터 없음';
   if (stock === null || days === null) return '데이터 일부 없음';
   return `${fmtNum(stock)}·${fmtDays(days)}`;
+}
+
+function formatOldPairByLang(stock: number | null, days: number | null, language: InsightLanguage): string {
+  if (stock === null && days === null) return language === 'ko' ? '데이터 없음' : 'No data';
+  if (stock === null || days === null) return language === 'ko' ? '데이터 일부 없음' : 'Partial data missing';
+  return `${fmtNum(stock)}·${fmtDaysByLang(days, language)}`;
 }
 
 function parseDateParts(isoDate: string): { year: number; month: number; day: number } | null {
@@ -89,30 +101,59 @@ function buildRegionActions(
   projectedSeasonEndSellthrough: number | null,
   oldStock: number | null,
   invDays: number | null,
-  stagnantRatio: number | null
+  stagnantRatio: number | null,
+  language: InsightLanguage
 ): [string, string] {
   const action1 =
-    region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
+    language === 'ko' && region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
       ? `시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 차기 과시즌 전환 리스크가 있음. 당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
-      : seasonSellthrough === null
+      : language === 'en' && region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
+        ? `By season close (2/28), projected TW in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, with risk of conversion to next old-season inventory. Select 3 underperforming in-season categories, run 2-week markdown/reallocation, and review results by month-end.`
+        : seasonSellthrough === null
+          ? language === 'ko'
         ? `${region} 당시즌 판매율 데이터 점검이 필요함. 데이터 공백 SKU를 이번 주 내 보정하고 월말까지 실행 성과를 점검.`
+            : `${region} in-season sell-through data needs validation. Correct missing-SKU data this week and review execution outcomes by month-end.`
         : seasonSellthrough < 60
+          ? language === 'ko'
           ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 부담이 높음. 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
-          : `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`;
+            : `${region} in-season sell-through is ${fmtRate(seasonSellthrough)}, indicating elevated clearance pressure. Select 3 underperforming categories, execute 2-week markdown/reallocation, and review outcomes by month-end.`
+          : language === 'ko'
+            ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`
+            : `${region} in-season sell-through is ${fmtRate(seasonSellthrough)}, and depletion momentum is holding. Expand weekly best SKUs based on top strategies and review execution outcomes by month-end.`;
 
-  const invThreshold = invDays === null ? null : invDays >= 300 ? '999+일 구간' : invDays >= 180 ? '장기재고 구간' : '일반 구간';
+  const invThreshold =
+    invDays === null
+      ? null
+      : invDays >= 300
+        ? language === 'ko'
+          ? '300일 이상(초장기 재고)'
+          : '300+ days (ultra long-term)'
+        : invDays >= 180
+          ? language === 'ko'
+            ? '180~299일(장기재고)'
+            : '180-299 days (long-term)'
+          : language === 'ko'
+            ? '180일 미만(일반)'
+            : 'under 180 days (normal)';
   const oldPart =
     oldStock === null
-      ? `${region} 과시즌 데이터 정합성 점검이 필요함. 데이터 소스와 집계키를 이번 주 내 재검증.`
+      ? language === 'ko'
+        ? `${region} 과시즌 데이터 정합성 점검이 필요함. 데이터 소스와 집계키를 이번 주 내 재검증.`
+        : `${region} old-season data consistency needs validation. Re-verify data sources and aggregation keys within this week.`
       : stagnantRatio === null
-        ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
-        : `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDays(invDays)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`;
+        ? language === 'ko'
+          ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
+          : `${region} old-season stock is ${fmtNum(oldStock)}. Verify stagnant-ratio calculation logic and organize target SKUs within 2 weeks.`
+        : language === 'ko'
+          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
+          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (old-season stock ${fmtNum(oldStock)}).${invDays !== null ? ` Inventory days ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} Organize target SKUs within 2 weeks and track weekly.`;
 
   return [action1, oldPart];
 }
 
 function normalizeInput(raw: any): ExecutiveInsightInput {
   const normalizedMode = raw?.mode === 'YTD' ? 'YTD' : 'MTD';
+  const normalizedLanguage: InsightLanguage = raw?.language === 'en' ? 'en' : 'ko';
   const asOfDate = String(raw?.asOfDate || raw?.asof_date || '').trim();
   const brand = String(raw?.brand || '').trim().toUpperCase();
   const region = String(raw?.region || 'ALL').trim().toUpperCase();
@@ -158,6 +199,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     brand,
     asOfDate,
     mode: normalizedMode,
+    language: normalizedLanguage,
     isToday: typeof raw?.isToday === 'boolean' ? raw.isToday : undefined,
     hkmc,
     tw,
@@ -179,7 +221,7 @@ function toneByLevel(v: number | null, good: number, warn: number): InsightTone 
   return 'critical';
 }
 
-function buildSignals(input: ExecutiveInsightInput) {
+function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 'ko') {
   const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
   const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
   const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
@@ -201,21 +243,30 @@ function buildSignals(input: ExecutiveInsightInput) {
   const blocks: ExecutiveInsightBlock[] = [
     {
       id: 'sales',
-      label: '매출',
+      label: language === 'ko' ? '매출' : 'Sales',
       tone: toneByDiff(salesDiff),
-      text: `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
+      text:
+        language === 'ko'
+          ? `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`
+          : `Actual sales YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. YTD YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
     },
     {
       id: 'season',
-      label: '당시즌',
+      label: language === 'ko' ? '당시즌' : 'In-season',
       tone: toneByDiff(seasonDiff),
-      text: `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`,
+      text:
+        language === 'ko'
+          ? `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`
+          : `In-season sell-through is HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}.`,
     },
     {
       id: 'old',
-      label: '과시즌',
+      label: language === 'ko' ? '과시즌' : 'Old-season',
       tone: toneByLevel(Math.max(invHkmc ?? 0, invTw ?? 0), 180, 120),
-      text: `과시즌 잔액/재고일수는 HKMC ${formatOldPair(oldHkmc, invHkmc)}, TW ${formatOldPair(oldTw, invTw)}입니다.`,
+      text:
+        language === 'ko'
+          ? `과시즌 잔액/재고일수는 HKMC ${formatOldPairByLang(oldHkmc, invHkmc, language)}, TW ${formatOldPairByLang(oldTw, invTw, language)}입니다.`
+          : `Old-season stock/inventory days are HKMC ${formatOldPairByLang(oldHkmc, invHkmc, language)}, TW ${formatOldPairByLang(oldTw, invTw, language)}.`,
     },
   ];
 
@@ -236,7 +287,8 @@ function buildSignals(input: ExecutiveInsightInput) {
     seasonHkmcProjectedEom,
     oldHkmc,
     invHkmc,
-    stagnantRatioHkmc
+    stagnantRatioHkmc,
+    language
   );
   const [twAction1, twAction2] = buildRegionActions(
     'TW',
@@ -245,7 +297,8 @@ function buildSignals(input: ExecutiveInsightInput) {
     seasonTwProjectedEom,
     oldTw,
     invTw,
-    stagnantRatioTw
+    stagnantRatioTw,
+    language
   );
 
   const actions = [
@@ -355,6 +408,24 @@ function withMeta(
   meta: { cached: boolean; generatedAt: string; ttlSeconds: number; model: string },
   input: ExecutiveInsightInput
 ): ExecutiveInsightResponse {
+  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+  if (language === 'en') {
+    const localized = buildSignals(input, 'en');
+    return {
+      ...payload,
+      summaryLine: localized.summaryLine,
+      compareLine: localized.compareLine,
+      blocks: localized.blocks,
+      actions: localized.actions,
+      meta: {
+        model: meta.model,
+        cached: meta.cached,
+        generatedAt: meta.generatedAt,
+        ttlSeconds: meta.ttlSeconds,
+      },
+    };
+  }
+
   const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
   const seasonForced = forceSeasonBlock(salesForced, input);
   const oldForced = forceOldBlock(seasonForced, input);
@@ -374,7 +445,8 @@ function withMeta(
 }
 
 async function generateExecutiveInsight(input: ExecutiveInsightInput): Promise<Omit<ExecutiveInsightResponse, 'meta'>> {
-  const signals = buildSignals(input);
+  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+  const signals = buildSignals(input, language);
   const asOfLabel = `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`;
 
   const response = await client.chat.completions.create({
@@ -413,7 +485,8 @@ Output JSON only.`,
 }
 
 function buildRuleFallback(input: ExecutiveInsightInput): Omit<ExecutiveInsightResponse, 'meta'> {
-  const signals = buildSignals(input);
+  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+  const signals = buildSignals(input, language);
   return {
     title: 'Executive Insight',
     asOfLabel: `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`,
@@ -444,7 +517,8 @@ export async function POST(req: Request) {
     }
 
     const regionPart = input.region && input.region !== 'ALL' ? input.region : 'ALL';
-    const cacheKey = buildKey(['insights', 'exec', 'v16', regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
+    const languagePart: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+    const cacheKey = buildKey(['insights', 'exec', 'v18', languagePart, regionPart, input.brand, input.asOfDate, input.mode || 'MTD']);
     const ttlSeconds = resolveTtlSeconds(input);
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
