@@ -11,6 +11,8 @@ interface Section2Props {
   language: Language;
   categoryFilter: 'clothes' | 'all';
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 interface ProductRow {
@@ -39,7 +41,17 @@ interface NoInboundRow {
   sales_tag: number;
 }
 
-export default function Section2SellThrough({ region, brand, date, onDataChange, language, categoryFilter, onCategoryFilterChange }: Section2Props) {
+export default function Section2SellThrough({
+  region,
+  brand,
+  date,
+  onDataChange,
+  language,
+  categoryFilter,
+  onCategoryFilterChange,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
+}: Section2Props) {
   const [expanded, setExpanded] = useState(true); // 기본 펼침
   const [showAllCategories, setShowAllCategories] = useState(false); // 전체 카테고리 토글
   const [showAllProducts, setShowAllProducts] = useState(false); // 전체 품번 토글
@@ -85,13 +97,21 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
   }, [region, brand, date, categoryFilter, onDataChange]);
 
   const formatNumber = (num: number) => {
-    // 천 HKD 단위로 변환 (금액용)
-    const thousands = num / 1000;
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    const thousands = converted / 1000;
     return new Intl.NumberFormat('en-US', { 
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
     }).format(thousands);
   };
+  const unitLabel =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: 1k ${currencyCode}`
+        : `Unit: 1k ${currencyCode}`
+      : language === 'ko'
+        ? '단위: 1k HKD'
+        : 'Unit: 1k HKD';
 
   const formatQty = (num: number) => {
     // 수량은 그대로 표시
@@ -284,7 +304,7 @@ export default function Section2SellThrough({ region, brand, date, onDataChange,
                 ({data.header.sesn})
               </span>
             )}
-            <span className="text-sm text-gray-600 font-normal ml-2">({language === 'ko' ? '단위: 1k HKD' : 'Unit: 1k HKD'})</span>
+            <span className="text-sm text-gray-600 font-normal ml-2">({unitLabel})</span>
           </h2>
           <svg
             className={`w-5 h-5 text-gray-600 transition-transform ${

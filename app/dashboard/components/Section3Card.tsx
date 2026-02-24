@@ -10,6 +10,8 @@ interface Section3CardProps {
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   periodInfoPlacement?: 'inline' | 'footer';
   compactMainMetric?: boolean;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 export default function Section3Card({
@@ -20,11 +22,14 @@ export default function Section3Card({
   onCategoryFilterChange,
   periodInfoPlacement = 'inline',
   compactMainMetric = false,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
 }: Section3CardProps) {
   const formatCurrency = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toFixed(0);
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    if (converted >= 1000000) return (converted / 1000000).toFixed(1) + 'M';
+    if (converted >= 1000) return (converted / 1000).toFixed(1) + 'K';
+    return converted.toFixed(0);
   };
 
   const getSection3SeasonType = () => {
@@ -128,7 +133,12 @@ export default function Section3Card({
   const showRiskBadge = stagnantRatioRisk >= 30;
   const seasonType = getSection3SeasonType();
   const periodStartInfo = getPeriodStartInfo();
-  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
+  const currencyUnit =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: ${currencyCode}`
+        : `Unit: ${currencyCode}`
+      : t(language, 'cardUnit');
 
   return (
     <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">

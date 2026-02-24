@@ -32,6 +32,8 @@ interface StoreBarChartProps {
   section1Data?: any;
   disableFetch?: boolean;
   language: Language;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 interface StoreRow {
@@ -74,7 +76,17 @@ interface ChartDataPoint {
   py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
-export default function Section1StoreBarChart({ region, brand, date, latestDate, section1Data, disableFetch = false, language }: StoreBarChartProps) {
+export default function Section1StoreBarChart({
+  region,
+  brand,
+  date,
+  latestDate,
+  section1Data,
+  disableFetch = false,
+  language,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
+}: StoreBarChartProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -88,6 +100,7 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
 
   // 반응형: 모바일 감지
   const [isMobile, setIsMobile] = useState(false);
+  const displayMultiplier = region === 'TW' && currencyCode === 'TWD' ? hkdToTwdRate : 1;
 
   // 디버깅: 차트 영역 높이 확인용 ref
   const chartRowRef = useRef<HTMLDivElement>(null);
@@ -409,13 +422,14 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
 
   // 숫자 포맷팅
   const formatSales = (value: number) => {
-    if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M`;
+    const converted = value * displayMultiplier;
+    if (converted >= 1000000) {
+      return `${(converted / 1000000).toFixed(1)}M`;
     }
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(0)}K`;
+    if (converted >= 1000) {
+      return `${(converted / 1000).toFixed(0)}K`;
     }
-    return value.toFixed(0);
+    return converted.toFixed(0);
   };
 
   const formatYoYPercent = (value: number | null) => {
@@ -445,7 +459,7 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
                   <span className="text-xs text-gray-600">평당매출/1일:</span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">
-                  {formatSalesPerArea(data.sales)} HKD
+                  {formatSales(data.sales)} {currencyCode}
                 </span>
               </div>
               <div className="flex justify-between items-center gap-3">
@@ -479,7 +493,7 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
                   <span className="text-xs text-gray-600">실판매출:</span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">
-                  {formatSales(data.sales)} HKD
+                  {formatSales(data.sales)} {currencyCode}
                 </span>
               </div>
               <div className="flex justify-between items-center gap-3">
@@ -1100,8 +1114,8 @@ export default function Section1StoreBarChart({ region, brand, date, latestDate,
                       domain={[0, maxSales * 1.1]}
                       label={{
                         value: showSalesPerArea 
-                          ? (language === 'ko' ? '평당매출/1일 (HKD/평/일)' : 'Sales/Area/Day (HKD)')
-                          : (language === 'ko' ? '실판매출 (HKD)' : 'Sales (HKD)'),
+                          ? (language === 'ko' ? `평당매출/1일 (${currencyCode}/평/일)` : `Sales/Area/Day (${currencyCode})`)
+                          : (language === 'ko' ? `실판매출 (${currencyCode})` : `Sales (${currencyCode})`),
                         angle: -90,
                         position: 'insideLeft',
                         style: { fontSize: '12px', fill: '#6b7280' }

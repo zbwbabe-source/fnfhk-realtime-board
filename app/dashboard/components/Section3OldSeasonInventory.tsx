@@ -11,6 +11,8 @@ interface Section3Props {
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   onDataChange?: (data: Section3Data | null) => void;
   language: Language;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 interface SKURow {
@@ -79,6 +81,8 @@ export default function Section3OldSeasonInventory({
   onCategoryFilterChange,
   onDataChange,
   language,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
 }: Section3Props) {
   const [data, setData] = useState<Section3Data | null>(null);
   const [loading, setLoading] = useState(false);
@@ -190,13 +194,21 @@ export default function Section3OldSeasonInventory({
   // ?좏떥 ?⑥닔
   const formatNumber = (num: number | null | undefined, decimals = 0): string => {
     if (num == null) return '-';
-    // 泥?HKD ?⑥쐞濡?蹂??
-    const thousands = num / 1000;
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    const thousands = converted / 1000;
     return thousands.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
   };
+  const unitLabel =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: 1k ${currencyCode}`
+        : `Unit: 1k ${currencyCode}`
+      : language === 'ko'
+        ? '단위: 1k HKD'
+        : 'Unit: 1k HKD';
 
   const formatPercent = (num: number | null | undefined): string => {
     if (num == null) return '-';
@@ -237,7 +249,18 @@ export default function Section3OldSeasonInventory({
     }
 
     // CSV ?ㅻ뜑 (?곷Ц 怨좎젙)
-    const headers = ['Year', 'Season', 'Category', 'SKU', 'Base Stock (HKD)', 'Current Stock (HKD)', 'Stagnant Stock (HKD)', 'Depleted Stock (HKD)', 'Period Sales (TAG)', 'Period Sales (ACT)'];
+    const headers = [
+      'Year',
+      'Season',
+      'Category',
+      'SKU',
+      `Base Stock (${currencyCode})`,
+      `Current Stock (${currencyCode})`,
+      `Stagnant Stock (${currencyCode})`,
+      `Depleted Stock (${currencyCode})`,
+      'Period Sales (TAG)',
+      'Period Sales (ACT)',
+    ];
 
     // CSV ?곗씠???앹꽦
     const csvRows = [headers];
@@ -248,10 +271,10 @@ export default function Section3OldSeasonInventory({
         sku.sesn || '',
         sku.cat2 || '',
         sku.prdt_cd || '',
-        sku.base_stock_amt.toFixed(0),
-        sku.curr_stock_amt.toFixed(0),
-        sku.stagnant_stock_amt.toFixed(0),
-        sku.depleted_stock_amt.toFixed(0),
+        (region === 'TW' && currencyCode === 'TWD' ? sku.base_stock_amt * hkdToTwdRate : sku.base_stock_amt).toFixed(0),
+        (region === 'TW' && currencyCode === 'TWD' ? sku.curr_stock_amt * hkdToTwdRate : sku.curr_stock_amt).toFixed(0),
+        (region === 'TW' && currencyCode === 'TWD' ? sku.stagnant_stock_amt * hkdToTwdRate : sku.stagnant_stock_amt).toFixed(0),
+        (region === 'TW' && currencyCode === 'TWD' ? sku.depleted_stock_amt * hkdToTwdRate : sku.depleted_stock_amt).toFixed(0),
         sku.period_tag_sales.toFixed(0),
         sku.period_act_sales.toFixed(0),
       ]);
@@ -497,7 +520,7 @@ export default function Section3OldSeasonInventory({
         )}
       </h2>
       <div className="flex items-center gap-4 mb-4">
-        <p className="text-sm text-gray-600">{language === 'ko' ? '단위: 1k HKD' : 'Unit: 1k HKD'}</p>
+        <p className="text-sm text-gray-600">{unitLabel}</p>
         <div className="flex items-center gap-1.5 text-sm text-orange-600">
           <span className="font-bold text-base">※</span>
           <span>{t(language, 'stagnantStockInfo')}</span>

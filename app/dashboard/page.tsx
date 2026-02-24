@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BrandSelect from './components/BrandSelect';
 import DailyHighlight from './components/DailyHighlight';
 import DateSelect from './components/DateSelect';
@@ -15,6 +15,7 @@ import Section3OldSeasonInventory from './components/Section3OldSeasonInventory'
 import SummaryView from './components/SummaryView';
 import DataManagementModal from './components/DataManagementModal';
 import { t, type Language } from '@/lib/translations';
+import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
 
 function getKstYesterdayString(): string {
   const now = new Date();
@@ -41,6 +42,7 @@ export default function DashboardPage() {
   const [section3CategoryFilter, setSection3CategoryFilter] = useState<'clothes' | 'all'>('clothes');
   const [section1DetailViewMode, setSection1DetailViewMode] = useState<'season' | 'top5' | 'worst5'>('season');
   const [activeTab, setActiveTab] = useState<'summary' | 'hkmc' | 'tw'>('summary');
+  const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
 
@@ -349,6 +351,13 @@ export default function DashboardPage() {
   const allDataLoaded = dataLoadStatus.section1 === 'success' && dataLoadStatus.section2 === 'success' && dataLoadStatus.section3 === 'success';
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
   const anyDataError = dataLoadStatus.section1 === 'error' || dataLoadStatus.section2 === 'error' || dataLoadStatus.section3 === 'error';
+  const twHkdToTwdRate = useMemo(() => {
+    if (!date) return 1;
+    const period = getPeriodFromDateString(date);
+    const twdToHkdRate = getExchangeRate(period);
+    if (!twdToHkdRate || twdToHkdRate <= 0) return 1;
+    return 1 / twdToHkdRate;
+  }, [date]);
 
   if (metaLoading && !date) {
     return (
@@ -445,6 +454,26 @@ export default function DashboardPage() {
 
             <BrandSelect value={brand} onChange={setBrand} />
             <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} />
+            {activeTab === 'tw' && (
+              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <button
+                  onClick={() => setTwCurrency('HKD')}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    twCurrency === 'HKD' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  HKD
+                </button>
+                <button
+                  onClick={() => setTwCurrency('TWD')}
+                  className={`border-l border-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
+                    twCurrency === 'TWD' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  TWD
+                </button>
+              </div>
+            )}
 
             <div className="ml-auto flex items-center gap-2">
               {anyDataLoading && (
@@ -543,6 +572,8 @@ export default function DashboardPage() {
                   date={date}
                   onYtdModeToggle={() => setIsYtdMode(!isYtdMode)}
                   showSeasonCategory={false}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
                 />
                 <Section1StoreBarChart
                   region={region}
@@ -552,6 +583,8 @@ export default function DashboardPage() {
                   section1Data={section1Data}
                   disableFetch={true}
                   language={language}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
                 />
               </div>
 
@@ -563,8 +596,17 @@ export default function DashboardPage() {
                   onCategoryFilterChange={setCategoryFilter}
                   region={region}
                   compactMainMetric={true}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
                 />
-                <Section2Treemap region={region} brand={brand} date={date} language={language} />
+                <Section2Treemap
+                  region={region}
+                  brand={brand}
+                  date={date}
+                  language={language}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
+                />
               </div>
 
               <div className="space-y-6">
@@ -576,6 +618,8 @@ export default function DashboardPage() {
                   onCategoryFilterChange={setSection3CategoryFilter}
                   periodInfoPlacement="footer"
                   compactMainMetric={true}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
                 />
               </div>
             </div>
@@ -592,6 +636,8 @@ export default function DashboardPage() {
                 onDataChange={handleSection1Change}
                 onYtdModeChange={setIsYtdMode}
                 language={language}
+                currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                hkdToTwdRate={twHkdToTwdRate}
               />
             </div>
 
@@ -605,6 +651,8 @@ export default function DashboardPage() {
                 language={language}
                 categoryFilter={categoryFilter}
                 onCategoryFilterChange={setCategoryFilter}
+                currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                hkdToTwdRate={twHkdToTwdRate}
               />
             </div>
 
@@ -618,6 +666,8 @@ export default function DashboardPage() {
                 language={language}
                 categoryFilter={section3CategoryFilter}
                 onCategoryFilterChange={setSection3CategoryFilter}
+                currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                hkdToTwdRate={twHkdToTwdRate}
               />
             </div>
           </>

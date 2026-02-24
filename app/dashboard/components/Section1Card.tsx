@@ -16,6 +16,8 @@ interface Section1CardProps {
   showSeasonCategory?: boolean;
   detailViewMode?: DetailView;
   onDetailViewModeChange?: (view: DetailView) => void;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 type KpiBlock = {
@@ -51,6 +53,8 @@ export default function Section1Card({
   showSeasonCategory = true,
   detailViewMode,
   onDetailViewModeChange,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
   const activeDetailView = detailViewMode ?? detailView;
@@ -67,9 +71,11 @@ export default function Section1Card({
     : t(language, isYtdMode ? 'ytdActual' : 'monthlyActual');
 
   const formatCurrency = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toFixed(0);
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    const value = Number.isFinite(converted) ? converted : 0;
+    if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+    if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+    return value.toFixed(0);
   };
 
   const formatRate = (rate: number | null | undefined) =>
@@ -148,7 +154,12 @@ export default function Section1Card({
     return 'text-gray-600';
   };
 
-  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
+  const currencyUnit =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: ${currencyCode}`
+        : `Unit: ${currencyCode}`
+      : t(language, 'cardUnit');
   const seasonCategorySales = section1Data?.season_category_sales;
   const seasonLabels = seasonCategorySales?.season_labels || {};
 

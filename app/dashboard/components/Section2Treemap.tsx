@@ -19,6 +19,8 @@ interface TreemapProps {
   brand: string;
   date: string;
   language: Language;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 interface SmallCategory {
@@ -69,7 +71,14 @@ interface TreemapData {
 
 type TreemapMode = 'compact' | 'detail';
 
-export default function Section2Treemap({ region, brand, date, language }: TreemapProps) {
+export default function Section2Treemap({
+  region,
+  brand,
+  date,
+  language,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
+}: TreemapProps) {
   const [mode, setMode] = useState<'monthly' | 'ytd'>('monthly');
   const [monthlyData, setMonthlyData] = useState<TreemapData | null>(null);
   const [ytdData, setYtdData] = useState<TreemapData | null>(null);
@@ -211,12 +220,13 @@ export default function Section2Treemap({ region, brand, date, language }: Treem
   };
 
   const formatSales = (value: number) => {
-    if (value >= 1_000_000) {
-      return `${(value / 1_000_000).toFixed(1)}M`;
-    } else if (value >= 1_000) {
-      return `${(value / 1_000).toFixed(1)}K`;
+    const converted = region === 'TW' && currencyCode === 'TWD' ? value * hkdToTwdRate : value;
+    if (converted >= 1_000_000) {
+      return `${(converted / 1_000_000).toFixed(1)}M`;
+    } else if (converted >= 1_000) {
+      return `${(converted / 1_000).toFixed(1)}K`;
     }
-    return value.toFixed(0);
+    return converted.toFixed(0);
   };
 
   /**

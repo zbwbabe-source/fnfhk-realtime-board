@@ -14,6 +14,8 @@ interface Section1TableProps {
   onDataChange?: (data: any) => void;
   onYtdModeChange?: (isYtd: boolean) => void;
   language: Language;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 interface StoreRow {
@@ -43,7 +45,19 @@ interface StoreRow {
   forecast: number | null;
 }
 
-export default function Section1Table({ region, brand, date, latestDate, section1Data, disableFetch = false, onDataChange, onYtdModeChange, language }: Section1TableProps) {
+export default function Section1Table({
+  region,
+  brand,
+  date,
+  latestDate,
+  section1Data,
+  disableFetch = false,
+  onDataChange,
+  onYtdModeChange,
+  language,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
+}: Section1TableProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -239,11 +253,18 @@ export default function Section1Table({ region, brand, date, latestDate, section
     }
   }, [isYtdMode, onYtdModeChange]);
 
+  const unitLabel =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: 1k ${currencyCode}`
+        : `Unit: 1k ${currencyCode}`
+      : t(language, 'unit');
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          {t(language, 'section1Header')} ({t(language, 'unit')})
+          {t(language, 'section1Header')} ({unitLabel})
         </h2>
         <div className="text-center py-8 text-gray-600">{t(language, 'loading')}</div>
       </div>
@@ -254,7 +275,7 @@ export default function Section1Table({ region, brand, date, latestDate, section
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          {t(language, 'section1Header')} ({t(language, 'unit')})
+          {t(language, 'section1Header')} ({unitLabel})
         </h2>
         <div className="text-center py-8 text-red-600">
           {t(language, 'error')}: {error}
@@ -266,8 +287,8 @@ export default function Section1Table({ region, brand, date, latestDate, section
   if (!data) return null;
 
   const formatNumber = (num: number) => {
-    // 천 HKD 단위로 변환
-    const thousands = num / 1000;
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    const thousands = converted / 1000;
     return new Intl.NumberFormat('en-US', { 
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
@@ -423,7 +444,7 @@ export default function Section1Table({ region, brand, date, latestDate, section
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-gray-900">
-            {t(language, 'section1Header')} <span className="text-sm text-gray-600 font-normal">({t(language, 'unit')})</span>
+            {t(language, 'section1Header')} <span className="text-sm text-gray-600 font-normal">({unitLabel})</span>
           </h2>
           <div className="flex flex-col items-start gap-1">
             {/* 버튼 그룹 */}

@@ -9,6 +9,8 @@ interface Section2CardProps {
   onCategoryFilterChange: (filter: 'clothes' | 'all') => void;
   region: string;
   compactMainMetric?: boolean;
+  currencyCode?: 'HKD' | 'TWD';
+  hkdToTwdRate?: number;
 }
 
 export default function Section2Card({
@@ -18,15 +20,23 @@ export default function Section2Card({
   onCategoryFilterChange,
   region,
   compactMainMetric = false,
+  currencyCode = 'HKD',
+  hkdToTwdRate = 1,
 }: Section2CardProps) {
   const formatCurrency = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toFixed(0);
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    if (converted >= 1000000) return (converted / 1000000).toFixed(1) + 'M';
+    if (converted >= 1000) return (converted / 1000).toFixed(1) + 'K';
+    return converted.toFixed(0);
   };
 
   const season = section2Data?.header?.sesn || '';
-  const currencyUnit = region === 'TW' ? t(language, 'cardUnitWithExchange') : t(language, 'cardUnit');
+  const currencyUnit =
+    region === 'TW'
+      ? language === 'ko'
+        ? `단위: ${currencyCode}`
+        : `Unit: ${currencyCode}`
+      : t(language, 'cardUnit');
 
   const header = section2Data?.header;
   const sellthrough = header?.overall_sellthrough ?? 0;
