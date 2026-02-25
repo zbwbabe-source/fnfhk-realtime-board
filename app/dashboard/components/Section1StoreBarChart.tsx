@@ -455,6 +455,22 @@ export default function Section1StoreBarChart({
     return `${value.toFixed(0)}%`;
   };
 
+  const ytdPeriodLabel = useMemo(() => {
+    if (!date) return '';
+
+    const asofDate = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(asofDate.getTime())) return '';
+
+    const year = asofDate.getFullYear();
+    const yearShort = String(year).slice(-2);
+    const month = asofDate.getMonth() + 1;
+    const day = asofDate.getDate();
+
+    return language === 'ko'
+      ? `${yearShort}년 1/1~${month}/${day}`
+      : `${year}/1/1~${month}/${day}`;
+  }, [date, language]);
+
   // Tooltip 커스텀 (원본 매장명 + 축약 코드 표시)
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
@@ -603,7 +619,7 @@ export default function Section1StoreBarChart({
             {language === 'ko' ? '기준일' : 'As of'}: {date}
             {isYtdMode && (
               <span className="ml-1 text-orange-600 font-medium">
-                * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                * {ytdPeriodLabel}
               </span>
             )}
           </div>
@@ -909,7 +925,7 @@ export default function Section1StoreBarChart({
                   {language === 'ko' ? `기준일: ${date}` : `As of: ${date}`}
                   {isYtdMode && (
                     <span className="ml-2 text-orange-600 font-medium">
-                      * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                      * {ytdPeriodLabel}
                     </span>
                   )}
                 </p>
