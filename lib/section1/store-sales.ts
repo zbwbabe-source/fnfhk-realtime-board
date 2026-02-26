@@ -698,6 +698,7 @@ export async function fetchSection1StoreSales({
     past: createSeasonCategoryAccumulator(),
     hat: createSeasonCategoryAccumulator(),
     shoes: createSeasonCategoryAccumulator(),
+    bag: createSeasonCategoryAccumulator(),
   };
 
   const pastCutoffIndex = seasonIndex(pastCutoffSesn);
@@ -716,6 +717,7 @@ export async function fetchSection1StoreSales({
     const mapping = getCategoryMapping(smallCode);
     const isHat = mapping.middle === 'Headwear';
     const isShoes = mapping.middle === 'Shoes';
+    const isBag = mapping.middle === 'BAG';
     const isApparel = ['OUTER', 'INNER', 'BOTTOM', 'Wear_etc'].includes(mapping.middle);
 
     const mtdTy = applyExchangeRate(parseFloat(row.MTD_ACT_TY || 0));
@@ -773,6 +775,15 @@ export async function fetchSection1StoreSales({
       seasonCategoryAcc.shoes.mtd_tag_ly += mtdTagLy;
       seasonCategoryAcc.shoes.ytd_tag_ty += ytdTagTy;
       seasonCategoryAcc.shoes.ytd_tag_ly += ytdTagLy;
+    } else if (isBag) {
+      seasonCategoryAcc.bag.mtd_ty += mtdTy;
+      seasonCategoryAcc.bag.mtd_ly += mtdLy;
+      seasonCategoryAcc.bag.ytd_ty += ytdTy;
+      seasonCategoryAcc.bag.ytd_ly += ytdLy;
+      seasonCategoryAcc.bag.mtd_tag_ty += mtdTagTy;
+      seasonCategoryAcc.bag.mtd_tag_ly += mtdTagLy;
+      seasonCategoryAcc.bag.ytd_tag_ty += ytdTagTy;
+      seasonCategoryAcc.bag.ytd_tag_ly += ytdTagLy;
     }
   });
 
@@ -834,6 +845,7 @@ export async function fetchSection1StoreSales({
       pastSeason: toMetric('과시즌의류', seasonCategoryAcc.past),
       hat: toMetric('모자', seasonCategoryAcc.hat),
       shoes: toMetric('신발', seasonCategoryAcc.shoes),
+      bag: toMetric('가방', seasonCategoryAcc.bag),
     },
   };
 

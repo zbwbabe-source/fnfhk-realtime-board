@@ -218,13 +218,24 @@ export default function Section1Card({
     .slice(-5)
     .sort((a, b) => b.sales - a.sales);
 
+  const hasNextSeasonSales = showSeasonCategory && seasonCategorySales?.metrics
+    ? (() => {
+        const nextMetric = seasonCategorySales.metrics.nextSeason;
+        const nextSales = isYtdMode ? nextMetric?.ytd_act : nextMetric?.mtd_act;
+        return typeof nextSales === 'number' && nextSales > 0;
+      })()
+    : false;
+
   const detailMetrics = showSeasonCategory && seasonCategorySales?.metrics
     ? [
         { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
-        { key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true },
+        ...(hasNextSeasonSales
+          ? [{ key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true } as const]
+          : []),
         { key: 'pastSeason', title: `${t(language, 'pastSeason')}(${seasonLabels.past || '-'})`, apparelOnly: true },
         { key: 'hat', title: t(language, 'hat') },
         { key: 'shoes', title: t(language, 'shoes') },
+        ...(!hasNextSeasonSales ? [{ key: 'bag', title: t(language, 'bag') } as const] : []),
       ]
     : [];
 
