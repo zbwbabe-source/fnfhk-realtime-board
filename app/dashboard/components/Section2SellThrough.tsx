@@ -125,6 +125,29 @@ export default function Section2SellThrough({
     return `${num.toFixed(1)}%`;
   };
 
+  const formatPp = (v: number | null | undefined) => {
+    if (v === null || v === undefined) return 'N/A';
+    if (v > 0) {
+      return `+${v.toFixed(1)}%p`;
+    }
+    if (v < 0) {
+      return `${v.toFixed(1)}%p`;
+    }
+    return '0.0%p';
+  };
+
+  const formatYoy = (v: number | null | undefined) => {
+    if (v === null || v === undefined) return 'YoY N/A';
+    return `YoY ${v.toFixed(0)}%`;
+  };
+
+  const metricTone = (v: number | null | undefined, pivot = 0) => {
+    if (v === null || v === undefined) return 'text-gray-400';
+    if (v > pivot) return 'text-blue-600';
+    if (v < pivot) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
   // 카테고리 정렬 함수
   const handleCategorySort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc';
@@ -388,9 +411,8 @@ export default function Section2SellThrough({
                     <div className="text-2xl font-bold text-blue-600">
                       {data.header.overall_sellthrough.toFixed(1)}%
                     </div>
-                    {/* YoY - 데이터 확인중 */}
-                    <div className="text-sm mt-1 text-gray-400">
-                      ({language === 'ko' ? '데이터 확인중' : 'Data pending'})
+                    <div className={`text-sm mt-1 font-semibold ${metricTone(data.header.sellthrough_yoy_pp, 0)}`}>
+                      ({formatPp(data.header.sellthrough_yoy_pp)})
                     </div>
                   </div>
                   <div className="text-center border-l border-r border-blue-200">
@@ -412,9 +434,8 @@ export default function Section2SellThrough({
                     <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(data.header.total_inbound)}
                     </div>
-                    {/* YoY - 데이터 확인중 */}
-                    <div className="text-sm mt-1 text-gray-400">
-                      ({language === 'ko' ? '데이터 확인중' : 'Data pending'})
+                    <div className={`text-sm mt-1 font-semibold ${metricTone(data.header.inbound_yoy_pct, 100)}`}>
+                      ({formatYoy(data.header.inbound_yoy_pct)})
                     </div>
                   </div>
                 </div>
