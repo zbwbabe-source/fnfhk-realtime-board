@@ -51,6 +51,9 @@ Rules:
    당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검."
 - Do not use vague phrases such as "YoY 기준으로 우선순위를 운영".
 - For HKMC-2 and TW-2, prefer "정체재고비중(%) + 과시즌재고" wording first, then action.
+- For inventory days in HKMC-2/TW-2, avoid only threshold labels (e.g., "300일 이상 초장기").
+  Explain business meaning using a 180-day primary selling window.
+  Example style: "재고일수 411일은 180일 판매기간 기준 약 2.3회전이 필요한 수준".
 - Avoid generic action text like "채널·상품군 구성 차이 여부 점검". Actions must be specific and time-bounded.
 - YoY must be integer percent (e.g., 215%).
 - Sell-through must be 1 decimal (e.g., 64.8%).

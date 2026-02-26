@@ -61,6 +61,11 @@ function fmtDaysByLang(v: number | null, language: InsightLanguage): string {
   return language === 'ko' ? `${Math.round(v)}일` : `${Math.round(v)} days`;
 }
 
+function fmtSellWindowTurns(v: number | null): string {
+  if (v === null) return 'N/A';
+  return `${(v / 180).toFixed(1)}x`;
+}
+
 function formatOldPair(stock: number | null, days: number | null): string {
   if (stock === null && days === null) return '데이터 없음';
   if (stock === null || days === null) return '데이터 일부 없음';
@@ -142,6 +147,12 @@ function buildRegionActions(
           : language === 'ko'
             ? '180일 미만(일반)'
             : 'under 180 days (normal)';
+  const invMeaning =
+    invDays === null
+      ? ''
+      : language === 'ko'
+        ? ` 재고일수 ${fmtDaysByLang(invDays, language)}로, 주 판매기간(180일) 기준 약 ${fmtSellWindowTurns(invDays)} 소요되는 수준(${invThreshold}).`
+        : ` Inventory days are ${fmtDaysByLang(invDays, language)}, implying about ${fmtSellWindowTurns(invDays)} sell-through windows (assuming a 180-day primary selling period, ${invThreshold}).`;
   const oldPart =
     oldStock === null
       ? language === 'ko'
@@ -152,8 +163,8 @@ function buildRegionActions(
           ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
           : `${region} old-season stock is ${fmtNum(oldStock)}. Verify stagnant-ratio calculation logic and organize target SKUs within 2 weeks.`
         : language === 'ko'
-          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `전월말 대비 ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
-          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `vs last month-end ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}old-season stock ${fmtNum(oldStock)}).${invDays !== null ? ` Inventory days ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} Organize target SKUs within 2 weeks and track weekly.`;
+          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `전월말 대비 ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invMeaning} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
+          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `vs last month-end ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}old-season stock ${fmtNum(oldStock)}).${invMeaning} Organize target SKUs within 2 weeks and track weekly.`;
 
   return [action1, oldPart];
 }
