@@ -40,6 +40,22 @@ export default function DailyHighlight({
     !!twSection3Data?.header;
 
   const inputPayload = useMemo(() => {
+    const toPercent = (value: unknown): number | null => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+      return Math.abs(value) <= 1 ? value * 100 : value;
+    };
+
+    const hkmcStagnantRatio =
+      (hkmcSection3Data?.header?.curr_stock_amt || 0) > 0
+        ? ((hkmcSection3Data?.header?.stagnant_stock_amt || 0) / hkmcSection3Data?.header?.curr_stock_amt) * 100
+        : null;
+    const twStagnantRatio =
+      (twSection3Data?.header?.curr_stock_amt || 0) > 0
+        ? ((twSection3Data?.header?.stagnant_stock_amt || 0) / twSection3Data?.header?.curr_stock_amt) * 100
+        : null;
+    const hkmcPrevStagnantRatio = toPercent(hkmcSection3Data?.header?.prev_month_stagnant_ratio);
+    const twPrevStagnantRatio = toPercent(twSection3Data?.header?.prev_month_stagnant_ratio);
+
     return {
       brand,
       asOfDate: date,
@@ -52,9 +68,10 @@ export default function DailyHighlight({
         seasonSellthrough: hkmcSection2Data?.header?.overall_sellthrough ?? null,
         oldStock: hkmcSection3Data?.header?.curr_stock_amt ?? null,
         invDays: hkmcSection3Data?.header?.inv_days ?? null,
-        stagnantRatio:
-          (hkmcSection3Data?.header?.curr_stock_amt || 0) > 0
-            ? ((hkmcSection3Data?.header?.stagnant_stock_amt || 0) / hkmcSection3Data?.header?.curr_stock_amt) * 100
+        stagnantRatio: hkmcStagnantRatio,
+        stagnantRatioChange:
+          hkmcStagnantRatio !== null && hkmcPrevStagnantRatio !== null
+            ? hkmcStagnantRatio - hkmcPrevStagnantRatio
             : null,
       },
       tw: {
@@ -63,9 +80,10 @@ export default function DailyHighlight({
         seasonSellthrough: twSection2Data?.header?.overall_sellthrough ?? null,
         oldStock: twSection3Data?.header?.curr_stock_amt ?? null,
         invDays: twSection3Data?.header?.inv_days ?? null,
-        stagnantRatio:
-          (twSection3Data?.header?.curr_stock_amt || 0) > 0
-            ? ((twSection3Data?.header?.stagnant_stock_amt || 0) / twSection3Data?.header?.curr_stock_amt) * 100
+        stagnantRatio: twStagnantRatio,
+        stagnantRatioChange:
+          twStagnantRatio !== null && twPrevStagnantRatio !== null
+            ? twStagnantRatio - twPrevStagnantRatio
             : null,
       },
     };

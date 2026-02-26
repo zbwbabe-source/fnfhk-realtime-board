@@ -45,6 +45,18 @@ interface StoreRow {
   forecast: number | null;
 }
 
+const channelLabelByKey: Record<string, { ko: string; en: string }> = {
+  tw_normal: { ko: 'TW - 정상', en: 'TW - Retail' },
+  tw_outlet: { ko: 'TW - 아울렛', en: 'TW - Outlet' },
+  tw_online: { ko: 'TW - 온라인', en: 'TW - Online' },
+  hk_normal: { ko: 'HK - 정상', en: 'HK - Retail' },
+  hk_outlet: { ko: 'HK - 아울렛', en: 'HK - Outlet' },
+  hk_online: { ko: 'HK - 온라인', en: 'HK - Online' },
+  mc_normal: { ko: 'MC - 정상', en: 'MC - Retail' },
+  mc_outlet: { ko: 'MC - 아울렛', en: 'MC - Outlet' },
+  mc_online: { ko: 'MC - 온라인', en: 'MC - Online' },
+};
+
 export default function Section1Table({
   region,
   brand,
@@ -259,6 +271,7 @@ export default function Section1Table({
         ? `단위: 1k ${currencyCode}`
         : `Unit: 1k ${currencyCode}`
       : t(language, 'unit');
+  const getChannelLabel = (channelKey: string) => channelLabelByKey[channelKey]?.[language] ?? channelKey;
 
   if (loading) {
     return (
@@ -611,13 +624,13 @@ export default function Section1Table({
             {region === 'TW' ? (
               <>
                 {/* TW 정상 */}
-                {renderChannelSection('tw_normal', 'TW - 정상', data.tw_normal, data.tw_normal_subtotal)}
+                {renderChannelSection('tw_normal', getChannelLabel('tw_normal'), data.tw_normal, data.tw_normal_subtotal)}
 
                 {/* TW 아울렛 */}
-                {renderChannelSection('tw_outlet', 'TW - 아울렛', data.tw_outlet, data.tw_outlet_subtotal)}
+                {renderChannelSection('tw_outlet', getChannelLabel('tw_outlet'), data.tw_outlet, data.tw_outlet_subtotal)}
 
                 {/* TW 온라인 */}
-                {renderChannelSection('tw_online', 'TW - 온라인', data.tw_online, data.tw_online_subtotal)}
+                {renderChannelSection('tw_online', getChannelLabel('tw_online'), data.tw_online, data.tw_online_subtotal)}
 
                 {/* TW 전체 합계 */}
                 {data.tw_subtotal && (
@@ -635,13 +648,13 @@ export default function Section1Table({
             ) : (
               <>
             {/* HK 정상 */}
-            {renderChannelSection('hk_normal', 'HK - 정상', data.hk_normal, data.hk_normal_subtotal)}
+            {renderChannelSection('hk_normal', getChannelLabel('hk_normal'), data.hk_normal, data.hk_normal_subtotal)}
 
             {/* HK 아울렛 */}
-            {renderChannelSection('hk_outlet', 'HK - 아울렛', data.hk_outlet, data.hk_outlet_subtotal)}
+            {renderChannelSection('hk_outlet', getChannelLabel('hk_outlet'), data.hk_outlet, data.hk_outlet_subtotal)}
 
             {/* HK 온라인 */}
-            {renderChannelSection('hk_online', 'HK - 온라인', data.hk_online, data.hk_online_subtotal)}
+            {renderChannelSection('hk_online', getChannelLabel('hk_online'), data.hk_online, data.hk_online_subtotal)}
 
             {/* HK 전체 합계 */}
             {data.hk_subtotal && (
@@ -660,13 +673,13 @@ export default function Section1Table({
             <tr className="h-4"></tr>
 
             {/* MC 정상 */}
-            {renderChannelSection('mc_normal', 'MC - 정상', data.mc_normal, data.mc_normal_subtotal)}
+            {renderChannelSection('mc_normal', getChannelLabel('mc_normal'), data.mc_normal, data.mc_normal_subtotal)}
 
             {/* MC 아울렛 */}
-            {renderChannelSection('mc_outlet', 'MC - 아울렛', data.mc_outlet, data.mc_outlet_subtotal)}
+            {renderChannelSection('mc_outlet', getChannelLabel('mc_outlet'), data.mc_outlet, data.mc_outlet_subtotal)}
 
             {/* MC 온라인 */}
-            {renderChannelSection('mc_online', 'MC - 온라인', data.mc_online, data.mc_online_subtotal)}
+            {renderChannelSection('mc_online', getChannelLabel('mc_online'), data.mc_online, data.mc_online_subtotal)}
 
             {/* MC 전체 합계 */}
             {data.mc_subtotal && (

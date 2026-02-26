@@ -77,6 +77,20 @@ interface ChartDataPoint {
   py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
+const ALL_CHANNEL = '전체';
+
+const channelLabels: Record<string, { ko: string; en: string }> = {
+  [ALL_CHANNEL]: { ko: '전체', en: 'All' },
+  'HK정상': { ko: 'HK 정상', en: 'HK Retail' },
+  'HK아울렛': { ko: 'HK 아울렛', en: 'HK Outlet' },
+  'MC정상': { ko: 'MC 정상', en: 'MC Retail' },
+  'MC아울렛': { ko: 'MC 아울렛', en: 'MC Outlet' },
+  'HK온라인': { ko: 'HK 온라인', en: 'HK Online' },
+  'TW정상': { ko: 'TW 정상', en: 'TW Retail' },
+  'TW아울렛': { ko: 'TW 아울렛', en: 'TW Outlet' },
+  'TW온라인': { ko: 'TW 온라인', en: 'TW Online' },
+};
+
 export default function Section1StoreBarChart({
   region,
   brand,
@@ -95,13 +109,16 @@ export default function Section1StoreBarChart({
   // 상태 관리
   const [isYtdMode, setIsYtdMode] = useState(false); // false: 당월(MTD), true: 누적(YTD)
   const [showSalesPerArea, setShowSalesPerArea] = useState(false); // false: 실판매출, true: 평당매출
-  const [selectedChannel, setSelectedChannel] = useState<string>('전체'); // 전체, HK정상, HK아울렛, MC정상, MC아울렛, HK온라인, TW정상, TW아울렛, TW온라인
+  const [selectedChannel, setSelectedChannel] = useState<string>(ALL_CHANNEL); // 전체, HK정상, HK아울렛, MC정상, MC아울렛, HK온라인, TW정상, TW아울렛, TW온라인
   const [isModalOpen, setIsModalOpen] = useState(false); // 확대 모달 상태
   const [yoyAxisMax, setYoyAxisMax] = useState<100 | 150 | 200 | 300 | 400 | 500>(150); // YoY 축 최대값
 
   // 반응형: 모바일 감지
   const [isMobile, setIsMobile] = useState(false);
   const displayMultiplier = region === 'TW' && currencyCode === 'TWD' ? hkdToTwdRate : 1;
+  const getChannelLabel = (key: string) => channelLabels[key]?.[language] ?? key;
+  const getYoyAxisOptionLabel = (value: number) =>
+    language === 'ko' ? `보조축: ${value}%` : `Secondary Axis: ${value}%`;
 
   // 디버깅: 차트 영역 높이 확인용 ref
   const chartRowRef = useRef<HTMLDivElement>(null);
@@ -115,7 +132,7 @@ export default function Section1StoreBarChart({
 
   // Region 변경 시 채널 필터 리셋
   useEffect(() => {
-    setSelectedChannel('전체');
+    setSelectedChannel(ALL_CHANNEL);
   }, [region]);
 
   useEffect(() => {
@@ -217,7 +234,7 @@ export default function Section1StoreBarChart({
     // 채널 필터링
     let filteredStores = allStores;
     
-    if (selectedChannel !== '전체') {
+    if (selectedChannel !== ALL_CHANNEL) {
       filteredStores = allStores.filter(store => {
         // 채널명 매핑
         let storeChannel = '';
@@ -658,20 +675,20 @@ export default function Section1StoreBarChart({
             }}
             className={compactSelectClass}
           >
-            <option value="전체">전체</option>
+            <option value={ALL_CHANNEL}>{getChannelLabel(ALL_CHANNEL)}</option>
             {region === 'HKMC' ? (
               <>
-            <option value="HK정상">HK정상</option>
-            <option value="HK아울렛">HK아울렛</option>
-            <option value="MC정상">MC정상</option>
-            <option value="MC아울렛">MC아울렛</option>
-            <option value="HK온라인">HK온라인</option>
+            <option value="HK정상">{getChannelLabel('HK정상')}</option>
+            <option value="HK아울렛">{getChannelLabel('HK아울렛')}</option>
+            <option value="MC정상">{getChannelLabel('MC정상')}</option>
+            <option value="MC아울렛">{getChannelLabel('MC아울렛')}</option>
+            <option value="HK온라인">{getChannelLabel('HK온라인')}</option>
               </>
             ) : (
               <>
-                <option value="TW정상">TW정상</option>
-                <option value="TW아울렛">TW아울렛</option>
-                <option value="TW온라인">TW온라인</option>
+                <option value="TW정상">{getChannelLabel('TW정상')}</option>
+                <option value="TW아울렛">{getChannelLabel('TW아울렛')}</option>
+                <option value="TW온라인">{getChannelLabel('TW온라인')}</option>
               </>
             )}
           </select>
@@ -702,12 +719,12 @@ export default function Section1StoreBarChart({
             onChange={(e) => setYoyAxisMax(Number(e.target.value) as 100 | 150 | 200 | 300 | 400 | 500)}
             className={compactSelectClass}
           >
-            <option value={100}>보조축: 100%</option>
-            <option value={150}>보조축: 150%</option>
-            <option value={200}>보조축: 200%</option>
-            <option value={300}>보조축: 300%</option>
-            <option value={400}>보조축: 400%</option>
-            <option value={500}>보조축: 500%</option>
+            <option value={100}>{getYoyAxisOptionLabel(100)}</option>
+            <option value={150}>{getYoyAxisOptionLabel(150)}</option>
+            <option value={200}>{getYoyAxisOptionLabel(200)}</option>
+            <option value={300}>{getYoyAxisOptionLabel(300)}</option>
+            <option value={400}>{getYoyAxisOptionLabel(400)}</option>
+            <option value={500}>{getYoyAxisOptionLabel(500)}</option>
           </select>
         </div>
       </div>
@@ -731,38 +748,38 @@ export default function Section1StoreBarChart({
             <>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-            <span className="text-[9px] text-gray-600">HK정상</span>
+            <span className="text-[9px] text-gray-600">{getChannelLabel('HK정상')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-            <span className="text-[9px] text-gray-600">HK아울렛</span>
+            <span className="text-[9px] text-gray-600">{getChannelLabel('HK아울렛')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-            <span className="text-[9px] text-gray-600">MC정상</span>
+            <span className="text-[9px] text-gray-600">{getChannelLabel('MC정상')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FB923C' }}></div>
-            <span className="text-[9px] text-gray-600">MC아울렛</span>
+            <span className="text-[9px] text-gray-600">{getChannelLabel('MC아울렛')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-                <span className="text-[9px] text-gray-600">HK온라인</span>
+                <span className="text-[9px] text-gray-600">{getChannelLabel('HK온라인')}</span>
           </div>
             </>
           ) : (
             <>
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FDE047' }}></div>
-                <span className="text-[9px] text-gray-600">TW정상</span>
+                <span className="text-[9px] text-gray-600">{getChannelLabel('TW정상')}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#FDA4AF' }}></div>
-                <span className="text-[9px] text-gray-600">TW아울렛</span>
+                <span className="text-[9px] text-gray-600">{getChannelLabel('TW아울렛')}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: '#D8B4FE' }}></div>
-                <span className="text-[9px] text-gray-600">TW온라인</span>
+                <span className="text-[9px] text-gray-600">{getChannelLabel('TW온라인')}</span>
               </div>
             </>
           )}
@@ -958,20 +975,20 @@ export default function Section1StoreBarChart({
                 }}
                 className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
-                <option value="전체">전체</option>
+                <option value={ALL_CHANNEL}>{getChannelLabel(ALL_CHANNEL)}</option>
                 {region === 'HKMC' ? (
                   <>
-                <option value="HK정상">HK정상</option>
-                <option value="HK아울렛">HK아울렛</option>
-                <option value="MC정상">MC정상</option>
-                <option value="MC아울렛">MC아울렛</option>
-                <option value="HK온라인">HK온라인</option>
+                <option value="HK정상">{getChannelLabel('HK정상')}</option>
+                <option value="HK아울렛">{getChannelLabel('HK아울렛')}</option>
+                <option value="MC정상">{getChannelLabel('MC정상')}</option>
+                <option value="MC아울렛">{getChannelLabel('MC아울렛')}</option>
+                <option value="HK온라인">{getChannelLabel('HK온라인')}</option>
                   </>
                 ) : (
                   <>
-                    <option value="TW정상">TW정상</option>
-                    <option value="TW아울렛">TW아울렛</option>
-                    <option value="TW온라인">TW온라인</option>
+                    <option value="TW정상">{getChannelLabel('TW정상')}</option>
+                    <option value="TW아울렛">{getChannelLabel('TW아울렛')}</option>
+                    <option value="TW온라인">{getChannelLabel('TW온라인')}</option>
                   </>
                 )}
               </select>
@@ -1005,12 +1022,12 @@ export default function Section1StoreBarChart({
                 onChange={(e) => setYoyAxisMax(Number(e.target.value) as 100 | 150 | 200 | 300 | 400 | 500)}
                 className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} font-medium border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500`}
               >
-                <option value={100}>보조축: 100%</option>
-                <option value={150}>보조축: 150%</option>
-                <option value={200}>보조축: 200%</option>
-                <option value={300}>보조축: 300%</option>
-                <option value={400}>보조축: 400%</option>
-                <option value={500}>보조축: 500%</option>
+                <option value={100}>{getYoyAxisOptionLabel(100)}</option>
+                <option value={150}>{getYoyAxisOptionLabel(150)}</option>
+                <option value={200}>{getYoyAxisOptionLabel(200)}</option>
+                <option value={300}>{getYoyAxisOptionLabel(300)}</option>
+                <option value={400}>{getYoyAxisOptionLabel(400)}</option>
+                <option value={500}>{getYoyAxisOptionLabel(500)}</option>
               </select>
             </div>
           </div>
@@ -1276,38 +1293,38 @@ export default function Section1StoreBarChart({
                 <>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#93C5FD' }}></div>
-                <span className="text-sm text-gray-700">HK정상</span>
+                <span className="text-sm text-gray-700">{getChannelLabel('HK정상')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FCA5A5' }}></div>
-                <span className="text-sm text-gray-700">HK아울렛</span>
+                <span className="text-sm text-gray-700">{getChannelLabel('HK아울렛')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#86EFAC' }}></div>
-                <span className="text-sm text-gray-700">MC정상</span>
+                <span className="text-sm text-gray-700">{getChannelLabel('MC정상')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FB923C' }}></div>
-                <span className="text-sm text-gray-700">MC아울렛</span>
+                <span className="text-sm text-gray-700">{getChannelLabel('MC아울렛')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded" style={{ backgroundColor: '#C4B5FD' }}></div>
-                <span className="text-sm text-gray-700">HK온라인</span>
+                <span className="text-sm text-gray-700">{getChannelLabel('HK온라인')}</span>
               </div>
                 </>
               ) : (
                 <>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FDE047' }}></div>
-                    <span className="text-sm text-gray-700">TW정상</span>
+                    <span className="text-sm text-gray-700">{getChannelLabel('TW정상')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded" style={{ backgroundColor: '#FDA4AF' }}></div>
-                    <span className="text-sm text-gray-700">TW아울렛</span>
+                    <span className="text-sm text-gray-700">{getChannelLabel('TW아울렛')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded" style={{ backgroundColor: '#D8B4FE' }}></div>
-                    <span className="text-sm text-gray-700">TW온라인</span>
+                    <span className="text-sm text-gray-700">{getChannelLabel('TW온라인')}</span>
                   </div>
                 </>
               )}

@@ -36,6 +36,7 @@ export interface ExecutiveRegionInput {
   oldStock?: number | null;
   invDays?: number | null;
   stagnantRatio?: number | null;
+  stagnantRatioChange?: number | null; // %p (vs last month-end)
 }
 
 export interface ExecutiveInsightInput {

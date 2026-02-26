@@ -38,6 +38,12 @@ function fmtRate(v: number | null): string {
   return `${v.toFixed(1)}%`;
 }
 
+function fmtPpDelta(v: number | null, language: InsightLanguage): string {
+  if (v === null) return 'N/A';
+  const sign = v > 0 ? '+' : '';
+  return language === 'ko' ? `${sign}${v.toFixed(1)}%p` : `${sign}${v.toFixed(1)}pp`;
+}
+
 function fmtNum(v: number | null): string {
   if (v === null) return 'N/A';
   if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
@@ -102,6 +108,7 @@ function buildRegionActions(
   oldStock: number | null,
   invDays: number | null,
   stagnantRatio: number | null,
+  stagnantRatioChange: number | null,
   language: InsightLanguage
 ): [string, string] {
   const action1 =
@@ -145,8 +152,8 @@ function buildRegionActions(
           ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
           : `${region} old-season stock is ${fmtNum(oldStock)}. Verify stagnant-ratio calculation logic and organize target SKUs within 2 weeks.`
         : language === 'ko'
-          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
-          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (old-season stock ${fmtNum(oldStock)}).${invDays !== null ? ` Inventory days ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} Organize target SKUs within 2 weeks and track weekly.`;
+          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `전월말 대비 ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invDays !== null ? ` 재고일수 ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
+          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `vs last month-end ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}old-season stock ${fmtNum(oldStock)}).${invDays !== null ? ` Inventory days ${fmtDaysByLang(invDays, language)} (${invThreshold}).` : ''} Organize target SKUs within 2 weeks and track weekly.`;
 
   return [action1, oldPart];
 }
@@ -165,6 +172,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     oldStock: toNumber(raw?.section3?.hkmc_curr_stock),
     invDays: toNumber(raw?.section3?.hkmc_inv_days),
     stagnantRatio: toNumber(raw?.section3?.hkmc_stagnant_ratio),
+    stagnantRatioChange: toNumber(raw?.section3?.hkmc_stagnant_ratio_change),
   };
 
   const twFromLegacy = raw?.tw ?? {
@@ -174,6 +182,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     oldStock: toNumber(raw?.section3?.tw_curr_stock),
     invDays: toNumber(raw?.section3?.tw_inv_days),
     stagnantRatio: toNumber(raw?.section3?.tw_stagnant_ratio),
+    stagnantRatioChange: toNumber(raw?.section3?.tw_stagnant_ratio_change),
   };
 
   const hkmc: ExecutiveRegionInput = {
@@ -183,6 +192,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     oldStock: toNumber(hkmcFromLegacy?.oldStock),
     invDays: toNumber(hkmcFromLegacy?.invDays),
     stagnantRatio: toNumber(hkmcFromLegacy?.stagnantRatio),
+    stagnantRatioChange: toNumber(hkmcFromLegacy?.stagnantRatioChange),
   };
 
   const tw: ExecutiveRegionInput = {
@@ -192,6 +202,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     oldStock: toNumber(twFromLegacy?.oldStock),
     invDays: toNumber(twFromLegacy?.invDays),
     stagnantRatio: toNumber(twFromLegacy?.stagnantRatio),
+    stagnantRatioChange: toNumber(twFromLegacy?.stagnantRatioChange),
   };
 
   return {
@@ -230,6 +241,8 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
   const seasonTw = input.tw.seasonSellthrough ?? null;
   const stagnantRatioHkmc = input.hkmc.stagnantRatio ?? null;
   const stagnantRatioTw = input.tw.stagnantRatio ?? null;
+  const stagnantRatioChangeHkmc = input.hkmc.stagnantRatioChange ?? null;
+  const stagnantRatioChangeTw = input.tw.stagnantRatioChange ?? null;
   const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, input.asOfDate);
   const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, input.asOfDate);
   const oldHkmc = input.hkmc.oldStock ?? null;
@@ -288,6 +301,7 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
     oldHkmc,
     invHkmc,
     stagnantRatioHkmc,
+    stagnantRatioChangeHkmc,
     language
   );
   const [twAction1, twAction2] = buildRegionActions(
@@ -298,6 +312,7 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
     oldTw,
     invTw,
     stagnantRatioTw,
+    stagnantRatioChangeTw,
     language
   );
 
@@ -515,12 +530,14 @@ function buildInputSignature(input: ExecutiveInsightInput): string {
     f(input.hkmc.oldStock),
     f(input.hkmc.invDays),
     f(input.hkmc.stagnantRatio),
+    f(input.hkmc.stagnantRatioChange),
     f(input.tw.salesMtdYoy),
     f(input.tw.salesYtdYoy),
     f(input.tw.seasonSellthrough),
     f(input.tw.oldStock),
     f(input.tw.invDays),
     f(input.tw.stagnantRatio),
+    f(input.tw.stagnantRatioChange),
   ].join('_');
 }
 
@@ -541,7 +558,7 @@ export async function POST(req: Request) {
     const cacheKey = buildKey([
       'insights',
       'exec',
-      'v19',
+      'v20',
       languagePart,
       regionPart,
       input.brand,
