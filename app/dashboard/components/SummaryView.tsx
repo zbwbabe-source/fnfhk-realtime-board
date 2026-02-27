@@ -83,6 +83,7 @@ export default function SummaryView({
           categoryFilter={categoryFilter}
           onCategoryFilterChange={onCategoryFilterChange}
           region={regionCode}
+          compactMainMetric={true}
         />
         <Section3Card
           section3Data={section3Data}
@@ -90,6 +91,7 @@ export default function SummaryView({
           region={regionCode}
           categoryFilter={section3CategoryFilter}
           onCategoryFilterChange={onSection3CategoryFilterChange}
+          compactMainMetric={true}
         />
       </div>
     </section>
