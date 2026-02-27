@@ -15,6 +15,9 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
+  const noStoreHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  };
   
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -39,7 +42,7 @@ export async function GET(request: NextRequest) {
       if (cached) {
         const elapsed = Date.now() - startTime;
         console.log(`[CACHE HIT] latest-date [${cacheKey}] - ${elapsed}ms`);
-        return NextResponse.json(cached);
+        return NextResponse.json(cached, { headers: noStoreHeaders });
       }
     }
     
@@ -95,7 +98,7 @@ export async function GET(request: NextRequest) {
         brand,
         latest_date: null,
         error: 'No data found',
-      }, { status: 404 });
+      }, { status: 404, headers: noStoreHeaders });
     }
 
     console.log(`✅ Latest date for ${region}: ${latestDate}`);
@@ -111,13 +114,13 @@ export async function GET(request: NextRequest) {
     await cacheSet(cacheKey, response, 60);
     console.log(`[CACHE SET] latest-date [${cacheKey}] - Query executed in ${elapsed}ms`);
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: noStoreHeaders });
 
   } catch (error: any) {
     console.error('Error in /api/latest-date:', error);
     return NextResponse.json(
       { error: 'Failed to fetch latest date', message: error.message },
-      { status: 500 }
+      { status: 500, headers: noStoreHeaders }
     );
   }
 }

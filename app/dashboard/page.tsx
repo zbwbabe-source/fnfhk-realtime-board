@@ -115,7 +115,8 @@ export default function DashboardPage() {
     const fetchSummaryData = async () => {
       try {
         const mode = isYtdMode ? 'ytd' : 'mtd';
-        const isLatest = !!latestDate && date === latestDate;
+        const canonicalLatestDate = availableDates[0] || latestDate;
+        const isLatest = !!canonicalLatestDate && date === canonicalLatestDate;
         const summaryKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}`;
         const shouldForceRefresh = isLatest && !refreshedSummaryKeysRef.current.has(summaryKey);
         const fetchOptions = shouldForceRefresh
@@ -126,7 +127,7 @@ export default function DashboardPage() {
         const fetchJson = async (
           url: string,
           options: RequestInit = fetchOptions,
-          timeoutMs = 30000
+          timeoutMs = 60000
         ) => {
           try {
             const fetchPromise = fetch(url, options);
@@ -210,7 +211,7 @@ export default function DashboardPage() {
       isCancelled = true;
       controller.abort();
     };
-  }, [activeTab, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate]);
+  }, [activeTab, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate, availableDates]);
 
   useEffect(() => {
     if (activeTab === 'summary' || !date || !brand || !region) return;
@@ -258,31 +259,52 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchMeta() {
       try {
-        const [metaRes, latestRes] = await Promise.all([
-          fetch('/api/meta'),
-          fetch(`/api/latest-date?region=HKMC&brand=${brand}`),
+        const latestUrl = `/api/latest-date?region=HKMC&brand=${brand}`;
+
+        const [metaResult, latestResult] = await Promise.allSettled([
+          fetch('/api/meta', { cache: 'no-store' }),
+          fetch(latestUrl, { cache: 'no-store' }),
         ]);
-        const data = await metaRes.json();
-        const latestData = latestRes.ok ? await latestRes.json() : null;
-        const resolvedLatestDate = latestData?.latest_date || '';
+
+        const metaRes = metaResult.status === 'fulfilled' ? metaResult.value : null;
+        let latestRes = latestResult.status === 'fulfilled' ? latestResult.value : null;
+
+        if (!latestRes?.ok) {
+          latestRes = await fetch(`${latestUrl}&forceRefresh=true`, { cache: 'no-store' });
+        }
+
+        const data = metaRes?.ok ? await metaRes.json() : {};
+        const latestData = latestRes?.ok ? await latestRes.json() : null;
         const metaDates: string[] = Array.isArray(data.available_dates) ? data.available_dates : [];
+        const metaTopDate = metaDates[0] || '';
+        let resolvedLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+
+        // Guard against stale latest-date cache response by preferring fresher meta top date.
+        if (resolvedLatestDate && metaTopDate && resolvedLatestDate < metaTopDate) {
+          resolvedLatestDate = metaTopDate;
+        }
         const nextDates = [...metaDates];
 
         if (resolvedLatestDate && !nextDates.includes(resolvedLatestDate)) {
           nextDates.unshift(resolvedLatestDate);
         }
 
+        const initialDate = resolvedLatestDate || metaTopDate || fallbackDate;
+
         if (nextDates.length > 0) {
           setAvailableDates(nextDates);
-          const initialDate = resolvedLatestDate || nextDates[0];
+          setDate((prev) => (prev === initialDate ? prev : initialDate));
+          setLatestDate(metaTopDate || resolvedLatestDate || fallbackDate);
+        } else {
+          setAvailableDates([initialDate]);
           setDate((prev) => (prev === initialDate ? prev : initialDate));
           setLatestDate(initialDate);
-        } else if (resolvedLatestDate) {
-          setDate((prev) => (prev === resolvedLatestDate ? prev : resolvedLatestDate));
-          setLatestDate(resolvedLatestDate);
         }
       } catch (error) {
         console.error('Failed to fetch meta:', error);
+        setAvailableDates([fallbackDate]);
+        setDate((prev) => (prev === fallbackDate ? prev : fallbackDate));
+        setLatestDate((prev) => (prev === fallbackDate ? prev : fallbackDate));
       } finally {
         setMetaLoading(false);
       }
@@ -304,7 +326,23 @@ export default function DashboardPage() {
         if (!res.ok) return;
 
         const latestData = await res.json();
-        const nextLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+        let nextLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+        const knownLatest = availableDates[0] || latestDate;
+
+        if (nextLatestDate && knownLatest && nextLatestDate < knownLatest) {
+          const refreshRes = await fetch(`/api/latest-date?region=HKMC&brand=${brand}&forceRefresh=true`, {
+            cache: 'no-store',
+          });
+          if (refreshRes.ok) {
+            const refreshedLatestData = await refreshRes.json();
+            const refreshedLatestDate =
+              typeof refreshedLatestData?.latest_date === 'string' ? refreshedLatestData.latest_date : '';
+            if (refreshedLatestDate) {
+              nextLatestDate = refreshedLatestDate;
+            }
+          }
+        }
+
         if (!nextLatestDate || nextLatestDate === latestDate) return;
 
         const wasViewingLatest = !date || date === latestDate;
@@ -346,7 +384,7 @@ export default function DashboardPage() {
       window.removeEventListener('pageshow', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [brand, date, latestDate]);
+  }, [brand, date, latestDate, availableDates]);
 
   const allDataLoaded = dataLoadStatus.section1 === 'success' && dataLoadStatus.section2 === 'success' && dataLoadStatus.section3 === 'success';
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
@@ -453,7 +491,7 @@ export default function DashboardPage() {
             </div>
 
             <BrandSelect value={brand} onChange={setBrand} />
-            <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} />
+            <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} language={language} />
             {activeTab === 'tw' && (
               <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
