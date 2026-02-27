@@ -182,7 +182,7 @@ export default function Section3Card({
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="min-w-0 space-y-2 rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-3xl'} truncate font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
+          <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-3xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           {kpis.k1.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
@@ -202,7 +202,7 @@ export default function Section3Card({
               </div>
             )}
           </div>
-          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k2.value}</p>
+          <p className="text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k2.value}</p>
           {kpis.k2.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
@@ -212,7 +212,7 @@ export default function Section3Card({
 
         <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{kpis.k3.label}</p>
-          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
+          <p className="text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
           {kpis.k3.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}

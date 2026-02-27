@@ -339,7 +339,7 @@ export default function Section1Card({
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="min-w-0 space-y-1 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className={`${showSeasonCategory ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} truncate font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
+          <p className={`${showSeasonCategory ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           <p className="text-xs tabular-nums">
             <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
             <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
@@ -349,7 +349,7 @@ export default function Section1Card({
         </div>
         <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{kpis.k2.label}</p>
-          <p className="truncate text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k2.value}</p>
+          <p className="text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k2.value}</p>
           <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
             {(kpis.k2 as any).rawValue !== null 
               ? ((kpis.k2 as any).rawValue >= 100 ? '↗ 성장' : '↘ 감소')
@@ -368,7 +368,7 @@ export default function Section1Card({
               {t(language, 'progressVsApproved')}
             </div>
           </div>
-          <p className="truncate text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k3.value}</p>
+          <p className="text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k3.value}</p>
         </div>
       </div>
 
