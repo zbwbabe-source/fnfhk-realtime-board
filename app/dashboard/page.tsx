@@ -114,6 +114,14 @@ export default function DashboardPage() {
 
     const fetchSummaryData = async () => {
       try {
+        // Prevent stale previous-date cards from staying visible when latest fetch fails.
+        setHkmcSection1Data(null);
+        setTwSection1Data(null);
+        setHkmcSection2Data(null);
+        setTwSection2Data(null);
+        setHkmcSection3Data(null);
+        setTwSection3Data(null);
+
         const mode = isYtdMode ? 'ytd' : 'mtd';
         const canonicalLatestDate = availableDates[0] || latestDate;
         const isLatest = !!canonicalLatestDate && date === canonicalLatestDate;
@@ -139,7 +147,8 @@ export default function DashboardPage() {
             return r.ok ? r.json() : null;
           } catch (e: any) {
             if (e?.name === 'AbortError') return null;
-            throw e;
+            console.error('Summary fetch failed:', url, e);
+            return null;
           }
         };
 
