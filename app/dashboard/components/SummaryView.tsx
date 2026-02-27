@@ -57,7 +57,7 @@ export default function SummaryView({
     section2Data: any;
     section3Data: any;
   }) => (
-    <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex items-end justify-between border-b border-gray-200 pb-4">
         <div>
           <h2 className="text-lg font-bold tracking-tight text-gray-900">{regionLabel}</h2>

@@ -70,8 +70,8 @@ export default function Section2Card({
   };
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 leading-tight">
             {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
@@ -80,12 +80,12 @@ export default function Section2Card({
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section2Subtitle')}</p>
         </div>
 
-        <div className="shrink-0 space-y-1.5 text-right">
-          <p className="text-xs text-gray-500">{t(language, 'filterCategory')}</p>
+        <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">
+          <p className="text-xs text-gray-500 sm:text-right">{t(language, 'filterCategory')}</p>
           <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                 categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -93,7 +93,7 @@ export default function Section2Card({
             </button>
             <button
               onClick={() => onCategoryFilterChange('all')}
-              className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                 categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -103,26 +103,26 @@ export default function Section2Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 p-3 border border-green-100">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="min-w-0 space-y-2 rounded-xl border border-green-100 bg-gradient-to-br from-green-50 to-emerald-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{t(language, 'sellRate')}</p>
-          <p className={`${compactMainMetric ? 'text-2xl' : 'text-4xl'} font-bold leading-tight tabular-nums text-gray-900`}>{sellthrough.toFixed(1)}%</p>
+          <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-4xl'} truncate font-bold leading-tight tabular-nums text-gray-900`}>{sellthrough.toFixed(1)}%</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(sellthroughYoyPp, 0)}`}>
             {formatPp(sellthroughYoyPp)}
           </span>
         </div>
 
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeSales')}</p>
-          <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalSales)}</p>
+          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{formatCurrency(totalSales)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(salesYoyPct, 100)}`}>
             {formatYoy(salesYoyPct)}
           </span>
         </div>
 
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{t(language, 'cumulativeInbound')}</p>
-          <p className="text-xl font-bold tabular-nums text-gray-900">{formatCurrency(totalInbound)}</p>
+          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{formatCurrency(totalInbound)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(inboundYoyPct, 100)}`}>
             {formatYoy(inboundYoyPct)}
           </span>

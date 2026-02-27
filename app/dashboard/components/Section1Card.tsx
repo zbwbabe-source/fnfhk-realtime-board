@@ -259,17 +259,17 @@ export default function Section1Card({
         }));
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h3 className="leading-tight text-base font-semibold text-gray-900 whitespace-nowrap">{t(language, 'section1Title')}</h3>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h3 className="leading-tight text-base font-semibold text-gray-900">{t(language, 'section1Title')}</h3>
             {onYtdModeToggle && (
-              <div className="flex items-center gap-2 rounded-lg bg-purple-50 px-3 py-1.5">
+              <div className="flex items-center gap-2 rounded-lg bg-purple-50 px-2.5 py-1.5 sm:px-3">
                 <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-sm font-medium text-purple-900">
+                <p className="text-xs font-medium text-purple-900 sm:text-sm">
                   {isYtdMode
                     ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
                     : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`}
@@ -280,7 +280,7 @@ export default function Section1Card({
               <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
                   onClick={() => setActiveDetailView('season')}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                     activeDetailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -288,7 +288,7 @@ export default function Section1Card({
                 </button>
                 <button
                   onClick={() => setActiveDetailView('top5')}
-                  className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                     activeDetailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -296,7 +296,7 @@ export default function Section1Card({
                 </button>
                 <button
                   onClick={() => setActiveDetailView('worst5')}
-                  className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                     activeDetailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
@@ -309,13 +309,13 @@ export default function Section1Card({
         </div>
 
         {onYtdModeToggle && (
-          <div className="shrink-0">
+          <div className="w-full shrink-0 sm:w-auto">
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => {
                   if (isYtdMode) onYtdModeToggle();
                 }}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                   !isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -325,7 +325,7 @@ export default function Section1Card({
                 onClick={() => {
                   if (!isYtdMode) onYtdModeToggle();
                 }}
-                className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                   isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -336,10 +336,10 @@ export default function Section1Card({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 p-3 border border-blue-100">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="min-w-0 space-y-1 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className={`${showSeasonCategory ? 'text-3xl' : 'text-2xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
+          <p className={`${showSeasonCategory ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} truncate font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           <p className="text-xs tabular-nums">
             <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
             <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
@@ -347,16 +347,16 @@ export default function Section1Card({
             </span>
           </p>
         </div>
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{kpis.k2.label}</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k2.value}</p>
+          <p className="truncate text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k2.value}</p>
           <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
             {(kpis.k2 as any).rawValue !== null 
               ? ((kpis.k2 as any).rawValue >= 100 ? '↗ 성장' : '↘ 감소')
               : '-'}
           </span>
         </div>
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <div className="group relative inline-block">
             <p
               className="cursor-help text-xs text-gray-500 underline decoration-dotted underline-offset-2"
@@ -368,7 +368,7 @@ export default function Section1Card({
               {t(language, 'progressVsApproved')}
             </div>
           </div>
-          <p className="text-2xl font-bold tabular-nums text-gray-900">{kpis.k3.value}</p>
+          <p className="truncate text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k3.value}</p>
         </div>
       </div>
 

@@ -141,8 +141,8 @@ export default function Section3Card({
       : t(language, 'cardUnit');
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 leading-tight">
             {t(language, 'section3Title')}
@@ -156,12 +156,12 @@ export default function Section3Card({
           )}
         </div>
 
-        <div className="shrink-0 space-y-1.5 text-right">
-          <p className="text-xs text-gray-500">{t(language, 'filterCategory')}</p>
+        <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">
+          <p className="text-xs text-gray-500 sm:text-right">{t(language, 'filterCategory')}</p>
           <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                 categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -169,7 +169,7 @@ export default function Section3Card({
             </button>
             <button
               onClick={() => onCategoryFilterChange('all')}
-              className={`border-l border-gray-200 px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
                 categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
@@ -179,10 +179,10 @@ export default function Section3Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 p-3 border border-amber-100">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="min-w-0 space-y-2 rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className={`${compactMainMetric ? 'text-2xl' : 'text-3xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
+          <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-3xl'} truncate font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
           {kpis.k1.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k1.subClass}`}>
               {kpis.k1.subValue}
@@ -190,7 +190,7 @@ export default function Section3Card({
           )}
         </div>
 
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <div className="flex items-center gap-2">
             <p className="text-xs text-gray-500">{kpis.k2.label}</p>
             {periodStartInfo && periodInfoPlacement === 'inline' && (
@@ -202,7 +202,7 @@ export default function Section3Card({
               </div>
             )}
           </div>
-          <p className="text-xl font-bold tabular-nums text-gray-900">{kpis.k2.value}</p>
+          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k2.value}</p>
           {kpis.k2.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
@@ -210,9 +210,9 @@ export default function Section3Card({
           )}
         </div>
 
-        <div className="space-y-2 rounded-xl bg-gradient-to-br from-gray-50 to-white p-3 border border-gray-200">
+        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
           <p className="text-xs text-gray-500">{kpis.k3.label}</p>
-          <p className="text-xl font-bold tabular-nums text-gray-900">{kpis.k3.value}</p>
+          <p className="truncate text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
           {kpis.k3.subValue && (
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k3.subClass}`}>
               {kpis.k3.subValue}
