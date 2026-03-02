@@ -81,7 +81,7 @@ export default function Section3Card({
     const header = section3Data.header;
     const currentStock = header.curr_stock_amt || 0;
     const currentStockYoyPct = header.curr_stock_yoy_pct as number | null | undefined;
-    const depletedStock = header.depleted_stock_amt || 0;
+    const depletedStock = header.period_tag_sales || 0;
     const currentMonthDepleted = header.current_month_depleted || 0;
     const stagnantStock = header.stagnant_stock_amt || 0;
     const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;

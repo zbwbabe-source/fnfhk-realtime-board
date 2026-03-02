@@ -77,8 +77,16 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'curr_stock_yoy_pct');
+        const hasPeriodTagSales =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'period_tag_sales');
+        const hasPeriodActSales =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'period_act_sales');
 
-        if (hasCurrentStockYoY) {
+        if (hasCurrentStockYoY && hasPeriodTagSales && hasPeriodActSales) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
           const durationMs = Date.now() - startTime;
 

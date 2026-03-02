@@ -1,5 +1,5 @@
 ﻿import { executeSnowflakeQuery } from '@/lib/snowflake';
-import { normalizeBrand, getAllStoresByRegionBrand } from '@/lib/store-utils';
+import { normalizeBrand, getAllStoresByRegionBrand, getStoresByRegionBrandChannel } from '@/lib/store-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import { formatDateYYYYMMDD } from '@/lib/date-utils';
 import { getApparelCategories } from '@/lib/category-utils.server';
@@ -24,6 +24,8 @@ export interface Section3Response {
     stagnant_ratio: number;
     prev_month_stagnant_ratio: number;
     depleted_stock_amt: number;
+    period_tag_sales: number;
+    period_act_sales: number;
     current_month_depleted: number;
     discount_rate: number;
     inv_days_raw: number | null;
@@ -93,6 +95,7 @@ export async function executeSection3Query(
   
   // 紐⑤뱺 留ㅼ옣 肄붾뱶 媛?몄삤湲?(region, brand 湲곕컲, warehouse ?ы븿)
   const allStores = getAllStoresByRegionBrand(region, brand);
+  const salesStores = getStoresByRegionBrandChannel(region, brand, true);
   
   if (allStores.length === 0) {
     return {
@@ -129,7 +132,7 @@ region_shop AS (
       : '';
   const salesCategoryFilter =
     categoryFilter === 'clothes'
-      ? `AND SUBSTR(S.PRDT_CD, 7, 2) IN (${apparelCategoryList})`
+      ? `AND SUBSTR(S.PART_CD, 3, 2) IN (${apparelCategoryList})`
       : '';
   const prepStockCategoryFilter =
     categoryFilter === 'clothes'
@@ -862,6 +865,54 @@ ORDER BY
     return convertTwdToHkd(amount, period);
   };
 
+  // Align section3 card sales metrics with section1 "past season (~prev same season)" scope.
+  const salesStoreCodesStr =
+    salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+  const asofForSales = new Date(`${date}T00:00:00`);
+  const monthForSales = asofForSales.getMonth() + 1;
+  const yearForSales = asofForSales.getFullYear();
+  const currentTypeForSales = monthForSales >= 9 || monthForSales <= 2 ? 'F' : 'S';
+  const currentYYForSales =
+    monthForSales >= 9 ? yearForSales % 100 : monthForSales <= 2 ? (yearForSales - 1) % 100 : yearForSales % 100;
+  const pastCutoffIndexForSales = (currentYYForSales - 1) * 2 + (currentTypeForSales === 'S' ? 0 : 1);
+  const periodStartForSales = currentTypeForSales === 'F' ? '2025-09-23' : `${yearForSales}-03-01`;
+  const currentMonthStartForSales = `${yearForSales}-${String(monthForSales).padStart(2, '0')}-01`;
+  const alignedSalesQuery = `
+    SELECT
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS period_tag_sales_total,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS period_act_sales_total,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS current_month_tag_sales_total
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      ${salesCategoryFilter}
+      AND RIGHT(S.SESN, 1) IN ('S', 'F')
+      AND (
+        CASE
+          WHEN RIGHT(S.SESN, 1) = 'S' THEN TRY_TO_NUMBER(LEFT(S.SESN, 2)) * 2
+          ELSE TRY_TO_NUMBER(LEFT(S.SESN, 2)) * 2 + 1
+        END
+      ) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  `;
+  const alignedSalesRows = await executeSnowflakeQuery(alignedSalesQuery, [
+    periodStartForSales,
+    date,
+    periodStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    pastCutoffIndexForSales,
+    periodStartForSales,
+    date,
+  ]);
+  const alignedPeriodTagSales =
+    applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
+  const alignedPeriodActSales =
+    applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
+  const alignedCurrentMonthTagSales =
+    applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+
   // ?덈꺼蹂??곗씠??遺꾨━
   const header = rows.find((r: any) => r.ROW_LEVEL === 'HEADER');
   const yearRows = rows.filter((r: any) => r.ROW_LEVEL === 'YEAR');
@@ -936,7 +987,9 @@ ORDER BY
         ? (applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0)
         : 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
-      current_month_depleted: applyExchangeRate(parseFloat(header.CURRENT_MONTH_DEPLETED_AMT || 0)) || 0,
+      period_tag_sales: alignedPeriodTagSales,
+      period_act_sales: alignedPeriodActSales,
+      current_month_depleted: alignedCurrentMonthTagSales,
       discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,

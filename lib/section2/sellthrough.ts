@@ -50,7 +50,8 @@ export async function fetchSection2Sellthrough({
   const sesn = getSeasonCode(asofDate);
 
   // 섹션2 계산 시작일: 시즌 시작일 - 6개월
-  const startDate = getSection2StartDate(asofDate);
+  const startDate = new Date(getSection2StartDate(asofDate));
+  startDate.setMonth(startDate.getMonth() - 6);
   const startDateStr = formatDateYYYYMMDD(startDate);
 
   // 전년(LAST YEAR) 날짜 및 시즌 계산
@@ -59,7 +60,8 @@ export async function fetchSection2Sellthrough({
   const dateLY = formatDateYYYYMMDD(asofDateLY);
   const sesnLY = getSeasonCode(asofDateLY);
 
-  const startDateLY = getSection2StartDate(asofDateLY);
+  const startDateLY = new Date(getSection2StartDate(asofDateLY));
+  startDateLY.setMonth(startDateLY.getMonth() - 6);
   const startDateLYStr = formatDateYYYYMMDD(startDateLY);
   const prepStockCutoff = '2025-10-01';
   const usePrepStockTy = date < prepStockCutoff;
