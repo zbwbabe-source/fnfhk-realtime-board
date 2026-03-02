@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const brand = (searchParams.get('brand') || 'M').trim();
     const date = searchParams.get('date')?.trim() || '';
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
+    const includeYoY = searchParams.get('include_yoy') !== 'false';
     const categoryFilter = (searchParams.get('category_filter') || 'all').trim() === 'clothes' ? 'clothes' : 'all';
 
     // 요청 시작 로그
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       brand,
       date,
       categoryFilter,
+      includeYoY,
       force_refresh: forceRefresh,
       timestamp: new Date().toISOString(),
     });
@@ -118,7 +120,10 @@ export async function GET(request: NextRequest) {
 
     // Redis MISS: Snowflake 쿼리 실행
     const snowflakeStart = Date.now();
-    const payload = await executeSection3Query(region, brand, date, { categoryFilter });
+    const payload = await executeSection3Query(region, brand, date, {
+      categoryFilter,
+      includeYoY,
+    });
     snowflakeMs = Date.now() - snowflakeStart;
     
     // 응답 rows 수 계산
