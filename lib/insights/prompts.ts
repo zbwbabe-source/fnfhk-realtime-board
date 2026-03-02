@@ -39,15 +39,15 @@ Rules:
   3) TW-1
   4) TW-2
 - Each action must be specific, numeric when possible, and time-bounded (e.g., this week / 2 weeks / month-end).
-- Season close date is fixed at 2/28.
+- Season close date must use SIGNALS.seasonEndDate (dynamic by SS/FW).
 - Use SIGNALS.seasonTwProjectedEom (projected TW in-season sell-through at season close),
-  calculated by season pace conversion from 9/1 to as-of date.
-- If SIGNALS.seasonTwProjectedEom is below 65, TW-1 must explicitly mention:
+  calculated by season pace conversion from season start to as-of date.
+- If SIGNALS.seasonTwProjectedEom is below 70, TW-1 must explicitly mention:
   "판매 막달 기준, TW 당시즌재고가 차기 과시즌으로 전환될 수 있음"
   and include a preventive action with a deadline.
 - TW-1 writing style should be clean 2-sentence format (no labels like 리스크/현황/실행):
   Example style:
-  "시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 61.3%로 차기 과시즌 전환 리스크가 있음.
+  "시즌마감일(SIGNALS.seasonEndDate) 기준 예상 TW 당시즌 판매율 61.3%로 차기 과시즌 전환 리스크가 있음.
    당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검."
 - Do not use vague phrases such as "YoY 기준으로 우선순위를 운영".
 - For HKMC-2 and TW-2, prefer "정체재고비중(%) + 과시즌재고" wording first, then action.

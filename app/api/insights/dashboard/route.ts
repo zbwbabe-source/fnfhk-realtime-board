@@ -88,20 +88,63 @@ function parseDateParts(isoDate: string): { year: number; month: number; day: nu
   return { year, month, day };
 }
 
-function projectSeasonEndSellthrough(currentRate: number | null, asOfDate: string): number | null {
-  if (currentRate === null) return null;
+type SeasonType = 'SS' | 'FW';
+
+type SeasonWindow = {
+  seasonType: SeasonType;
+  start: Date;
+  end: Date;
+  startLabel: string;
+  endLabel: string;
+  elapsedDays: number;
+  totalDays: number;
+};
+
+function toMonthDayLabel(utcDate: Date): string {
+  return `${utcDate.getUTCMonth() + 1}/${utcDate.getUTCDate()}`;
+}
+
+function toIsoDate(utcDate: Date): string {
+  const y = utcDate.getUTCFullYear();
+  const m = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(utcDate.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function resolveSeasonWindow(asOfDate: string): SeasonWindow | null {
   const parts = parseDateParts(asOfDate);
   if (!parts) return null;
-  // FW season pacing projection: 9/1 ~ 2/28
-  const seasonStartYear = parts.month >= 9 ? parts.year : parts.year - 1;
-  const seasonStart = new Date(Date.UTC(seasonStartYear, 8, 1)); // 9/1
-  const seasonEnd = new Date(Date.UTC(seasonStartYear + 1, 1, 28)); // 2/28
   const asOf = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-  const clampedAsOf = asOf > seasonEnd ? seasonEnd : asOf;
+
+  const seasonType: SeasonType = parts.month >= 3 && parts.month <= 8 ? 'SS' : 'FW';
+  const seasonStartYear = seasonType === 'SS' ? parts.year : parts.month >= 9 ? parts.year : parts.year - 1;
+  const seasonStart = seasonType === 'SS'
+    ? new Date(Date.UTC(seasonStartYear, 2, 1)) // 3/1
+    : new Date(Date.UTC(seasonStartYear, 8, 1)); // 9/1
+  const seasonEnd = seasonType === 'SS'
+    ? new Date(Date.UTC(seasonStartYear, 7, 31)) // 8/31
+    : new Date(Date.UTC(seasonStartYear + 1, 2, 0)); // 2/28 or 2/29
+
+  const clampedAsOf = asOf < seasonStart ? seasonStart : asOf > seasonEnd ? seasonEnd : asOf;
   const msPerDay = 24 * 60 * 60 * 1000;
   const elapsed = Math.max(1, Math.floor((clampedAsOf.getTime() - seasonStart.getTime()) / msPerDay) + 1);
   const total = Math.max(1, Math.floor((seasonEnd.getTime() - seasonStart.getTime()) / msPerDay) + 1);
-  const projected = (currentRate / elapsed) * total;
+
+  return {
+    seasonType,
+    start: seasonStart,
+    end: seasonEnd,
+    startLabel: toMonthDayLabel(seasonStart),
+    endLabel: toMonthDayLabel(seasonEnd),
+    elapsedDays: elapsed,
+    totalDays: total,
+  };
+}
+
+function projectSeasonEndSellthrough(currentRate: number | null, seasonWindow: SeasonWindow | null): number | null {
+  if (currentRate === null || !seasonWindow) return null;
+  const { elapsedDays, totalDays } = seasonWindow;
+  const projected = (currentRate / elapsedDays) * totalDays;
   return Math.min(100, Math.max(0, projected));
 }
 
@@ -114,21 +157,29 @@ function buildRegionActions(
   invDays: number | null,
   stagnantRatio: number | null,
   stagnantRatioChange: number | null,
+  seasonWindow: SeasonWindow | null,
   language: InsightLanguage
 ): [string, string] {
+  const seasonEndLabel = seasonWindow?.endLabel ?? 'N/A';
+  const isEarlySeason = seasonWindow !== null && seasonWindow.elapsedDays <= 14;
+  const projectedRisk = projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 70;
   const action1 =
-    language === 'ko' && region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
-      ? `시즌마감일(2/28) 기준 예상 TW 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 차기 과시즌 전환 리스크가 있음. 당시즌 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
-      : language === 'en' && region === 'TW' && projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 65
-        ? `By season close (2/28), projected TW in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, with risk of conversion to next old-season inventory. Select 3 underperforming in-season categories, run 2-week markdown/reallocation, and review results by month-end.`
+    language === 'ko' && isEarlySeason && seasonSellthrough !== null
+      ? `${region} 시즌 초기(${seasonWindow?.startLabel}~) 구간으로 현재 당시즌 판매율 ${fmtRate(seasonSellthrough)}은 추세 확인 단계임. 하위 카테고리 3개를 지정해 2주 테스트 할인/재배치를 실행하고 주차별 반응을 점검.`
+      : language === 'en' && isEarlySeason && seasonSellthrough !== null
+        ? `${region} is in the early season window (${seasonWindow?.startLabel}~); current in-season sell-through ${fmtRate(seasonSellthrough)} is still in trend-validation stage. Select 3 underperforming categories, run a 2-week test markdown/reallocation, and track weekly response.`
+        : language === 'ko' && projectedRisk
+          ? `${region} 시즌마감일(${seasonEndLabel}) 기준 예상 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 소진 부담이 높음. 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
+          : language === 'en' && projectedRisk
+            ? `By season close (${seasonEndLabel}), projected ${region} in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, indicating elevated clearance pressure. Select 3 underperforming categories, execute 2-week markdown/reallocation, and review outcomes by month-end.`
         : seasonSellthrough === null
           ? language === 'ko'
         ? `${region} 당시즌 판매율 데이터 점검이 필요함. 데이터 공백 SKU를 이번 주 내 보정하고 월말까지 실행 성과를 점검.`
             : `${region} in-season sell-through data needs validation. Correct missing-SKU data this week and review execution outcomes by month-end.`
-        : seasonSellthrough < 60
+        : projectedSeasonEndSellthrough !== null
           ? language === 'ko'
-          ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 부담이 높음. 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
-            : `${region} in-season sell-through is ${fmtRate(seasonSellthrough)}, indicating elevated clearance pressure. Select 3 underperforming categories, execute 2-week markdown/reallocation, and review outcomes by month-end.`
+          ? `${region} 시즌마감일(${seasonEndLabel}) 기준 예상 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`
+            : `By season close (${seasonEndLabel}), projected ${region} in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, and depletion momentum is holding. Expand weekly best SKUs based on top strategies and review outcomes by month-end.`
           : language === 'ko'
             ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`
             : `${region} in-season sell-through is ${fmtRate(seasonSellthrough)}, and depletion momentum is holding. Expand weekly best SKUs based on top strategies and review execution outcomes by month-end.`;
@@ -244,6 +295,7 @@ function toneByLevel(v: number | null, good: number, warn: number): InsightTone 
 }
 
 function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 'ko') {
+  const seasonWindow = resolveSeasonWindow(input.asOfDate);
   const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
   const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
   const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
@@ -254,8 +306,8 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
   const stagnantRatioTw = input.tw.stagnantRatio ?? null;
   const stagnantRatioChangeHkmc = input.hkmc.stagnantRatioChange ?? null;
   const stagnantRatioChangeTw = input.tw.stagnantRatioChange ?? null;
-  const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, input.asOfDate);
-  const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, input.asOfDate);
+  const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, seasonWindow);
+  const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, seasonWindow);
   const oldHkmc = input.hkmc.oldStock ?? null;
   const oldTw = input.tw.oldStock ?? null;
   const invHkmc = input.hkmc.invDays ?? null;
@@ -313,6 +365,7 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
     invHkmc,
     stagnantRatioHkmc,
     stagnantRatioChangeHkmc,
+    seasonWindow,
     language
   );
   const [twAction1, twAction2] = buildRegionActions(
@@ -324,6 +377,7 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
     invTw,
     stagnantRatioTw,
     stagnantRatioChangeTw,
+    seasonWindow,
     language
   );
 
@@ -339,7 +393,7 @@ function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 
     compareLine,
     blocks,
     actions,
-    seasonEndDate: `${input.asOfDate.slice(0, 4)}-02-28`,
+    seasonEndDate: seasonWindow ? toIsoDate(seasonWindow.end) : '',
     seasonHkmcProjectedEom,
     seasonTwProjectedEom,
   };
@@ -569,7 +623,7 @@ export async function POST(req: Request) {
     const cacheKey = buildKey([
       'insights',
       'exec',
-      'v20',
+      'v21',
       languagePart,
       regionPart,
       input.brand,
