@@ -205,7 +205,9 @@ export default function Section2Card({
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-xs font-medium text-gray-600">
-                {language === 'ko' ? '카테고리별 택매출' : 'Tag Sales by Category'}
+                {language === 'ko'
+                  ? `당시즌${season ? `(${season}) ` : ' '}카테고리별 택매출`
+                  : `${season ? `In-season (${season}) ` : 'In-season '}Tag Sales by Category`}
               </p>
               <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
