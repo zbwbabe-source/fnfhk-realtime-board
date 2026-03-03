@@ -4,6 +4,16 @@ import { fetchSection2Sellthrough } from '@/lib/section2/sellthrough';
 
 export const dynamic = 'force-dynamic';
 
+function isLegacySnapshotPayload(payload: any): boolean {
+  const firstCategory = payload?.categories?.[0];
+  if (!firstCategory) return false;
+  return (
+    typeof firstCategory.sales_yoy_pct === 'undefined' ||
+    typeof firstCategory.discount_rate === 'undefined' ||
+    typeof firstCategory.discount_rate_diff === 'undefined'
+  );
+}
+
 /**
  * GET /api/section2/sellthrough
  * 
@@ -64,7 +74,7 @@ export async function GET(request: NextRequest) {
       ? null
       : await getSnapshot<any>('SECTION2', snapshotResource, region, brand, date);
 
-    if (snapshot) {
+    if (snapshot && !isLegacySnapshotPayload(snapshot.payload)) {
       // Redis HIT: 즉시 반환
       cacheHit = true;
       const durationMs = Date.now() - startTime;
@@ -82,6 +92,10 @@ export async function GET(request: NextRequest) {
       });
 
       return NextResponse.json(snapshot.payload);
+    }
+
+    if (snapshot && isLegacySnapshotPayload(snapshot.payload)) {
+      console.log('[section2] Legacy snapshot detected, regenerating', { region, brand, date, categoryFilter });
     }
 
     console.log('[section2] ⏳ Cache MISS, executing Snowflake query...');

@@ -164,6 +164,127 @@ export async function fetchSection2Sellthrough({
       ? `AND s.SUB_CTGR IN (${apparelCategoriesStr})`
       : '';
 
+  const buildCategorySnapshotQuery = (usePrepStock: boolean) =>
+    usePrepStock
+      ? `
+    WITH
+    latest_stock_yyyymm AS (
+      SELECT MAX(YYYYMM) AS stock_yyyymm
+      FROM SAP_FNF.PREP_HMD_STOCK
+      WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND TO_NUMBER(YYYYMM) <= TO_NUMBER(TO_CHAR(TO_DATE(?), 'YYYYMM'))
+    ),
+    ending_stock AS (
+      SELECT
+        s.SUB_CTGR AS category,
+        SUM(s.TAG_STOCK_AMT) AS stock_tag
+      FROM SAP_FNF.PREP_HMD_STOCK s
+      CROSS JOIN latest_stock_yyyymm l
+      WHERE
+        (CASE WHEN s.BRD_CD IN ('M', 'I') THEN 'M' ELSE s.BRD_CD END) = ?
+        AND s.SESN = ?
+        AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND s.YYYYMM = l.stock_yyyymm
+        ${prepCategoryWhereClauseWithAlias}
+      GROUP BY s.SUB_CTGR
+    ),
+    sales_agg AS (
+      SELECT
+        SUBSTR(PART_CD, 3, 2) AS category,
+        SUM(TAG_SALE_AMT) AS sales_tag
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE
+        (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND SALE_DT BETWEEN ? AND ?
+        ${productCategoryWhereClause}
+      GROUP BY SUBSTR(PART_CD, 3, 2)
+    )
+    SELECT
+      COALESCE(s.category, e.category) AS category,
+      COALESCE(s.sales_tag, 0) AS sales_tag,
+      COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag
+    FROM sales_agg s
+    FULL OUTER JOIN ending_stock e ON s.category = e.category
+    WHERE COALESCE(s.category, e.category) IS NOT NULL
+  `
+      : `
+    WITH
+    latest_stock_date AS (
+      SELECT MAX(STOCK_DT) AS stock_dt
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+      WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND STOCK_DT <= DATEADD(DAY, 1, ?)
+    ),
+    ending_stock AS (
+      SELECT
+        SUBSTR(s.PART_CD, 3, 2) AS category,
+        SUM(s.TAG_STOCK_AMT) AS stock_tag
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+      CROSS JOIN latest_stock_date l
+      WHERE
+        (CASE WHEN s.BRD_CD IN ('M', 'I') THEN 'M' ELSE s.BRD_CD END) = ?
+        AND s.SESN = ?
+        AND s.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND s.STOCK_DT = l.stock_dt
+        ${productCategoryWhereClauseWithAlias}
+      GROUP BY SUBSTR(s.PART_CD, 3, 2)
+    ),
+    sales_agg AS (
+      SELECT
+        SUBSTR(PART_CD, 3, 2) AS category,
+        SUM(TAG_SALE_AMT) AS sales_tag
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE
+        (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+        AND SESN = ?
+        AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND SALE_DT BETWEEN ? AND ?
+        ${productCategoryWhereClause}
+      GROUP BY SUBSTR(PART_CD, 3, 2)
+    )
+    SELECT
+      COALESCE(s.category, e.category) AS category,
+      COALESCE(s.sales_tag, 0) AS sales_tag,
+      COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag
+    FROM sales_agg s
+    FULL OUTER JOIN ending_stock e ON s.category = e.category
+    WHERE COALESCE(s.category, e.category) IS NOT NULL
+  `;
+
+  const fetchCategorySnapshot = async ({
+    usePrepStock,
+    season,
+    asofDate,
+    startDate,
+    applyRate,
+  }: {
+    usePrepStock: boolean;
+    season: string;
+    asofDate: string;
+    startDate: string;
+    applyRate: (amount: number | null) => number | null;
+  }) => {
+    const query = buildCategorySnapshotQuery(usePrepStock);
+    const binds = [brand, season, asofDate, brand, season, brand, season, startDate, asofDate];
+    const rows = await executeSnowflakeQuery(query, binds);
+    const result = new Map<string, { sales_tag: number; inbound_tag: number }>();
+    rows.forEach((r: any) => {
+      const category = String(r.CATEGORY || '').trim();
+      if (!category) return;
+      result.set(category, {
+        sales_tag: applyRate(parseFloat(r.SALES_TAG || 0)) || 0,
+        inbound_tag: applyRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
+      });
+    });
+    return result;
+  };
+
   const tyLatestStockCte = usePrepStockTy
     ? `
     latest_stock_yyyymm_ty AS (
@@ -482,6 +603,13 @@ export async function fetchSection2Sellthrough({
   ];
 
   const rows = await executeSnowflakeQuery(productQuery, productRowsBinds);
+  const categoryLySnapshot = await fetchCategorySnapshot({
+    usePrepStock: usePrepStockLy,
+    season: sesnLY,
+    asofDate: dateLY,
+    startDate: startDateLYStr,
+    applyRate: applyExchangeRateLY,
+  });
 
   // sales_tag > 0 또는 stock_tag > 0 데이터만 필터
   const validRows = rows.filter(
@@ -514,6 +642,8 @@ export async function fetchSection2Sellthrough({
         category: cat,
         inbound_tag: 0,
         sales_tag: 0,
+        inbound_tag_ly: 0,
+        sales_tag_ly: 0,
         inbound_qty: 0,
         sales_qty: 0,
         product_count: 0,
@@ -529,10 +659,26 @@ export async function fetchSection2Sellthrough({
   });
 
   // 판매율 계산 및 배열 변환
-  const categories = Array.from(categoryMap.values()).map((cat) => ({
-    ...cat,
-    sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
-  }));
+  const categories = Array.from(categoryMap.values())
+    .map((cat) => ({
+      ...cat,
+      sales_tag_ly: categoryLySnapshot.get(cat.category)?.sales_tag || 0,
+      inbound_tag_ly: categoryLySnapshot.get(cat.category)?.inbound_tag || 0,
+      sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
+    }))
+    .map((cat) => {
+      const discountRate = cat.inbound_tag > 0 ? (1 - cat.sales_tag / cat.inbound_tag) * 100 : null;
+      const discountRateLy =
+        cat.inbound_tag_ly > 0 ? (1 - cat.sales_tag_ly / cat.inbound_tag_ly) * 100 : null;
+      return {
+        ...cat,
+        sales_yoy_pct: cat.sales_tag_ly > 0 ? (cat.sales_tag / cat.sales_tag_ly) * 100 : null,
+        discount_rate: discountRate,
+        discount_rate_ly: discountRateLy,
+        discount_rate_diff:
+          discountRate !== null && discountRateLy !== null ? discountRate - discountRateLy : null,
+      };
+    });
 
   // 전체 합계 계산 (필터링된 품번 기준)
   const category_total = {

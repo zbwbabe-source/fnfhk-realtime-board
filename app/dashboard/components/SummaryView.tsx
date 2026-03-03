@@ -84,6 +84,7 @@ export default function SummaryView({
           onCategoryFilterChange={onCategoryFilterChange}
           region={regionCode}
           compactMainMetric={true}
+          showCategoryRanking={true}
         />
         <Section3Card
           section3Data={section3Data}

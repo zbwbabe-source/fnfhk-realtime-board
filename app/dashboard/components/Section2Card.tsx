@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 
 interface Section2CardProps {
@@ -11,6 +12,7 @@ interface Section2CardProps {
   compactMainMetric?: boolean;
   currencyCode?: 'HKD' | 'TWD';
   hkdToTwdRate?: number;
+  showCategoryRanking?: boolean;
 }
 
 export default function Section2Card({
@@ -22,7 +24,20 @@ export default function Section2Card({
   compactMainMetric = false,
   currencyCode = 'HKD',
   hkdToTwdRate = 1,
+  showCategoryRanking = false,
 }: Section2CardProps) {
+  type CategoryRankingCard = {
+    key: string;
+    category: string;
+    salesTag: number;
+    sellthroughPct: number;
+    salesYoyPct: number | null;
+    discountRate: number | null;
+    discountRateDiff: number | null;
+  };
+
+  const [rankingView, setRankingView] = useState<'top5' | 'worst5'>('top5');
+
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
     if (converted >= 1000000) return (converted / 1000000).toFixed(1) + 'M';
@@ -68,6 +83,34 @@ export default function Section2Card({
     if (v < pivot) return 'text-red-700 bg-red-50';
     return 'text-gray-700 bg-gray-100';
   };
+
+  const categoryRankingCards = useMemo(() => {
+    const categories = Array.isArray(section2Data?.categories) ? section2Data.categories : [];
+    const normalized: CategoryRankingCard[] = categories
+      .map((item: any, idx: number) => ({
+        key: `${String(item?.category ?? 'UNK')}-${idx}`,
+        category: String(item?.category ?? 'UNK').slice(0, 2),
+        salesTag: Number(item?.sales_tag ?? 0),
+        sellthroughPct: Number(item?.sellthrough ?? 0),
+        salesYoyPct: item?.sales_yoy_pct === null || item?.sales_yoy_pct === undefined ? null : Number(item.sales_yoy_pct),
+        discountRate: item?.discount_rate === null || item?.discount_rate === undefined ? null : Number(item.discount_rate),
+        discountRateDiff:
+          item?.discount_rate_diff === null || item?.discount_rate_diff === undefined
+            ? null
+            : Number(item.discount_rate_diff),
+      }))
+      .filter((item: CategoryRankingCard) => Number.isFinite(item.salesTag) && item.salesTag > 0);
+
+    if (normalized.length === 0) return [];
+
+    const sortedBySales = [...normalized].sort((a, b) => b.salesTag - a.salesTag);
+    const top5 = sortedBySales.slice(0, 5);
+    const worst5 = [...sortedBySales]
+      .slice(-5)
+      .sort((a, b) => b.salesTag - a.salesTag);
+
+    return rankingView === 'top5' ? top5 : worst5;
+  }, [section2Data, rankingView]);
 
   return (
     <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
@@ -128,6 +171,80 @@ export default function Section2Card({
           </span>
         </div>
       </div>
+
+      {showCategoryRanking && categoryRankingCards.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-medium text-gray-600">
+              {language === 'ko' ? '택매출' : 'Tag Sales'}
+            </p>
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <button
+                onClick={() => setRankingView('top5')}
+                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  rankingView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {language === 'ko' ? '상위' : 'Top'}
+              </button>
+              <button
+                onClick={() => setRankingView('worst5')}
+                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  rankingView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {language === 'ko' ? '하위' : 'Bottom'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+            {categoryRankingCards.map((item) => (
+              <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
+                <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.category}</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.salesTag)}</p>
+                <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                  {language === 'ko' ? '판매율' : 'Sell-through'} {item.sellthroughPct.toFixed(1)}%
+                </p>
+                <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                  {item.salesYoyPct !== null && Number.isFinite(item.salesYoyPct)
+                    ? `YoY ${item.salesYoyPct.toFixed(0)}%`
+                    : 'YoY -'}
+                </p>
+                <p className="mt-0.5 text-xs tabular-nums">
+                  <span className="text-gray-600">
+                    {language === 'ko' ? '할인율' : 'Discount'}{' '}
+                    {item.discountRate !== null && Number.isFinite(item.discountRate)
+                      ? `${item.discountRate.toFixed(1)}%`
+                      : '-'}
+                  </span>{' '}
+                  <span
+                    className={`font-semibold ${
+                      item.discountRateDiff === null || !Number.isFinite(item.discountRateDiff)
+                        ? 'text-gray-600'
+                        : item.discountRateDiff > 0
+                          ? 'text-red-600'
+                          : item.discountRateDiff < 0
+                            ? 'text-green-600'
+                            : 'text-gray-600'
+                    }`}
+                  >
+                    (
+                    {item.discountRateDiff === null || !Number.isFinite(item.discountRateDiff)
+                      ? '-'
+                      : item.discountRateDiff > 0
+                        ? `+${item.discountRateDiff.toFixed(1)}%p`
+                        : item.discountRateDiff < 0
+                          ? `\u25B3${Math.abs(item.discountRateDiff).toFixed(1)}%p`
+                          : '0.0%p'}
+                    )
+                  </span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
         {currencyUnit} | {t(language, 'tagBasis')}
