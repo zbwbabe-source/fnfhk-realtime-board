@@ -292,7 +292,11 @@ export default function Section1Card({
                     activeDetailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '상위' : 'Top'}
+                  {language === 'ko' ? (
+                    <span className="inline-block leading-tight">상위<br />매장</span>
+                  ) : (
+                    'Top'
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveDetailView('worst5')}
@@ -300,7 +304,11 @@ export default function Section1Card({
                     activeDetailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '하위' : 'Bottom'}
+                  {language === 'ko' ? (
+                    <span className="inline-block leading-tight">하위<br />매장</span>
+                  ) : (
+                    'Bottom'
+                  )}
                 </button>
               </div>
             )}
