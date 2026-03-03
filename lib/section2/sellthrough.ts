@@ -9,6 +9,7 @@ import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-ut
  */
 export interface SellthroughPayload {
   asof_date: string;
+  cum_start_date: string;
   stock_dt_used: string;
   region: string;
   brand: string;
@@ -79,6 +80,7 @@ export async function fetchSection2Sellthrough({
   if (allStoreCodes.length === 0 || salesStoreCodes.length === 0) {
     return {
       asof_date: date,
+      cum_start_date: startDateStr,
       stock_dt_used: formatDateYYYYMMDD(new Date(new Date(date).getTime() + 86400000)),
       region,
       brand,
@@ -193,6 +195,7 @@ export async function fetchSection2Sellthrough({
     sales_agg AS (
       SELECT
         SUBSTR(PART_CD, 3, 2) AS category,
+        SUM(ACT_SALE_AMT) AS sales_act,
         SUM(TAG_SALE_AMT) AS sales_tag
       FROM SAP_FNF.DW_HMD_SALE_D
       WHERE
@@ -205,6 +208,7 @@ export async function fetchSection2Sellthrough({
     )
     SELECT
       COALESCE(s.category, e.category) AS category,
+      COALESCE(s.sales_act, 0) AS sales_act,
       COALESCE(s.sales_tag, 0) AS sales_tag,
       COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag
     FROM sales_agg s
@@ -238,6 +242,7 @@ export async function fetchSection2Sellthrough({
     sales_agg AS (
       SELECT
         SUBSTR(PART_CD, 3, 2) AS category,
+        SUM(ACT_SALE_AMT) AS sales_act,
         SUM(TAG_SALE_AMT) AS sales_tag
       FROM SAP_FNF.DW_HMD_SALE_D
       WHERE
@@ -250,6 +255,7 @@ export async function fetchSection2Sellthrough({
     )
     SELECT
       COALESCE(s.category, e.category) AS category,
+      COALESCE(s.sales_act, 0) AS sales_act,
       COALESCE(s.sales_tag, 0) AS sales_tag,
       COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag
     FROM sales_agg s
@@ -273,11 +279,12 @@ export async function fetchSection2Sellthrough({
     const query = buildCategorySnapshotQuery(usePrepStock);
     const binds = [brand, season, asofDate, brand, season, brand, season, startDate, asofDate];
     const rows = await executeSnowflakeQuery(query, binds);
-    const result = new Map<string, { sales_tag: number; inbound_tag: number }>();
+    const result = new Map<string, { sales_act: number; sales_tag: number; inbound_tag: number }>();
     rows.forEach((r: any) => {
       const category = String(r.CATEGORY || '').trim();
       if (!category) return;
       result.set(category, {
+        sales_act: applyRate(parseFloat(r.SALES_ACT || 0)) || 0,
         sales_tag: applyRate(parseFloat(r.SALES_TAG || 0)) || 0,
         inbound_tag: applyRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
       });
@@ -499,6 +506,7 @@ export async function fetchSection2Sellthrough({
       SELECT
         SUBSTR(PART_CD, 3, 2) AS PRDT_CD,
         CONCAT('XX', SUBSTR(PART_CD, 3, 2)) AS PART_CD,
+        SUM(ACT_SALE_AMT) AS sales_act,
         SUM(TAG_SALE_AMT) AS sales_tag,
         SUM(SALE_QTY) AS sales_qty
       FROM SAP_FNF.DW_HMD_SALE_D
@@ -513,6 +521,7 @@ export async function fetchSection2Sellthrough({
     SELECT
       COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
       SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
+      COALESCE(s.sales_act, 0) AS sales_act,
       COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
       COALESCE(s.sales_tag, 0) AS sales_tag,
       COALESCE(e.stock_tag, 0) AS stock_tag,
@@ -559,6 +568,7 @@ export async function fetchSection2Sellthrough({
       SELECT 
         PRDT_CD, 
         ANY_VALUE(PART_CD) AS PART_CD, 
+        SUM(ACT_SALE_AMT) AS sales_act,
         SUM(TAG_SALE_AMT) AS sales_tag,
         SUM(SALE_QTY) AS sales_qty
       FROM SAP_FNF.DW_HMD_SALE_D
@@ -573,6 +583,7 @@ export async function fetchSection2Sellthrough({
     SELECT
       COALESCE(s.PRDT_CD, e.PRDT_CD) AS prdt_cd,
       SUBSTR(COALESCE(e.PART_CD, s.PART_CD), 3, 2) AS category,
+      COALESCE(s.sales_act, 0) AS sales_act,
       COALESCE(s.sales_tag, 0) + COALESCE(e.stock_tag, 0) AS inbound_tag,
       COALESCE(s.sales_tag, 0) AS sales_tag,
       COALESCE(e.stock_tag, 0) AS stock_tag,
@@ -611,6 +622,107 @@ export async function fetchSection2Sellthrough({
     applyRate: applyExchangeRateLY,
   });
 
+  const categoryPeriodQuery = `
+    SELECT
+      SUBSTR(PART_CD, 3, 2) AS category,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS ytd_sales_act,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS ytd_sales_tag,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS ytd_sales_act_ly,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS ytd_sales_tag_ly,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS mtd_sales_act,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS mtd_sales_tag,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN ACT_SALE_AMT ELSE 0
+        END
+      ) AS mtd_sales_act_ly,
+      SUM(
+        CASE
+          WHEN SESN = ? AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          THEN TAG_SALE_AMT ELSE 0
+        END
+      ) AS mtd_sales_tag_ly
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE
+      (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+      AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      AND SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND TO_DATE(?)
+      ${productCategoryWhereClause}
+    GROUP BY SUBSTR(PART_CD, 3, 2)
+  `;
+
+  const categoryPeriodRows = await executeSnowflakeQuery(categoryPeriodQuery, [
+    sesn, date, date,
+    sesn, date, date,
+    sesnLY, date, date,
+    sesnLY, date, date,
+    sesn, date, date,
+    sesn, date, date,
+    sesnLY, date, date,
+    sesnLY, date, date,
+    brand,
+    date,
+    date,
+  ]);
+  const categoryPeriodMap = new Map<
+    string,
+    {
+      ytd_sales_act: number;
+      ytd_sales_tag: number;
+      ytd_sales_act_ly: number;
+      ytd_sales_tag_ly: number;
+      mtd_sales_act: number;
+      mtd_sales_tag: number;
+      mtd_sales_act_ly: number;
+      mtd_sales_tag_ly: number;
+    }
+  >();
+  categoryPeriodRows.forEach((r: any) => {
+    const category = String(r.CATEGORY || '').trim();
+    if (!category) return;
+    categoryPeriodMap.set(category, {
+      ytd_sales_act: applyExchangeRate(parseFloat(r.YTD_SALES_ACT || 0)) || 0,
+      ytd_sales_tag: applyExchangeRate(parseFloat(r.YTD_SALES_TAG || 0)) || 0,
+      ytd_sales_act_ly: applyExchangeRateLY(parseFloat(r.YTD_SALES_ACT_LY || 0)) || 0,
+      ytd_sales_tag_ly: applyExchangeRateLY(parseFloat(r.YTD_SALES_TAG_LY || 0)) || 0,
+      mtd_sales_act: applyExchangeRate(parseFloat(r.MTD_SALES_ACT || 0)) || 0,
+      mtd_sales_tag: applyExchangeRate(parseFloat(r.MTD_SALES_TAG || 0)) || 0,
+      mtd_sales_act_ly: applyExchangeRateLY(parseFloat(r.MTD_SALES_ACT_LY || 0)) || 0,
+      mtd_sales_tag_ly: applyExchangeRateLY(parseFloat(r.MTD_SALES_TAG_LY || 0)) || 0,
+    });
+  });
+
   // sales_tag > 0 또는 stock_tag > 0 데이터만 필터
   const validRows = rows.filter(
     (r: any) => parseFloat(r.SALES_TAG || 0) > 0 || parseFloat(r.STOCK_TAG || 0) > 0
@@ -625,6 +737,7 @@ export async function fetchSection2Sellthrough({
   const allProducts = validRows.map((r: any) => ({
     prdt_cd: r.PRDT_CD,
     category: r.CATEGORY,
+    sales_act: applyExchangeRate(parseFloat(r.SALES_ACT || 0)) || 0,
     inbound_tag: applyExchangeRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
     sales_tag: applyExchangeRate(parseFloat(r.SALES_TAG || 0)) || 0,
     inbound_qty: parseInt(r.INBOUND_QTY || 0),
@@ -640,8 +753,10 @@ export async function fetchSection2Sellthrough({
     if (!categoryMap.has(cat)) {
       categoryMap.set(cat, {
         category: cat,
+        sales_act: 0,
         inbound_tag: 0,
         sales_tag: 0,
+        sales_act_ly: 0,
         inbound_tag_ly: 0,
         sales_tag_ly: 0,
         inbound_qty: 0,
@@ -651,6 +766,7 @@ export async function fetchSection2Sellthrough({
     }
 
     const catData = categoryMap.get(cat);
+    catData.sales_act += product.sales_act;
     catData.inbound_tag += product.inbound_tag;
     catData.sales_tag += product.sales_tag;
     catData.inbound_qty += product.inbound_qty;
@@ -662,21 +778,37 @@ export async function fetchSection2Sellthrough({
   const categories = Array.from(categoryMap.values())
     .map((cat) => ({
       ...cat,
+      sales_act: cat.sales_act,
+      sales_tag: cat.sales_tag,
+      sales_act_ly: categoryLySnapshot.get(cat.category)?.sales_act || 0,
       sales_tag_ly: categoryLySnapshot.get(cat.category)?.sales_tag || 0,
-      inbound_tag_ly: categoryLySnapshot.get(cat.category)?.inbound_tag || 0,
+      mtd_sales_act: categoryPeriodMap.get(cat.category)?.mtd_sales_act || 0,
+      mtd_sales_tag: categoryPeriodMap.get(cat.category)?.mtd_sales_tag || 0,
+      mtd_sales_act_ly: categoryPeriodMap.get(cat.category)?.mtd_sales_act_ly || 0,
+      mtd_sales_tag_ly: categoryPeriodMap.get(cat.category)?.mtd_sales_tag_ly || 0,
       sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
     }))
     .map((cat) => {
-      const discountRate = cat.inbound_tag > 0 ? (1 - cat.sales_tag / cat.inbound_tag) * 100 : null;
+      const discountRate = cat.sales_tag > 0 ? (1 - cat.sales_act / cat.sales_tag) * 100 : null;
       const discountRateLy =
-        cat.inbound_tag_ly > 0 ? (1 - cat.sales_tag_ly / cat.inbound_tag_ly) * 100 : null;
+        cat.sales_tag_ly > 0 ? (1 - cat.sales_act_ly / cat.sales_tag_ly) * 100 : null;
+      const mtdDiscountRate = cat.mtd_sales_tag > 0 ? (1 - cat.mtd_sales_act / cat.mtd_sales_tag) * 100 : null;
+      const mtdDiscountRateLy =
+        cat.mtd_sales_tag_ly > 0 ? (1 - cat.mtd_sales_act_ly / cat.mtd_sales_tag_ly) * 100 : null;
       return {
         ...cat,
+        cum_basis: 'season_minus_6m',
+        period_scope: 'season',
         sales_yoy_pct: cat.sales_tag_ly > 0 ? (cat.sales_tag / cat.sales_tag_ly) * 100 : null,
+        mtd_sales_yoy_pct: cat.mtd_sales_tag_ly > 0 ? (cat.mtd_sales_tag / cat.mtd_sales_tag_ly) * 100 : null,
         discount_rate: discountRate,
         discount_rate_ly: discountRateLy,
         discount_rate_diff:
           discountRate !== null && discountRateLy !== null ? discountRate - discountRateLy : null,
+        mtd_discount_rate: mtdDiscountRate,
+        mtd_discount_rate_ly: mtdDiscountRateLy,
+        mtd_discount_rate_diff:
+          mtdDiscountRate !== null && mtdDiscountRateLy !== null ? mtdDiscountRate - mtdDiscountRateLy : null,
       };
     });
 
@@ -711,6 +843,7 @@ export async function fetchSection2Sellthrough({
 
   return {
     asof_date: date,
+    cum_start_date: startDateStr,
     stock_dt_used: stockDtUsed,
     region,
     brand,

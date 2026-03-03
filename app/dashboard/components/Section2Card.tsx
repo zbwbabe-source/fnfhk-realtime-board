@@ -30,13 +30,18 @@ export default function Section2Card({
     key: string;
     category: string;
     salesTag: number;
+    mtdSalesTag: number;
     sellthroughPct: number;
     salesYoyPct: number | null;
+    mtdSalesYoyPct: number | null;
     discountRate: number | null;
     discountRateDiff: number | null;
+    mtdDiscountRate: number | null;
+    mtdDiscountRateDiff: number | null;
   };
 
   const [rankingView, setRankingView] = useState<'top5' | 'worst5'>('top5');
+  const [periodView, setPeriodView] = useState<'cum' | 'mtd'>('mtd');
 
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
@@ -86,31 +91,54 @@ export default function Section2Card({
 
   const categoryRankingCards = useMemo(() => {
     const categories = Array.isArray(section2Data?.categories) ? section2Data.categories : [];
+    const getAmount = (item: CategoryRankingCard) => (periodView === 'cum' ? item.salesTag : item.mtdSalesTag);
     const normalized: CategoryRankingCard[] = categories
       .map((item: any, idx: number) => ({
         key: `${String(item?.category ?? 'UNK')}-${idx}`,
         category: String(item?.category ?? 'UNK').slice(0, 2),
         salesTag: Number(item?.sales_tag ?? 0),
+        mtdSalesTag: Number(item?.mtd_sales_tag ?? 0),
         sellthroughPct: Number(item?.sellthrough ?? 0),
         salesYoyPct: item?.sales_yoy_pct === null || item?.sales_yoy_pct === undefined ? null : Number(item.sales_yoy_pct),
+        mtdSalesYoyPct:
+          item?.mtd_sales_yoy_pct === null || item?.mtd_sales_yoy_pct === undefined ? null : Number(item.mtd_sales_yoy_pct),
         discountRate: item?.discount_rate === null || item?.discount_rate === undefined ? null : Number(item.discount_rate),
         discountRateDiff:
           item?.discount_rate_diff === null || item?.discount_rate_diff === undefined
             ? null
             : Number(item.discount_rate_diff),
+        mtdDiscountRate:
+          item?.mtd_discount_rate === null || item?.mtd_discount_rate === undefined ? null : Number(item.mtd_discount_rate),
+        mtdDiscountRateDiff:
+          item?.mtd_discount_rate_diff === null || item?.mtd_discount_rate_diff === undefined
+            ? null
+            : Number(item.mtd_discount_rate_diff),
       }))
-      .filter((item: CategoryRankingCard) => Number.isFinite(item.salesTag) && item.salesTag > 0);
+      .filter((item: CategoryRankingCard) => Number.isFinite(getAmount(item)) && getAmount(item) > 0);
 
     if (normalized.length === 0) return [];
 
-    const sortedBySales = [...normalized].sort((a, b) => b.salesTag - a.salesTag);
+    const sortedBySales = [...normalized].sort((a, b) => getAmount(b) - getAmount(a));
     const top5 = sortedBySales.slice(0, 5);
     const worst5 = [...sortedBySales]
       .slice(-5)
-      .sort((a, b) => b.salesTag - a.salesTag);
+      .sort((a, b) => getAmount(b) - getAmount(a));
 
     return rankingView === 'top5' ? top5 : worst5;
-  }, [section2Data, rankingView]);
+  }, [section2Data, rankingView, periodView]);
+
+  const periodLabel = useMemo(() => {
+    const asof = String(section2Data?.asof_date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asof)) return '';
+    const asofLabel = `${asof.slice(0, 4)}/${asof.slice(5, 7)}/${asof.slice(8, 10)}`;
+    if (periodView === 'cum') {
+      const cumStart = String(section2Data?.cum_start_date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cumStart)) return asofLabel;
+      const cumStartLabel = `${cumStart.slice(0, 4)}/${cumStart.slice(5, 7)}/${cumStart.slice(8, 10)}`;
+      return `${cumStartLabel}~${asofLabel}`;
+    }
+    return `${asof.slice(0, 4)}/${asof.slice(5, 7)}/01~${asofLabel}`;
+  }, [section2Data, periodView]);
 
   return (
     <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
@@ -175,9 +203,30 @@ export default function Section2Card({
       {showCategoryRanking && categoryRankingCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-medium text-gray-600">
-              {language === 'ko' ? '택매출' : 'Tag Sales'}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-gray-600">
+                {language === 'ko' ? '카테고리별 택매출' : 'Tag Sales by Category'}
+              </p>
+              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <button
+                  onClick={() => setPeriodView('mtd')}
+                  className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                    periodView === 'mtd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '당월' : 'MTD'}
+                </button>
+                <button
+                  onClick={() => setPeriodView('cum')}
+                  className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                    periodView === 'cum' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '누적' : 'Cum'}
+                </button>
+              </div>
+              {periodLabel && <p className="text-[11px] text-gray-500">{periodLabel}</p>}
+            </div>
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => setRankingView('top5')}
@@ -199,43 +248,50 @@ export default function Section2Card({
           </div>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-            {categoryRankingCards.map((item) => (
+            {categoryRankingCards.map((item, idx) => (
               <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
-                <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.category}</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.salesTag)}</p>
+                <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{`${idx + 1}. ${item.category}`}</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">
+                  {formatCurrency(periodView === 'cum' ? item.salesTag : item.mtdSalesTag)}
+                </p>
                 <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
                   {language === 'ko' ? '판매율' : 'Sell-through'} {item.sellthroughPct.toFixed(1)}%
                 </p>
                 <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
-                  {item.salesYoyPct !== null && Number.isFinite(item.salesYoyPct)
-                    ? `YoY ${item.salesYoyPct.toFixed(0)}%`
-                    : 'YoY -'}
+                  {language === 'ko' ? (periodView === 'mtd' ? '당월YOY ' : '누적YOY ') : 'YoY '}
+                  {(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct) !== null &&
+                  Number.isFinite(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct)
+                    ? `${(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct)!.toFixed(0)}%`
+                    : '-'}
                 </p>
                 <p className="mt-0.5 text-xs tabular-nums">
                   <span className="text-gray-600">
                     {language === 'ko' ? '할인율' : 'Discount'}{' '}
-                    {item.discountRate !== null && Number.isFinite(item.discountRate)
-                      ? `${item.discountRate.toFixed(1)}%`
+                    {(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate) !== null &&
+                    Number.isFinite(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)
+                      ? `${(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)!.toFixed(1)}%`
                       : '-'}
                   </span>{' '}
                   <span
                     className={`font-semibold ${
-                      item.discountRateDiff === null || !Number.isFinite(item.discountRateDiff)
+                      (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff) === null ||
+                      !Number.isFinite(periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)
                         ? 'text-gray-600'
-                        : item.discountRateDiff > 0
+                        : (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)! > 0
                           ? 'text-red-600'
-                          : item.discountRateDiff < 0
+                          : (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)! < 0
                             ? 'text-green-600'
                             : 'text-gray-600'
                     }`}
                   >
                     (
-                    {item.discountRateDiff === null || !Number.isFinite(item.discountRateDiff)
+                    {(periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff) === null ||
+                    !Number.isFinite(periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)
                       ? '-'
-                      : item.discountRateDiff > 0
-                        ? `+${item.discountRateDiff.toFixed(1)}%p`
-                        : item.discountRateDiff < 0
-                          ? `\u25B3${Math.abs(item.discountRateDiff).toFixed(1)}%p`
+                      : (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)! > 0
+                        ? `+${(periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)!.toFixed(1)}%p`
+                        : (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)! < 0
+                          ? `\u25B3${Math.abs((periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)!).toFixed(1)}%p`
                           : '0.0%p'}
                     )
                   </span>

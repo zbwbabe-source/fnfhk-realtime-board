@@ -8,6 +8,14 @@ function isLegacySnapshotPayload(payload: any): boolean {
   const firstCategory = payload?.categories?.[0];
   if (!firstCategory) return false;
   return (
+    firstCategory.cum_basis !== 'season_minus_6m' ||
+    firstCategory.period_scope !== 'season' ||
+    typeof payload?.cum_start_date === 'undefined' ||
+    typeof firstCategory.sales_act === 'undefined' ||
+    typeof firstCategory.mtd_sales_tag === 'undefined' ||
+    typeof firstCategory.mtd_sales_yoy_pct === 'undefined' ||
+    typeof firstCategory.mtd_discount_rate === 'undefined' ||
+    typeof firstCategory.mtd_discount_rate_diff === 'undefined' ||
     typeof firstCategory.sales_yoy_pct === 'undefined' ||
     typeof firstCategory.discount_rate === 'undefined' ||
     typeof firstCategory.discount_rate_diff === 'undefined'
