@@ -79,6 +79,11 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'curr_stock_yoy_pct');
+        const hasComputedCurrentStockYoY =
+          payload &&
+          payload.header &&
+          payload.header.curr_stock_yoy_pct !== null &&
+          payload.header.curr_stock_yoy_pct !== undefined;
         const hasPeriodTagSales =
           payload &&
           payload.header &&
@@ -88,7 +93,9 @@ export async function GET(request: NextRequest) {
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'period_act_sales');
 
-        if (hasCurrentStockYoY && hasPeriodTagSales && hasPeriodActSales) {
+        const isYoYCacheUsable = includeYoY ? hasComputedCurrentStockYoY : hasCurrentStockYoY;
+
+        if (isYoYCacheUsable && hasPeriodTagSales && hasPeriodActSales) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
           const durationMs = Date.now() - startTime;
 

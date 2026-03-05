@@ -123,15 +123,11 @@ export default function DashboardPage() {
         setTwSection3Data(null);
 
         const mode = isYtdMode ? 'ytd' : 'mtd';
-        const canonicalLatestDate = availableDates[0] || latestDate;
-        const isLatest = !!canonicalLatestDate && date === canonicalLatestDate;
         const summaryKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}`;
-        const shouldForceRefresh = isLatest && !refreshedSummaryKeysRef.current.has(summaryKey);
-        const fetchOptions = shouldForceRefresh
-          ? { cache: 'no-store' as const, signal: controller.signal }
-          : { signal: controller.signal };
+        const shouldForceRefresh = false;
+        const fetchOptions = { signal: controller.signal };
         const section3FetchOptions = { signal: controller.signal };
-        const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
+        const forceRefreshParam = '';
         const fetchJson = async (
           url: string,
           options: RequestInit = fetchOptions,
@@ -233,12 +229,8 @@ export default function DashboardPage() {
         setSection1Data(null);
         setDataLoadStatus((prev) => ({ ...prev, section1: 'loading' }));
 
-        const isLatestDate = !!availableDates[0] && date === availableDates[0];
-        const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}${isLatestDate ? '&forceRefresh=true' : ''}`;
-        const res = await fetch(
-          url,
-          isLatestDate ? { cache: 'no-store', signal: controller.signal } : { signal: controller.signal }
-        );
+        const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}`;
+        const res = await fetch(url, { signal: controller.signal });
 
         if (!res.ok) {
           throw new Error('Failed to fetch section1 detail data');
