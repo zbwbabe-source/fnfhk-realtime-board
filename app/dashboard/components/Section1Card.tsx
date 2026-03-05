@@ -68,7 +68,9 @@ export default function Section1Card({
   const isTwRegion = region === 'TW';
   const salesLabel = isTwRegion
     ? t(language, 'actualSalesVPlus')
-    : t(language, isYtdMode ? 'ytdActual' : 'monthlyActual');
+    : language === 'ko'
+      ? '실판매출'
+      : 'Actual Sales';
 
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
