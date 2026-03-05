@@ -1,6 +1,41 @@
 const fs = require('fs');
 const path = require('path');
 
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function toNumber(value) {
+  if (!value) return 0;
+  const cleaned = String(value).replace(/,/g, '').trim();
+  if (cleaned === '-' || cleaned === '') return 0;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
 async function convertTarget() {
   const csvPath = path.join(process.cwd(), 'TARGET.csv');
   const outputPath = path.join(process.cwd(), 'data', 'target.json');
@@ -15,20 +50,20 @@ async function convertTarget() {
   
   // Manual CSV parsing
   const lines = csvContent.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = parseCsvLine(lines[0]);
   
   console.log('CSV Headers:', headers);
   
   const targets = {};
   
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim());
+    const values = parseCsvLine(lines[i]);
     if (values.length < 6) continue;
     
     const year = values[0]; // e.g., "2026"
     const month = values[1]; // e.g., "1"
     const storeCode = values[2]; // e.g., "M01"
-    const targetValue = parseFloat(values[3]) || 0;
+    const targetValue = toNumber(values[3]);
     const country = values[4];
     const currency = values[5];
     
