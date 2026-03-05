@@ -20,6 +20,7 @@ interface ProductRow {
   category: string;
   inbound_tag: number;
   sales_tag: number;
+  sales_yoy_pct?: number | null;
   inbound_qty: number;
   sales_qty: number;
   sellthrough: number;
@@ -29,6 +30,7 @@ interface CategoryRow {
   category: string;
   inbound_tag: number;
   sales_tag: number;
+  sales_yoy_pct?: number | null;
   inbound_qty: number;
   sales_qty: number;
   sellthrough: number;
@@ -297,6 +299,9 @@ export default function Section2SellThrough({
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatNumber(row.sales_tag)}
       </td>
+      <td className={`px-4 py-2 border-b border-gray-200 text-right font-medium ${metricTone(row.sales_yoy_pct, 100)}`}>
+        {row.sales_yoy_pct === null || row.sales_yoy_pct === undefined ? '-' : `${row.sales_yoy_pct.toFixed(0)}%`}
+      </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right font-medium">
         {formatPercent(row.sellthrough)}
       </td>
@@ -495,6 +500,13 @@ export default function Section2SellThrough({
                             {t(language, 'salesTag')}
                             {getCategorySortIcon('sales_tag')}
                           </th>
+                          <th
+                            className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
+                            onClick={() => handleCategorySort('sales_yoy_pct')}
+                          >
+                            {language === 'ko' ? '누적판매 YoY' : 'Sales YoY'}
+                            {getCategorySortIcon('sales_yoy_pct')}
+                          </th>
                           <th 
                             className="px-4 py-2 text-right font-medium text-gray-700 cursor-pointer hover:bg-blue-100"
                             onClick={() => handleCategorySort('sellthrough')}
@@ -523,6 +535,11 @@ export default function Section2SellThrough({
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
                               {formatNumber(data.category_total.sales_tag)}
+                            </td>
+                            <td className={`px-4 py-2 border-t-2 border-gray-300 text-right ${metricTone(data.category_total.sales_yoy_pct, 100)}`}>
+                              {data.category_total.sales_yoy_pct === null || data.category_total.sales_yoy_pct === undefined
+                                ? '-'
+                                : `${data.category_total.sales_yoy_pct.toFixed(0)}%`}
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
                               {formatPercent(data.category_total.sellthrough)}

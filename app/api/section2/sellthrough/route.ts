@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 function isLegacySnapshotPayload(payload: any): boolean {
   const firstCategory = payload?.categories?.[0];
+  const firstProduct = payload?.all_products?.[0];
   if (!firstCategory) return false;
   return (
     firstCategory.cum_basis !== 'season_minus_6m' ||
@@ -17,8 +18,13 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof firstCategory.mtd_discount_rate === 'undefined' ||
     typeof firstCategory.mtd_discount_rate_diff === 'undefined' ||
     typeof firstCategory.sales_yoy_pct === 'undefined' ||
+    typeof firstCategory.sellthrough_yoy_pp === 'undefined' ||
+    typeof firstCategory.inbound_tag_ly === 'undefined' ||
     typeof firstCategory.discount_rate === 'undefined' ||
-    typeof firstCategory.discount_rate_diff === 'undefined'
+    typeof firstCategory.discount_rate_diff === 'undefined' ||
+    typeof payload?.category_total?.sales_yoy_pct === 'undefined' ||
+    typeof payload?.category_total?.sellthrough_yoy_pp === 'undefined' ||
+    (firstProduct && typeof firstProduct.sales_yoy_pct === 'undefined')
   );
 }
 

@@ -614,6 +614,45 @@ export async function fetchSection2Sellthrough({
   ];
 
   const rows = await executeSnowflakeQuery(productQuery, productRowsBinds);
+  const productLySalesQuery = usePrepStockTy
+    ? `
+    SELECT
+      SUBSTR(PART_CD, 3, 2) AS prdt_cd,
+      SUM(TAG_SALE_AMT) AS sales_tag_ly
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE
+      (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+      AND SESN = ?
+      AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      AND SALE_DT BETWEEN ? AND ?
+      ${productCategoryWhereClause}
+    GROUP BY SUBSTR(PART_CD, 3, 2)
+  `
+    : `
+    SELECT
+      PRDT_CD AS prdt_cd,
+      SUM(TAG_SALE_AMT) AS sales_tag_ly
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE
+      (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
+      AND SESN = ?
+      AND LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      AND SALE_DT BETWEEN ? AND ?
+      ${productCategoryWhereClause}
+    GROUP BY PRDT_CD
+  `;
+  const productLyRows = await executeSnowflakeQuery(productLySalesQuery, [
+    brand,
+    sesnLY,
+    startDateLYStr,
+    dateLY,
+  ]);
+  const productLySalesMap = new Map<string, number>();
+  productLyRows.forEach((r: any) => {
+    const key = String(r.PRDT_CD || '').trim();
+    if (!key) return;
+    productLySalesMap.set(key, applyExchangeRateLY(parseFloat(r.SALES_TAG_LY || 0)) || 0);
+  });
   const categoryLySnapshot = await fetchCategorySnapshot({
     usePrepStock: usePrepStockLy,
     season: sesnLY,
@@ -740,9 +779,14 @@ export async function fetchSection2Sellthrough({
     sales_act: applyExchangeRate(parseFloat(r.SALES_ACT || 0)) || 0,
     inbound_tag: applyExchangeRate(parseFloat(r.INBOUND_TAG || 0)) || 0,
     sales_tag: applyExchangeRate(parseFloat(r.SALES_TAG || 0)) || 0,
+    sales_tag_ly: productLySalesMap.get(String(r.PRDT_CD || '').trim()) || 0,
+    sales_yoy_pct: null as number | null,
     inbound_qty: parseInt(r.INBOUND_QTY || 0),
     sales_qty: parseInt(r.SALES_QTY || 0),
     sellthrough: parseFloat(r.SELLTHROUGH_PCT || 0),
+  })).map((row) => ({
+    ...row,
+    sales_yoy_pct: row.sales_tag_ly > 0 ? (row.sales_tag / row.sales_tag_ly) * 100 : null,
   }));
 
   // 중분류별 집계 (카테고리 그룹핑)
@@ -781,12 +825,19 @@ export async function fetchSection2Sellthrough({
       sales_act: cat.sales_act,
       sales_tag: cat.sales_tag,
       sales_act_ly: categoryLySnapshot.get(cat.category)?.sales_act || 0,
+      inbound_tag_ly: categoryLySnapshot.get(cat.category)?.inbound_tag || 0,
       sales_tag_ly: categoryLySnapshot.get(cat.category)?.sales_tag || 0,
       mtd_sales_act: categoryPeriodMap.get(cat.category)?.mtd_sales_act || 0,
       mtd_sales_tag: categoryPeriodMap.get(cat.category)?.mtd_sales_tag || 0,
       mtd_sales_act_ly: categoryPeriodMap.get(cat.category)?.mtd_sales_act_ly || 0,
       mtd_sales_tag_ly: categoryPeriodMap.get(cat.category)?.mtd_sales_tag_ly || 0,
       sellthrough: cat.inbound_tag > 0 ? (cat.sales_tag / cat.inbound_tag) * 100 : 0,
+      sellthrough_ly:
+        (categoryLySnapshot.get(cat.category)?.inbound_tag || 0) > 0
+          ? ((categoryLySnapshot.get(cat.category)?.sales_tag || 0) /
+              (categoryLySnapshot.get(cat.category)?.inbound_tag || 0)) *
+            100
+          : null,
     }))
     .map((cat) => {
       const discountRate = cat.sales_tag > 0 ? (1 - cat.sales_act / cat.sales_tag) * 100 : null;
@@ -801,6 +852,8 @@ export async function fetchSection2Sellthrough({
         period_scope: 'season',
         sales_yoy_pct: cat.sales_tag_ly > 0 ? (cat.sales_tag / cat.sales_tag_ly) * 100 : null,
         mtd_sales_yoy_pct: cat.mtd_sales_tag_ly > 0 ? (cat.mtd_sales_tag / cat.mtd_sales_tag_ly) * 100 : null,
+        sellthrough_yoy_pp:
+          cat.sellthrough_ly !== null ? cat.sellthrough - cat.sellthrough_ly : null,
         discount_rate: discountRate,
         discount_rate_ly: discountRateLy,
         discount_rate_diff:
@@ -817,15 +870,28 @@ export async function fetchSection2Sellthrough({
     category: '전체',
     inbound_tag: categories.reduce((sum, c) => sum + c.inbound_tag, 0),
     sales_tag: categories.reduce((sum, c) => sum + c.sales_tag, 0),
+    inbound_tag_ly: categories.reduce((sum, c) => sum + (c.inbound_tag_ly || 0), 0),
+    sales_tag_ly: categories.reduce((sum, c) => sum + (c.sales_tag_ly || 0), 0),
     inbound_qty: categories.reduce((sum, c) => sum + c.inbound_qty, 0),
     sales_qty: categories.reduce((sum, c) => sum + c.sales_qty, 0),
     product_count: categories.reduce((sum, c) => sum + c.product_count, 0),
     sellthrough: 0,
+    sellthrough_ly: null as number | null,
+    sellthrough_yoy_pp: null as number | null,
+    sales_yoy_pct: null as number | null,
   };
   category_total.sellthrough =
     category_total.inbound_tag > 0
       ? (category_total.sales_tag / category_total.inbound_tag) * 100
       : 0;
+  category_total.sellthrough_ly =
+    category_total.inbound_tag_ly > 0
+      ? (category_total.sales_tag_ly / category_total.inbound_tag_ly) * 100
+      : null;
+  category_total.sellthrough_yoy_pp =
+    category_total.sellthrough_ly !== null
+      ? category_total.sellthrough - category_total.sellthrough_ly
+      : null;
 
   // 헤더 데이터를 필터링된 품번 집계로 재계산
   const filteredTotalSales = category_total.sales_tag;
@@ -838,6 +904,7 @@ export async function fetchSection2Sellthrough({
 
   const sales_yoy_pct = totalSalesLY > 0 ? (filteredTotalSales / totalSalesLY) * 100 : null;
   const inbound_yoy_pct = totalInboundLY > 0 ? (filteredTotalInbound / totalInboundLY) * 100 : null;
+  category_total.sales_yoy_pct = sales_yoy_pct;
 
   const no_inbound: any[] = [];
 
