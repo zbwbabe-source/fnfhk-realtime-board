@@ -3,6 +3,7 @@ import { readFile, stat } from 'fs/promises';
 import path from 'path';
 import { getRedisClient } from '@/lib/cache';
 import timestampSnapshotData from '@/data/upload_timestamps.json';
+import { syncTwExchangeRateJson } from '@/lib/server/tw-exchange-rate-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ const DATA_FILES: DataFileConfig[] = [
   { displayName: 'FNF HKMCTW Store code.csv', relativePath: 'FNF HKMCTW Store code.csv', kind: 'upload', usedBy: ['Store master conversion source'], source: 'data/store_master.json' },
   { displayName: 'TARGET.csv', relativePath: 'TARGET.csv', kind: 'upload', usedBy: ['Target data conversion source'], source: 'data/target.json' },
   { displayName: 'HKMC Store 면적.csv', relativePath: 'HKMC Store 면적.csv', kind: 'upload', usedBy: ['Store area conversion source'], source: 'data/store_area.json' },
-  { displayName: 'TW_Exchange Rate 2512.csv', relativePath: 'TW_Exchange Rate 2512.csv', kind: 'upload', usedBy: ['Exchange rate conversion source'], source: 'data/tw_exchange_rate.json' },
+  { displayName: 'TW_Exchange Rate.csv', relativePath: 'TW_Exchange Rate.csv', kind: 'upload', usedBy: ['Exchange rate conversion source'], source: 'data/tw_exchange_rate.json' },
   { displayName: 'data/store_master.json', relativePath: 'data/store_master.json', kind: 'derived', usedBy: ['Section1 store mapping'] },
   { displayName: 'data/target.json', relativePath: 'data/target.json', kind: 'derived', usedBy: ['Section1 target / achievement'] },
   { displayName: 'data/store_area.json', relativePath: 'data/store_area.json', kind: 'derived', usedBy: ['Store area KPI calculation'] },
@@ -302,6 +303,10 @@ export async function POST(request: NextRequest) {
     if (!matched) {
       return NextResponse.json({ error: 'Unknown file path', relativePath }, { status: 400 });
     }
+    let derivedSynced: { sourceCsv: string; outputJson: string; totalPeriods: number } | null = null;
+    if (relativePath === 'TW_Exchange Rate.csv') {
+      derivedSynced = syncTwExchangeRateJson();
+    }
 
     const log = await readFileUpdateLog();
     log[relativePath] = { updatedAt: requestedUpdatedAt, source: 'manual' };
@@ -314,6 +319,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       relativePath,
       updatedAt: requestedUpdatedAt,
+      derivedSynced,
     });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to update upload log', message: error.message }, { status: 500 });

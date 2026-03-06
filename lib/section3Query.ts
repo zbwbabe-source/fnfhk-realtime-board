@@ -82,10 +82,11 @@ export async function executeSection3Query(
   region: string,
   brand: string,
   date: string,
-  options?: { includeYoY?: boolean; categoryFilter?: 'clothes' | 'all' }
+  options?: { includeYoY?: boolean; categoryFilter?: 'clothes' | 'all'; lightweight?: boolean }
 ): Promise<Section3Response> {
   const includeYoY = options?.includeYoY !== false;
   const categoryFilter = options?.categoryFilter === 'clothes' ? 'clothes' : 'all';
+  const lightweight = options?.lightweight === true;
   const normalizedBrand = normalizeBrand(brand);
   
   // 釉뚮옖?쒕퀎 議곌굔
@@ -851,9 +852,7 @@ ORDER BY
   const params = Array(31).fill(date);
   
   console.log(`?뵇 Section3Query - Executing for ${region}:${brand}:${date}`);
-  const rows = await executeSnowflakeQuery(query, params);
-  
-  console.log(`??Section3Query - Result: ${rows.length} rows`);
+  const rowsPromise = executeSnowflakeQuery(query, params);
 
   // TW 由ъ쟾?????섏쑉 ?곸슜
   const isTwRegion = region === 'TW';
@@ -895,17 +894,23 @@ ORDER BY
       ) <= ?
       AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
   `;
-  const alignedSalesRows = await executeSnowflakeQuery(alignedSalesQuery, [
-    periodStartForSales,
-    date,
-    periodStartForSales,
-    date,
-    currentMonthStartForSales,
-    date,
-    pastCutoffIndexForSales,
-    periodStartForSales,
-    date,
-  ]);
+  const alignedSalesRowsPromise = lightweight
+    ? Promise.resolve([] as any[])
+    : executeSnowflakeQuery(alignedSalesQuery, [
+        periodStartForSales,
+        date,
+        periodStartForSales,
+        date,
+        currentMonthStartForSales,
+        date,
+        pastCutoffIndexForSales,
+        periodStartForSales,
+        date,
+      ]);
+
+  const [rows, alignedSalesRows] = await Promise.all([rowsPromise, alignedSalesRowsPromise]);
+  console.log(`??Section3Query - Result: ${rows.length} rows`);
+
   const alignedPeriodTagSales =
     applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
   const alignedPeriodActSales =
@@ -963,6 +968,19 @@ ORDER BY
     return '';
   };
 
+  const headerPeriodTagSalesRaw = header ? parseFloat(header.PERIOD_TAG_SALES || 0) : 0;
+  const headerPeriodActSalesRaw = header ? parseFloat(header.PERIOD_ACT_SALES || 0) : 0;
+  const headerCurrentMonthTagSalesRaw = header ? parseFloat(header.CURRENT_MONTH_DEPLETED_AMT || 0) : 0;
+  const resolvedPeriodTagSales = lightweight
+    ? applyExchangeRate(headerPeriodTagSalesRaw) || 0
+    : alignedPeriodTagSales;
+  const resolvedPeriodActSales = lightweight
+    ? applyExchangeRate(headerPeriodActSalesRaw) || 0
+    : alignedPeriodActSales;
+  const resolvedCurrentMonthTagSales = lightweight
+    ? applyExchangeRate(headerCurrentMonthTagSalesRaw) || 0
+    : alignedCurrentMonthTagSales;
+
   const response: Section3Response = {
     asof_date: date,
     base_stock_date: baseStockDate,
@@ -987,14 +1005,14 @@ ORDER BY
         ? (applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0)
         : 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
-      period_tag_sales: alignedPeriodTagSales,
-      period_act_sales: alignedPeriodActSales,
-      current_month_depleted: alignedCurrentMonthTagSales,
+      period_tag_sales: resolvedPeriodTagSales,
+      period_act_sales: resolvedPeriodActSales,
+      current_month_depleted: resolvedCurrentMonthTagSales,
       discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
     } : null,
-    years: yearRows.map((row: any) => ({
+    years: lightweight ? [] : yearRows.map((row: any) => ({
       year_bucket: row.YEAR_BUCKET,
       season_code: getYearBucketSeasonCode(row.YEAR_BUCKET),
       sesn: row.SESN,
@@ -1007,7 +1025,7 @@ ORDER BY
       inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
       is_over_1y: row.IS_OVER_1Y === 1,
     })),
-    categories: catRows.map((row: any) => ({
+    categories: lightweight ? [] : catRows.map((row: any) => ({
       year_bucket: row.YEAR_BUCKET,
       cat2: row.CAT2,
       base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
@@ -1019,7 +1037,7 @@ ORDER BY
       inv_days: row.INV_DAYS ? parseFloat(row.INV_DAYS) : null,
       is_over_1y: row.IS_OVER_1Y === 1,
     })),
-    skus: visibleSkuRows.map((row: any) => ({
+    skus: lightweight ? [] : visibleSkuRows.map((row: any) => ({
       year_bucket: row.YEAR_BUCKET,
       sesn: row.SESN,
       cat2: row.CAT2,
@@ -1041,6 +1059,7 @@ ORDER BY
       const lyResponse = await executeSection3Query(region, brand, lyDate, {
         includeYoY: false,
         categoryFilter,
+        lightweight: true,
       });
       let lyCurrStock = lyResponse.header?.curr_stock_amt ?? 0;
 

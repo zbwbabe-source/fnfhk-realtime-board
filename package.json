@@ -4,8 +4,9 @@
   "description": "HKMC Real-time Dashboard MVP with Next.js + Snowflake + Vercel Cron",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "sync-exchange-rate": "npx ts-node scripts/convert-exchange-rate.ts",
+    "dev": "npm run sync-exchange-rate && next dev",
+    "build": "npm run sync-exchange-rate && next build",
     "start": "next start",
     "lint": "next lint",
     "convert-store-master": "node scripts/convert_store_master.js",

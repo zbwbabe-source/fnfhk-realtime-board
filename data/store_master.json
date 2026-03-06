@@ -149,7 +149,7 @@
     },
     {
       "store_code": "MC4",
-      "store_name": "Senado Outlet",
+      "store_name": "Senado(O)",
       "brand": "M",
       "country": "MC",
       "channel": "아울렛"
@@ -386,13 +386,6 @@
       "channel": "정상"
     },
     {
-      "store_code": "D02",
-      "store_name": "TC LALAPORT　DISCOVERY",
-      "brand": "X",
-      "country": "TW",
-      "channel": "정상"
-    },
-    {
       "store_code": "D03",
       "store_name": "MITSUKOSHI TAICHUNG DISCOVERY",
       "brand": "X",
@@ -483,5 +476,46 @@
       "country": "TW",
       "channel": "Warehouse"
     }
-  ]
+  ],
+  "hkmc_stores_non_wh": [
+    "M18",
+    "M10",
+    "M01",
+    "M14",
+    "M11",
+    "M17",
+    "M05",
+    "M02",
+    "M22",
+    "M09",
+    "M16",
+    "M19",
+    "M07",
+    "M21",
+    "M15",
+    "M13",
+    "M08",
+    "M12",
+    "MC1",
+    "MC3",
+    "MC2",
+    "MC4",
+    "HE1",
+    "HE2",
+    "X01",
+    "XE1",
+    "M03",
+    "M06",
+    "M20"
+  ],
+  "hkmc_wh_stores": [
+    "WMM",
+    "XHM",
+    "WHM",
+    "MC3DGM"
+  ],
+  "main_wh_mapping": {
+    "M": "WHM",
+    "X": "XHM"
+  }
 }

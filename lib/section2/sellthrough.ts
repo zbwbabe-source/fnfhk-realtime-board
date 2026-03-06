@@ -458,21 +458,7 @@ export async function fetchSection2Sellthrough({
     brand,
     sesnLY,
   ];
-  const headerRows = await executeSnowflakeQuery(headerQuery, headerBinds);
-
-  const headerData = headerRows[0] || {};
-  // 환율 적용하여 데이터 변환
-  const totalSales = applyExchangeRate(parseFloat(headerData.SALES_TY || 0)) || 0;
-  const totalStock = applyExchangeRate(parseFloat(headerData.STOCK_TY || 0)) || 0;
-  const totalInbound = applyExchangeRate(parseFloat(headerData.INBOUND_TY || 0)) || 0;
-  const overall_sellthrough =
-    headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
-
-  // LY data (YoY 비교용, 환율 적용)
-  const totalSalesLY = applyExchangeRateLY(parseFloat(headerData.SALES_LY || 0)) || 0;
-  const totalInboundLY = applyExchangeRateLY(parseFloat(headerData.INBOUND_LY || 0)) || 0;
-  const overall_sellthrough_ly =
-    headerData.SELLTHROUGH_LY !== null ? parseFloat(headerData.SELLTHROUGH_LY) : null;
+  const headerRowsPromise = executeSnowflakeQuery(headerQuery, headerBinds);
 
   // 품번별 데이터 조회
   const productQuery = usePrepStockTy
@@ -613,7 +599,7 @@ export async function fetchSection2Sellthrough({
     date,
   ];
 
-  const rows = await executeSnowflakeQuery(productQuery, productRowsBinds);
+  const rowsPromise = executeSnowflakeQuery(productQuery, productRowsBinds);
   const productLySalesQuery = usePrepStockTy
     ? `
     SELECT
@@ -641,19 +627,13 @@ export async function fetchSection2Sellthrough({
       ${productCategoryWhereClause}
     GROUP BY PRDT_CD
   `;
-  const productLyRows = await executeSnowflakeQuery(productLySalesQuery, [
+  const productLyRowsPromise = executeSnowflakeQuery(productLySalesQuery, [
     brand,
     sesnLY,
     startDateLYStr,
     dateLY,
   ]);
-  const productLySalesMap = new Map<string, number>();
-  productLyRows.forEach((r: any) => {
-    const key = String(r.PRDT_CD || '').trim();
-    if (!key) return;
-    productLySalesMap.set(key, applyExchangeRateLY(parseFloat(r.SALES_TAG_LY || 0)) || 0);
-  });
-  const categoryLySnapshot = await fetchCategorySnapshot({
+  const categoryLySnapshotPromise = fetchCategorySnapshot({
     usePrepStock: usePrepStockLy,
     season: sesnLY,
     asofDate: dateLY,
@@ -721,7 +701,7 @@ export async function fetchSection2Sellthrough({
     GROUP BY SUBSTR(PART_CD, 3, 2)
   `;
 
-  const categoryPeriodRows = await executeSnowflakeQuery(categoryPeriodQuery, [
+  const categoryPeriodRowsPromise = executeSnowflakeQuery(categoryPeriodQuery, [
     sesn, date, date,
     sesn, date, date,
     sesnLY, date, date,
@@ -734,6 +714,34 @@ export async function fetchSection2Sellthrough({
     date,
     date,
   ]);
+  const [headerRows, rows, productLyRows, categoryLySnapshot, categoryPeriodRows] = await Promise.all([
+    headerRowsPromise,
+    rowsPromise,
+    productLyRowsPromise,
+    categoryLySnapshotPromise,
+    categoryPeriodRowsPromise,
+  ]);
+
+  const headerData = headerRows[0] || {};
+  // 환율 적용하여 데이터 변환
+  const totalSales = applyExchangeRate(parseFloat(headerData.SALES_TY || 0)) || 0;
+  const totalStock = applyExchangeRate(parseFloat(headerData.STOCK_TY || 0)) || 0;
+  const totalInbound = applyExchangeRate(parseFloat(headerData.INBOUND_TY || 0)) || 0;
+  const overall_sellthrough =
+    headerData.SELLTHROUGH_TY !== null ? parseFloat(headerData.SELLTHROUGH_TY) : 0;
+
+  // LY data (YoY 비교용, 환율 적용)
+  const totalSalesLY = applyExchangeRateLY(parseFloat(headerData.SALES_LY || 0)) || 0;
+  const totalInboundLY = applyExchangeRateLY(parseFloat(headerData.INBOUND_LY || 0)) || 0;
+  const overall_sellthrough_ly =
+    headerData.SELLTHROUGH_LY !== null ? parseFloat(headerData.SELLTHROUGH_LY) : null;
+
+  const productLySalesMap = new Map<string, number>();
+  productLyRows.forEach((r: any) => {
+    const key = String(r.PRDT_CD || '').trim();
+    if (!key) return;
+    productLySalesMap.set(key, applyExchangeRateLY(parseFloat(r.SALES_TAG_LY || 0)) || 0);
+  });
   const categoryPeriodMap = new Map<
     string,
     {

@@ -55,7 +55,6 @@ const shortCodeMap: Record<string, string> = {
   NANGANGLALAPORT: 'NGL',
   TAICHUNGLALAPORT: 'TCL',
   MITSUKOSHIA11DISCOVERY: 'MA11',
-  TCLALAPORTDISCOVERY: 'TCD',
   MITSUKOSHITAICHUNGDISCOVERY: 'MTC',
   SOGOGARDENCITY: 'SGC',
   MOMO: 'MMO',
@@ -102,7 +101,6 @@ const partialMatchRules: Array<{ pattern: string; replacement: string }> = [
   // TW - 기타
   { pattern: 'NANGANGLALAPORT', replacement: 'NANGANGLALAPORT' },
   { pattern: 'TAICHUNGLALAPORT', replacement: 'TAICHUNGLALAPORT' },
-  { pattern: 'TCLALAPORTDISCOVERY', replacement: 'TCLALAPORTDISCOVERY' },
   { pattern: 'HANSHINARENA', replacement: 'HANSHINARENA' },
   { pattern: 'MAGACITYBANQIAO', replacement: 'MAGACITYBANQIAO' },
   { pattern: 'SOGOGARDENCITY', replacement: 'SOGOGARDENCITY' },
