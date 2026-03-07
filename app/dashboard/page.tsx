@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [section3Data, setSection3Data] = useState<any>(null);
   const refreshedSummaryKeysRef = useRef<Set<string>>(new Set());
   const prefetchedSummaryS3KeysRef = useRef<Set<string>>(new Set());
+  const prefetchedDetailKeysRef = useRef<Set<string>>(new Set());
 
   const [hkmcSection1Data, setHkmcSection1Data] = useState<any>(null);
   const [hkmcSection2Data, setHkmcSection2Data] = useState<any>(null);
@@ -154,12 +155,12 @@ export default function DashboardPage() {
         const hkmcS2Promise = fetchJson(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const hkmcS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
         const twS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
@@ -194,8 +195,8 @@ export default function DashboardPage() {
         if (!prefetchedSummaryS3KeysRef.current.has(prefetchS3Key)) {
           prefetchedSummaryS3KeysRef.current.add(prefetchS3Key);
           const warmUrls = [
-            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false${forceRefreshParam}`,
-            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false${forceRefreshParam}`,
+            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
+            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
           ];
           Promise.all(
             warmUrls.map((u) =>
@@ -223,6 +224,60 @@ export default function DashboardPage() {
       controller.abort();
     };
   }, [activeTab, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate, availableDates, refreshKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'summary' || !date || !brand) return;
+    if (
+      dataLoadStatus.section1 !== 'success' ||
+      dataLoadStatus.section2 !== 'success' ||
+      dataLoadStatus.section3 !== 'success'
+    ) {
+      return;
+    }
+
+    const mode = isYtdMode ? 'ytd' : 'mtd';
+    const prefetchKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}|${refreshKey}`;
+    if (prefetchedDetailKeysRef.current.has(prefetchKey)) return;
+    prefetchedDetailKeysRef.current.add(prefetchKey);
+
+    const controller = new AbortController();
+    const forceRefreshParam = refreshKey > 0 ? '&forceRefresh=true' : '';
+    const detailWarmupUrls = [
+      `/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}${forceRefreshParam}`,
+      `/api/section1/store-sales?region=TW&brand=${brand}&date=${date}${forceRefreshParam}`,
+      `/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`,
+      `/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`,
+      `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
+      `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
+    ];
+
+    void Promise.allSettled(
+      detailWarmupUrls.map((url) =>
+        fetch(url, { signal: controller.signal, cache: 'no-store' })
+      )
+    ).then((results) => {
+      if (controller.signal.aborted) return;
+      const hasSuccess = results.some((result) => result.status === 'fulfilled');
+      if (!hasSuccess) {
+        prefetchedDetailKeysRef.current.delete(prefetchKey);
+      }
+    });
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    activeTab,
+    date,
+    brand,
+    isYtdMode,
+    categoryFilter,
+    section3CategoryFilter,
+    refreshKey,
+    dataLoadStatus.section1,
+    dataLoadStatus.section2,
+    dataLoadStatus.section3,
+  ]);
 
   useEffect(() => {
     if (activeTab === 'summary' || !date || !brand || !region) return;

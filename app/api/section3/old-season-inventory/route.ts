@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date')?.trim() || '';
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
     const includeYoY = searchParams.get('include_yoy') !== 'false';
+    const lightweight = searchParams.get('lightweight') === 'true';
     const categoryFilter = (searchParams.get('category_filter') || 'all').trim() === 'clothes' ? 'clothes' : 'all';
 
     // 요청 시작 로그
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
       date,
       categoryFilter,
       includeYoY,
+      lightweight,
       force_refresh: forceRefresh,
       timestamp: new Date().toISOString(),
     });
@@ -56,7 +58,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Redis 키 생성
-    const cacheKey = buildSection3OldSeasonCacheKey(region, brand, date, categoryFilter);
+    const cacheKeyBase = buildSection3OldSeasonCacheKey(region, brand, date, categoryFilter);
+    const cacheKey = `${cacheKeyBase}:${lightweight ? 'lw' : 'full'}`;
 
     // Redis에서 캐시 조회
     try {
@@ -130,6 +133,7 @@ export async function GET(request: NextRequest) {
     const payload = await executeSection3Query(region, brand, date, {
       categoryFilter,
       includeYoY,
+      lightweight,
     });
     snowflakeMs = Date.now() - snowflakeStart;
     
