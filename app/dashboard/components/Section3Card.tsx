@@ -82,7 +82,23 @@ export default function Section3Card({
     const currentStock = header.curr_stock_amt || 0;
     const currentStockYoyPct = header.curr_stock_yoy_pct as number | null | undefined;
     const depletedStock = header.period_tag_sales || 0;
+    const depletedStockLy = header.period_tag_sales_ly as number | null | undefined;
+    const depletedAct = header.period_act_sales || 0;
+    const depletedActLy = header.period_act_sales_ly as number | null | undefined;
+    const yoyBase =
+      depletedStockLy !== null && depletedStockLy !== undefined && depletedStockLy > 0
+        ? depletedStockLy
+        : depletedActLy !== null && depletedActLy !== undefined && depletedActLy > 0
+          ? depletedActLy
+          : null;
+    const yoyCurrent =
+      depletedStockLy !== null && depletedStockLy !== undefined && depletedStockLy > 0
+        ? depletedStock
+        : depletedAct;
+    const depletedStockYoyPct = yoyBase !== null ? (yoyCurrent / yoyBase) * 100 : null;
     const currentMonthDepleted = header.current_month_depleted || 0;
+    const discountRatePct =
+      depletedStock > 0 && Number.isFinite(depletedAct) ? (1 - depletedAct / depletedStock) * 100 : null;
     const stagnantStock = header.stagnant_stock_amt || 0;
     const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;
     const prevMonthStagnantRatio = (header.prev_month_stagnant_ratio || 0) * 100;
@@ -114,6 +130,15 @@ export default function Section3Card({
           currentMonthDepleted > 0
             ? `${t(language, 'currentMonthOnly')} ${formatCurrency(currentMonthDepleted)}`
             : null,
+        metaValue: `${t(language, 'discountRate')} ${
+          discountRatePct !== null && Number.isFinite(discountRatePct)
+            ? `${discountRatePct.toFixed(1)}%`
+            : '-'
+        } | ${t(language, 'yoy')} ${
+          depletedStockYoyPct !== null && Number.isFinite(depletedStockYoyPct)
+            ? `${depletedStockYoyPct.toFixed(0)}%`
+            : '-'
+        }`,
         subClass: 'text-orange-700 bg-orange-50',
       },
       k3: {
@@ -207,6 +232,9 @@ export default function Section3Card({
             <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${kpis.k2.subClass}`}>
               {kpis.k2.subValue}
             </span>
+          )}
+          {kpis.k2.metaValue && (
+            <p className="text-[11px] leading-tight text-gray-500">{kpis.k2.metaValue}</p>
           )}
         </div>
 

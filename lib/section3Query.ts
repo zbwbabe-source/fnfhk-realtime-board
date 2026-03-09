@@ -25,7 +25,9 @@ export interface Section3Response {
     prev_month_stagnant_ratio: number;
     depleted_stock_amt: number;
     period_tag_sales: number;
+    period_tag_sales_ly: number | null;
     period_act_sales: number;
+    period_act_sales_ly: number | null;
     current_month_depleted: number;
     discount_rate: number;
     inv_days_raw: number | null;
@@ -857,11 +859,20 @@ ORDER BY
   // TW 由ъ쟾?????섏쑉 ?곸슜
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(date) : '';
+  const lyDateObjForRate = new Date(`${date}T00:00:00`);
+  lyDateObjForRate.setFullYear(lyDateObjForRate.getFullYear() - 1);
+  const lyDateForRate = formatDateYYYYMMDD(lyDateObjForRate);
+  const periodLY = isTwRegion ? getPeriodFromDateString(lyDateForRate) : '';
   
   const applyExchangeRate = (amount: number | null): number | null => {
     if (amount === null) return null;
     if (!isTwRegion) return amount;
     return convertTwdToHkd(amount, period);
+  };
+  const applyExchangeRateLY = (amount: number | null): number | null => {
+    if (amount === null) return null;
+    if (!isTwRegion) return amount;
+    return convertTwdToHkd(amount, periodLY);
   };
 
   // Align section3 card sales metrics with section1 "past season (~prev same season)" scope.
@@ -876,6 +887,22 @@ ORDER BY
   const pastCutoffIndexForSales = (currentYYForSales - 1) * 2 + (currentTypeForSales === 'S' ? 0 : 1);
   const periodStartForSales = currentTypeForSales === 'F' ? '2025-09-23' : `${yearForSales}-03-01`;
   const currentMonthStartForSales = `${yearForSales}-${String(monthForSales).padStart(2, '0')}-01`;
+  const lyDateObjForSales = new Date(`${date}T00:00:00`);
+  lyDateObjForSales.setFullYear(lyDateObjForSales.getFullYear() - 1);
+  const lyDateForSales = formatDateYYYYMMDD(lyDateObjForSales);
+  const monthForSalesLy = lyDateObjForSales.getMonth() + 1;
+  const yearForSalesLy = lyDateObjForSales.getFullYear();
+  const currentTypeForSalesLy = monthForSalesLy >= 9 || monthForSalesLy <= 2 ? 'F' : 'S';
+  const currentYYForSalesLy =
+    monthForSalesLy >= 9
+      ? yearForSalesLy % 100
+      : monthForSalesLy <= 2
+        ? (yearForSalesLy - 1) % 100
+        : yearForSalesLy % 100;
+  const pastCutoffIndexForSalesLy =
+    (currentYYForSalesLy - 1) * 2 + (currentTypeForSalesLy === 'S' ? 0 : 1);
+  const periodStartForSalesLy =
+    currentTypeForSalesLy === 'F' ? '2025-09-23' : `${yearForSalesLy}-03-01`;
   const alignedSalesQuery = `
     SELECT
       COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS period_tag_sales_total,
@@ -904,9 +931,24 @@ ORDER BY
     pastCutoffIndexForSales,
     periodStartForSales,
     date,
+      ]);
+  const alignedSalesLyRowsPromise = executeSnowflakeQuery(alignedSalesQuery, [
+    periodStartForSalesLy,
+    lyDateForSales,
+    periodStartForSalesLy,
+    lyDateForSales,
+    `${yearForSalesLy}-${String(monthForSalesLy).padStart(2, '0')}-01`,
+    lyDateForSales,
+    pastCutoffIndexForSalesLy,
+    periodStartForSalesLy,
+    lyDateForSales,
   ]);
 
-  const [rows, alignedSalesRows] = await Promise.all([rowsPromise, alignedSalesRowsPromise]);
+  const [rows, alignedSalesRows, alignedSalesLyRows] = await Promise.all([
+    rowsPromise,
+    alignedSalesRowsPromise,
+    alignedSalesLyRowsPromise,
+  ]);
   console.log(`??Section3Query - Result: ${rows.length} rows`);
 
   const alignedPeriodTagSales =
@@ -915,6 +957,10 @@ ORDER BY
     applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
   const alignedCurrentMonthTagSales =
     applyExchangeRate(parseFloat(alignedSalesRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+  const alignedPeriodTagSalesLy =
+    applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
+  const alignedPeriodActSalesLy =
+    applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
 
   // ?덈꺼蹂??곗씠??遺꾨━
   const header = rows.find((r: any) => r.ROW_LEVEL === 'HEADER');
@@ -998,9 +1044,14 @@ ORDER BY
         : 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
       period_tag_sales: resolvedPeriodTagSales,
+      period_tag_sales_ly: alignedPeriodTagSalesLy,
       period_act_sales: resolvedPeriodActSales,
+      period_act_sales_ly: alignedPeriodActSalesLy,
       current_month_depleted: resolvedCurrentMonthTagSales,
-      discount_rate: parseFloat(header.DISCOUNT_RATE || 0),
+      discount_rate:
+        resolvedPeriodTagSales > 0
+          ? 1 - resolvedPeriodActSales / resolvedPeriodTagSales
+          : parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
     } : null,

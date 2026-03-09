@@ -100,9 +100,20 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'period_act_sales');
+        const hasPeriodTagSalesLy =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'period_tag_sales_ly');
+        const hasPeriodActSalesLy =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'period_act_sales_ly');
 
         const isYoYCacheUsable = includeYoY
-          ? hasComputedCurrentStockYoY && hasPositiveLyCurrentStock
+          ? hasComputedCurrentStockYoY &&
+            hasPositiveLyCurrentStock &&
+            hasPeriodTagSalesLy &&
+            hasPeriodActSalesLy
           : hasCurrentStockYoY;
 
         if (isYoYCacheUsable && hasPeriodTagSales && hasPeriodActSales) {
