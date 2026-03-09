@@ -894,19 +894,17 @@ ORDER BY
       ) <= ?
       AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
   `;
-  const alignedSalesRowsPromise = lightweight
-    ? Promise.resolve([] as any[])
-    : executeSnowflakeQuery(alignedSalesQuery, [
-        periodStartForSales,
-        date,
-        periodStartForSales,
-        date,
-        currentMonthStartForSales,
-        date,
-        pastCutoffIndexForSales,
-        periodStartForSales,
-        date,
-      ]);
+  const alignedSalesRowsPromise = executeSnowflakeQuery(alignedSalesQuery, [
+    periodStartForSales,
+    date,
+    periodStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    pastCutoffIndexForSales,
+    periodStartForSales,
+    date,
+  ]);
 
   const [rows, alignedSalesRows] = await Promise.all([rowsPromise, alignedSalesRowsPromise]);
   console.log(`??Section3Query - Result: ${rows.length} rows`);
@@ -971,15 +969,9 @@ ORDER BY
   const headerPeriodTagSalesRaw = header ? parseFloat(header.PERIOD_TAG_SALES || 0) : 0;
   const headerPeriodActSalesRaw = header ? parseFloat(header.PERIOD_ACT_SALES || 0) : 0;
   const headerCurrentMonthTagSalesRaw = header ? parseFloat(header.CURRENT_MONTH_DEPLETED_AMT || 0) : 0;
-  const resolvedPeriodTagSales = lightweight
-    ? applyExchangeRate(headerPeriodTagSalesRaw) || 0
-    : alignedPeriodTagSales;
-  const resolvedPeriodActSales = lightweight
-    ? applyExchangeRate(headerPeriodActSalesRaw) || 0
-    : alignedPeriodActSales;
-  const resolvedCurrentMonthTagSales = lightweight
-    ? applyExchangeRate(headerCurrentMonthTagSalesRaw) || 0
-    : alignedCurrentMonthTagSales;
+  const resolvedPeriodTagSales = alignedPeriodTagSales;
+  const resolvedPeriodActSales = alignedPeriodActSales;
+  const resolvedCurrentMonthTagSales = alignedCurrentMonthTagSales;
 
   const response: Section3Response = {
     asof_date: date,
