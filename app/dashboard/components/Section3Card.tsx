@@ -100,8 +100,8 @@ export default function Section3Card({
         value: formatCurrency(currentStock),
         subValue:
           currentStockYoyPct !== null && currentStockYoyPct !== undefined
-            ? `YoY ${currentStockYoyPct.toFixed(0)}%`
-            : 'YoY 0%',
+            ? `YoY ${currentStockYoyPct.toFixed(1)}%`
+            : 'YoY -',
         subClass:
           currentStockYoyPct !== null && currentStockYoyPct !== undefined
             ? metricTone(currentStockYoyPct, 100)

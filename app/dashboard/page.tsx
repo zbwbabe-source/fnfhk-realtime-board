@@ -155,12 +155,12 @@ export default function DashboardPage() {
         const hkmcS2Promise = fetchJson(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const hkmcS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
         const twS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
@@ -195,8 +195,8 @@ export default function DashboardPage() {
         if (!prefetchedSummaryS3KeysRef.current.has(prefetchS3Key)) {
           prefetchedSummaryS3KeysRef.current.add(prefetchS3Key);
           const warmUrls = [
-            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
-            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=false&lightweight=true${forceRefreshParam}`,
+            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
+            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
           ];
           Promise.all(
             warmUrls.map((u) =>

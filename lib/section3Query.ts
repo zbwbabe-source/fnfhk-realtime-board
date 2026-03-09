@@ -1056,29 +1056,17 @@ ORDER BY
       const lyDateObj = new Date(`${date}T00:00:00`);
       lyDateObj.setFullYear(lyDateObj.getFullYear() - 1);
       const lyDate = formatDateYYYYMMDD(lyDateObj);
-      const lyResponse = await executeSection3Query(region, brand, lyDate, {
-        includeYoY: false,
-        categoryFilter,
-        lightweight: true,
-      });
-      let lyCurrStock = lyResponse.header?.curr_stock_amt ?? 0;
 
-      if (lyDate < '2025-09-22') {
-        const legacyRaw = await fetchLegacyCurrStockFromPrep(lyDate, categoryFilter);
-        if (legacyRaw > 0) {
-          if (region === 'TW') {
-            const lyPeriod = getPeriodFromDateString(lyDate);
-            lyCurrStock = convertTwdToHkd(legacyRaw, lyPeriod) || 0;
-          } else {
-            lyCurrStock = legacyRaw;
-          }
-        }
+      let lyCurrStockRaw = await fetchPreviousYearCurrentStock(lyDate, categoryFilter);
+      if (region === 'TW') {
+        const lyPeriod = getPeriodFromDateString(lyDate);
+        lyCurrStockRaw = convertTwdToHkd(lyCurrStockRaw, lyPeriod) || 0;
       }
 
-      response.header.ly_curr_stock_amt = lyCurrStock;
+      response.header.ly_curr_stock_amt = lyCurrStockRaw;
       response.header.curr_stock_yoy_pct =
-        lyCurrStock > 0
-          ? Math.round((response.header.curr_stock_amt / lyCurrStock) * 10000) / 100
+        lyCurrStockRaw > 0
+          ? Math.round((response.header.curr_stock_amt / lyCurrStockRaw) * 10000) / 100
           : 0;
     } catch (error: any) {
       console.error('[section3] failed to compute current stock YoY:', error.message);
@@ -1086,17 +1074,67 @@ ORDER BY
       response.header.curr_stock_yoy_pct = 0;
     }
   }
-  async function fetchLegacyCurrStockFromPrep(
+
+  async function fetchPreviousYearCurrentStock(
     asofDate: string,
-    legacyCategoryFilter: 'clothes' | 'all'
+    yoyCategoryFilter: 'clothes' | 'all'
   ): Promise<number> {
-    const yyyymm = asofDate.slice(0, 7).replace('-', '');
+    const { seasonType, maxSeasonYY } = getPastSameTypeSeasonCutoff(asofDate);
+
+    if (asofDate < '2025-09-22') {
+      return fetchLegacyCurrStockFromPrep(asofDate, yoyCategoryFilter, seasonType, maxSeasonYY);
+    }
+
+    const storeCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const stockCategoryClause =
+      yoyCategoryFilter === 'clothes'
+        ? `AND SUBSTR(s.PRDT_CD, 7, 2) IN (${apparelCategoryList})`
+        : '';
+
+    const currentQuery = `
+WITH latest_stock_date AS (
+  SELECT MAX(STOCK_DT) AS stock_dt
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+  WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+    AND LOCAL_SHOP_CD IN (${storeCodes})
+    AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+)
+SELECT COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS curr_stock_amt
+FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+CROSS JOIN latest_stock_date l
+WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+  AND s.LOCAL_SHOP_CD IN (${storeCodes})
+  AND s.STOCK_DT = l.stock_dt
+  AND RIGHT(s.SESN, 1) = ?
+  AND TRY_TO_NUMBER(LEFT(s.SESN, 2)) <= ?
+  ${stockCategoryClause}
+`;
+    const rows = await executeSnowflakeQuery(currentQuery, [
+      normalizedBrand,
+      asofDate,
+      normalizedBrand,
+      seasonType,
+      maxSeasonYY,
+    ]);
+    return parseFloat(rows?.[0]?.CURR_STOCK_AMT || 0);
+  }
+
+  function getPastSameTypeSeasonCutoff(asofDate: string): { seasonType: 'S' | 'F'; maxSeasonYY: number } {
     const d = new Date(`${asofDate}T00:00:00`);
     const month = d.getMonth() + 1;
     const year = d.getFullYear();
-    const seasonType = month >= 9 || month <= 2 ? 'F' : 'S';
-    const currentYY = month >= 9 ? year % 100 : month <= 2 ? (year - 1) % 100 : year % 100;
-    const oldSeasonStartYY = currentYY - 1;
+    const seasonType: 'S' | 'F' = month >= 9 || month <= 2 ? 'F' : 'S';
+    const seasonYY = month >= 9 ? year % 100 : month <= 2 ? (year - 1) % 100 : year % 100;
+    return { seasonType, maxSeasonYY: seasonYY - 1 };
+  }
+
+  async function fetchLegacyCurrStockFromPrep(
+    asofDate: string,
+    legacyCategoryFilter: 'clothes' | 'all',
+    seasonType: 'S' | 'F',
+    maxSeasonYY: number
+  ): Promise<number> {
+    const yyyymm = asofDate.slice(0, 7).replace('-', '');
 
     const storeCodes = allStores.map((code) => `'${code}'`).join(',');
     const legacyCategoryClause =
@@ -1126,7 +1164,7 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
       yyyymm,
       normalizedBrand,
       seasonType,
-      oldSeasonStartYY,
+      maxSeasonYY,
     ]);
     return parseFloat(legacyRows?.[0]?.CURR_STOCK_AMT || 0);
   }
