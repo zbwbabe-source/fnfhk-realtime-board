@@ -564,7 +564,7 @@ export default function Section1StoreBarChart({
               </div>
               <div className="flex justify-between items-center gap-3">
                 <span className="text-xs text-gray-600">할인율:</span>
-                <span className="text-sm font-semibold text-purple-600">
+                <span className="discount-rate-emphasis text-sm">
                   {data.discountRate > 0 ? `${data.discountRate.toFixed(1)}%` : 'N/A'}
                 </span>
               </div>

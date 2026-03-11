@@ -632,7 +632,7 @@ export default function Section3OldSeasonInventory({
                       </span>
                     </td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.depleted_stock_amt)}</td>
-                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(year.discount_rate)}</td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100"><span className="discount-rate-emphasis">{formatPercent(year.discount_rate)}</span></td>
                     <td className={`px-2 py-2 text-right ${getInvDaysColor(year.inv_days_raw, year.inv_days, year.is_over_1y)}`}>
                       {formatInvDays(year.inv_days_raw, year.inv_days)}
                     </td>
@@ -662,7 +662,7 @@ export default function Section3OldSeasonInventory({
                       </span>
                     </td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.depleted_stock_amt)}</td>
-                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatPercent(data.header.discount_rate)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100"><span className="discount-rate-emphasis">{formatPercent(data.header.discount_rate)}</span></td>
                     <td className="px-2 py-2 text-right bg-blue-100">{formatInvDays(data.header.inv_days_raw, data.header.inv_days)}</td>
                   </tr>
                 );
@@ -791,7 +791,7 @@ export default function Section3OldSeasonInventory({
                                 </span>
                               </td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.depleted_stock_amt)}</td>
-                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatPercent(cat.discount_rate)}</td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100"><span className="discount-rate-emphasis">{formatPercent(cat.discount_rate)}</span></td>
                               <td className={`px-2 py-2 text-right border-r border-gray-100 ${getInvDaysColor(cat.inv_days_raw, cat.inv_days, cat.is_over_1y)}`}>
                                 {formatInvDays(cat.inv_days_raw, cat.inv_days)}
                               </td>
@@ -828,7 +828,7 @@ export default function Section3OldSeasonInventory({
                                     </span>
                                   </td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.depleted_stock_amt)}</td>
-                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatPercent(skuDiscRate)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100"><span className="discount-rate-emphasis">{formatPercent(skuDiscRate)}</span></td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">-</td>
                                   <td className="px-2 py-1 text-center text-gray-400">-</td>
                                 </tr>

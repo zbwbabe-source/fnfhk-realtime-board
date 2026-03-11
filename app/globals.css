@@ -30,4 +30,8 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  .discount-rate-emphasis {
+    @apply italic font-semibold text-sky-700;
+  }
 }

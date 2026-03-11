@@ -271,7 +271,7 @@ export default function Section2Card({
                     {language === 'ko' ? '할인율' : 'Discount'}{' '}
                     {(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate) !== null &&
                     Number.isFinite(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)
-                      ? `${(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)!.toFixed(1)}%`
+                      ? <span className="discount-rate-emphasis">{`${(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)!.toFixed(1)}%`}</span>
                       : '-'}
                   </span>{' '}
                   <span

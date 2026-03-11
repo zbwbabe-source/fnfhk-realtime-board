@@ -165,7 +165,7 @@ export default function Section1Card({
         storeCountFlow:
           language === 'ko'
             ? `매장수: 전년 ${formatStoreCount(previousActiveStoreCount)} → 당년 ${formatStoreCount(currentActiveStoreCount)}`
-            : `Stores ${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}`,
+            : `${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}`,
         sameStoreTrendLabel: getTrendLabel(hasSameStoreCompareRate ? sameStoreCompareRate : null),
       } as KpiBlock & { rawValue: number | null },
       k3: {
@@ -383,16 +383,35 @@ export default function Section1Card({
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:min-h-[132px] sm:p-3">
-          <p className="text-[11px] font-medium text-gray-600">{kpis.k1.label}</p>
-          <div className="flex items-center">
-            <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k1.value}</p>
+          <div className="grid grid-cols-[1fr_0.9fr] gap-2.5">
+            <div className="min-w-0 border-r border-blue-100 pr-2.5">
+              <p className="text-[11px] font-medium text-gray-600">{kpis.k1.label}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-gray-600">{t(language, 'discountRateLabel')}</p>
+            </div>
           </div>
-          <p className="self-end text-[11px] tabular-nums">
-            <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
-            <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
-              ({kpis.k1.discountDiff})
-            </span>
-          </p>
+          <div className="grid grid-cols-[1fr_0.9fr] items-center gap-2.5">
+            <div className="min-w-0 border-r border-blue-100 pr-2.5">
+              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k1.value}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="discount-rate-emphasis text-lg leading-tight tabular-nums sm:text-xl">{kpis.k1.discountRate}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-[1fr_0.9fr] items-end gap-2.5">
+            <div className="min-w-0 border-r border-blue-100 pr-2.5">
+              <div />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium text-gray-500">
+                {language === 'ko' ? '전년비' : 'vs LY'}
+              </p>
+              <p className={`text-sm font-semibold leading-tight tabular-nums ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
+                {kpis.k1.discountDiff}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
@@ -511,7 +530,10 @@ export default function Section1Card({
                       {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
                   </p>
                   <p className="mt-0.5 text-xs tabular-nums">
-                    <span className="text-gray-600">{t(language, 'discountRateLabel')} {formatRate(item.discountRate)}</span>{' '}
+                    <span className="text-gray-600">
+                      {t(language, 'discountRateLabel')}{' '}
+                      <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
+                    </span>{' '}
                     <span className={`font-semibold ${discountDiffColor}`}>
                       ({formatPercentPointDiff(item.discountDiff)})
                     </span>
