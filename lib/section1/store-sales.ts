@@ -1,6 +1,6 @@
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
-import { loadWeightDataServer, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
+import { buildProjectionWeightData, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import { getSeasonCode } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
@@ -92,6 +92,11 @@ export interface StoreSalesPayload {
   tw_subtotal: any;
   total_subtotal: any;
   season_category_sales: any;
+  projection_meta?: {
+    trainingYears: number[];
+    methodSummary: string;
+    explanation: string;
+  };
 }
 
 function formatDateToYmd(date: Date): string {
@@ -100,6 +105,10 @@ function formatDateToYmd(date: Date): string {
     String(date.getMonth() + 1).padStart(2, '0'),
     String(date.getDate()).padStart(2, '0'),
   ].join('-');
+}
+
+function getMonthEndDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
 /**
@@ -182,8 +191,13 @@ export async function fetchSection1StoreSales({
     }`
   );
 
-  // 가중치 데이터 로드 (서버 사이드)
-  const weightMap = await loadWeightDataServer();
+  const projectionWeights = await buildProjectionWeightData({
+    region,
+    brand,
+    date,
+    storeCodes: targetStores.map((store) => store.store_code),
+  });
+  const weightMap = projectionWeights.weightMap;
 
   // MTD + YTD + MoM(전월 대비) 동시 조회 쿼리
   const query = `
@@ -395,6 +409,11 @@ export async function fetchSection1StoreSales({
     monthlySalesMap.set(key, rawSales);
   });
 
+  const getMonthlySales = (shopCd: string, targetYear: number, targetMonth: number): number => {
+    const rawAmount = monthlySalesMap.get(`${shopCd}:${targetYear}:${targetMonth}`) || 0;
+    return applyExchangeRate(rawAmount);
+  };
+
   // 모든 targetStores를 순회하며 데이터 생성 (데이터 없으면 0으로)
   targetStores.forEach((storeInfo) => {
     const row = rowMap.get(storeInfo.store_code);
@@ -443,9 +462,17 @@ export async function fetchSection1StoreSales({
 
     // 월말환산 계산 (MTD 기준)
     const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
+    const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
     // 환산 YoY 계산 (MTD 기준)
     const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
+    const previousMonthActualYtd = ytd_act - mtd_act;
+    const previousMonthActualYtdPy = ytd_act_py - mtd_act_py;
+    const currentMonthFullPy = getMonthlySales(storeInfo.store_code, year - 1, month);
+    const ytdMonthEndProjection = previousMonthActualYtd + monthEndProjection;
+    const ytdProjectedBasePy = previousMonthActualYtdPy + currentMonthFullPy;
+    const projected_progress_ytd = ytd_target > 0 ? (ytdMonthEndProjection / ytd_target) * 100 : 0;
+    const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
 
     const resolvedShopName = storeInfo.store_code === 'MC4' ? 'Senado Outlet' : (storeInfo.store_name || storeInfo.store_code);
 
@@ -464,6 +491,7 @@ export async function fetchSection1StoreSales({
       yoy,
       mom,
       monthEndProjection,
+      projected_progress,
       projectedYoY,
       discount_rate_mtd,
       discount_rate_mtd_ly,
@@ -477,6 +505,9 @@ export async function fetchSection1StoreSales({
       progress_ytd,
       ytd_act_py,
       yoy_ytd,
+      ytdMonthEndProjection,
+      projected_progress_ytd,
+      ytdProjectedYoY,
       discount_rate_ytd,
       discount_rate_ytd_ly,
       discount_rate_ytd_diff,
@@ -518,11 +549,6 @@ export async function fetchSection1StoreSales({
   tw_normal.sort(sortByClosedStatus);
   tw_outlet.sort(sortByClosedStatus);
   tw_online.sort(sortByClosedStatus);
-
-  const getMonthlySales = (shopCd: string, targetYear: number, targetMonth: number): number => {
-    const rawAmount = monthlySalesMap.get(`${shopCd}:${targetYear}:${targetMonth}`) || 0;
-    return applyExchangeRate(rawAmount);
-  };
 
   const calculateStoreComparisonMetrics = (stores: any[]) => {
     if (stores.length === 0) {
@@ -623,9 +649,19 @@ export async function fetchSection1StoreSales({
 
     // 합계의 월말환산 계산
     const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
+    const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
     // 합계의 환산 YoY 계산
     const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
+    const ytdMonthEndProjection = ytd_act - mtd_act + monthEndProjection;
+    const monthEndDate = getMonthEndDate(asofDate);
+    const previousYearMonthEndDate = new Date(monthEndDate);
+    previousYearMonthEndDate.setFullYear(monthEndDate.getFullYear() - 1);
+    const previousYearMonthEndString = formatDateToYmd(previousYearMonthEndDate);
+    const fullMonthProgressivePy = calculateMonthEndProjection(mtd_act_py, previousYearMonthEndString, weightMap);
+    const ytdProjectedBasePy = ytd_act_py - mtd_act_py + fullMonthProgressivePy;
+    const projected_progress_ytd = ytd_target > 0 ? (ytdMonthEndProjection / ytd_target) * 100 : 0;
+    const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
     const comparisonMetrics = calculateStoreComparisonMetrics(stores);
 
     return {
@@ -643,6 +679,7 @@ export async function fetchSection1StoreSales({
       yoy,
       mom,
       monthEndProjection,
+      projected_progress,
       projectedYoY,
       same_store_yoy: comparisonMetrics.same_store_yoy,
       active_store_count_mtd: comparisonMetrics.active_store_count_mtd,
@@ -658,6 +695,9 @@ export async function fetchSection1StoreSales({
       progress_ytd,
       ytd_act_py,
       yoy_ytd,
+      ytdMonthEndProjection,
+      projected_progress_ytd,
+      ytdProjectedYoY,
       same_store_yoy_ytd: comparisonMetrics.same_store_yoy_ytd,
       active_store_count_ytd_avg: comparisonMetrics.active_store_count_ytd_avg,
       active_store_count_ytd_avg_py: comparisonMetrics.active_store_count_ytd_avg_py,
@@ -1004,5 +1044,6 @@ export async function fetchSection1StoreSales({
     tw_subtotal,
     total_subtotal,
     season_category_sales: seasonCategorySales,
+    projection_meta: projectionWeights.meta,
   };
 }

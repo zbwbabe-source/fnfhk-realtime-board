@@ -9,11 +9,16 @@ function isLegacySnapshotPayload(payload: any): boolean {
   return (
     !payload?.season_category_sales?.metrics ||
     !total ||
+    !payload?.projection_meta ||
     typeof total.same_store_yoy === 'undefined' ||
     typeof total.active_store_count_mtd === 'undefined' ||
     typeof total.active_store_count_mtd_py === 'undefined' ||
     typeof total.active_store_count_ytd_avg === 'undefined' ||
-    typeof total.active_store_count_ytd_avg_py === 'undefined'
+    typeof total.active_store_count_ytd_avg_py === 'undefined' ||
+    typeof total.projected_progress === 'undefined' ||
+    typeof total.projected_progress_ytd === 'undefined' ||
+    typeof total.ytdMonthEndProjection === 'undefined' ||
+    typeof total.ytdProjectedYoY === 'undefined'
   );
 }
 

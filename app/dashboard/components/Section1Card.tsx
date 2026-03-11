@@ -163,11 +163,11 @@ export default function Section1Card({
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
     const compareRate = isYtdMode ? total.yoy_ytd : total.yoy;
     const progress = isYtdMode ? total.progress_ytd : total.progress;
-    const projectedProgress = total.projected_progress;
+    const projectedProgress = isYtdMode ? total.projected_progress_ytd : total.projected_progress;
     const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
     const discountRateDiff = isYtdMode ? total.discount_rate_ytd_diff : total.discount_rate_mtd_diff;
-    const projectedSales = total.monthEndProjection;
-    const projectedYoy = total.projectedYoY;
+    const projectedSales = isYtdMode ? total.ytdMonthEndProjection : total.monthEndProjection;
+    const projectedYoy = isYtdMode ? total.ytdProjectedYoY : total.projectedYoY;
     const sameStoreCompareRate = isYtdMode ? total.same_store_yoy_ytd : total.same_store_yoy;
     const currentActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg : total.active_store_count_mtd;
     const previousActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg_py : total.active_store_count_mtd_py;
@@ -210,15 +210,15 @@ export default function Section1Card({
         discountRate: hasDiscountRate ? formatRate(discountRate) : '-',
         discountDiff: formatPercentPointDiff(discountRateDiff),
         projectedSales:
-          !isYtdMode && typeof projectedSales === 'number' && isFinite(projectedSales)
+          typeof projectedSales === 'number' && isFinite(projectedSales)
             ? formatCurrency(projectedSales)
             : '-',
         projectedYoy:
-          !isYtdMode && typeof projectedYoy === 'number' && isFinite(projectedYoy)
+          typeof projectedYoy === 'number' && isFinite(projectedYoy)
             ? `${projectedYoy.toFixed(0)}%`
             : '-',
         projectedYoyRaw:
-          !isYtdMode && typeof projectedYoy === 'number' && isFinite(projectedYoy) ? projectedYoy : null,
+          typeof projectedYoy === 'number' && isFinite(projectedYoy) ? projectedYoy : null,
         projectedTooltip:
           language === 'ko'
             ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출과 환산 YoY를 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
