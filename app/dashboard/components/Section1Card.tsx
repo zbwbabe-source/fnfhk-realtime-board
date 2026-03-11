@@ -78,11 +78,7 @@ export default function Section1Card({
     setDetailView(view);
   };
   const isTwRegion = region === 'TW';
-  const salesLabel = isTwRegion
-    ? t(language, 'actualSalesVPlus')
-    : language === 'ko'
-      ? '실판매출'
-      : 'Actual Sales';
+  const salesLabel = language === 'ko' ? '실판매출' : 'Actual Sales';
   const salesLabelTooltip = isTwRegion
     ? language === 'ko'
       ? 'TW 실판매출은 V+ 기준입니다.'
@@ -222,7 +218,7 @@ export default function Section1Card({
         projectedTooltip:
           language === 'ko'
             ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출과 환산 YoY를 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
-            : `${projectionMeta?.explanation || 'Month-end projection and projected YoY based on the same month daily sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.'}${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
+            : `Month-end projection and projected YoY are based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
         rawDiscountDiff: typeof discountRateDiff === 'number' && isFinite(discountRateDiff) ? discountRateDiff : null,
       } as KpiBlock & { rawDiscountDiff: number | null },
       k2: {
@@ -257,11 +253,11 @@ export default function Section1Card({
         projectedTooltip:
           language === 'ko'
             ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출을 환산하고 목표 대비 진척률로 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
-            : `${projectionMeta?.explanation || 'Month-end projection based on the same month daily sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.'}${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
+            : `Month-end projection is based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
         projectedSummary:
           language === 'ko'
             ? projectionMeta?.methodSummary || '과거 2개년 동일 월 패턴 + 요일 + 춘절 보정'
-            : projectionMeta?.methodSummary || 'Prior 2 years month pattern + weekday + Lunar New Year',
+            : 'Prior 2 years month pattern + weekday + Lunar New Year',
       } as KpiBlock & { rawValue: number | null },
     };
   };
@@ -288,7 +284,7 @@ export default function Section1Card({
   };
 
   const titleBadgeClass =
-    'inline-flex items-center rounded-md bg-white/85 px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200';
+    'inline-flex max-w-full items-center rounded-md bg-white/85 px-2 py-0.5 text-[11px] font-medium leading-tight whitespace-normal break-words text-gray-600 ring-1 ring-inset ring-gray-200';
 
   const currencyUnit =
     region === 'TW'
@@ -550,7 +546,7 @@ export default function Section1Card({
           <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
             <div className="min-h-[24px] min-w-0 border-r border-gray-200 pr-2.5">
               <div className="group relative inline-block">
-                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
+                <p className={`${titleBadgeClass} cursor-help underline decoration-dotted underline-offset-2`}>
                   {kpis.k2.label}
                 </p>
                 <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
@@ -560,7 +556,7 @@ export default function Section1Card({
             </div>
             <div className="min-h-[24px] min-w-0">
               <div className="group relative inline-block">
-                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
+                <p className={`${titleBadgeClass} cursor-help underline decoration-dotted underline-offset-2`}>
                   {(kpis.k2 as any).sameStoreLabel}
                 </p>
                 <div className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
@@ -608,7 +604,7 @@ export default function Section1Card({
             </div>
             <div className="min-h-[24px] min-w-0">
               <div className="group relative inline-block">
-                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
+                <p className={`${titleBadgeClass} cursor-help underline decoration-dotted underline-offset-2`}>
                   {(kpis.k3 as any).projectedLabel}
                 </p>
                 <div className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-56 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
