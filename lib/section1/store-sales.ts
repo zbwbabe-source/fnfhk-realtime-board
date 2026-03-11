@@ -94,6 +94,14 @@ export interface StoreSalesPayload {
   season_category_sales: any;
 }
 
+function formatDateToYmd(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 /**
  * Section1 Store Sales 데이터 조회
  */
@@ -156,6 +164,9 @@ export async function fetchSection1StoreSales({
   // 날짜 계산
   const asofDate = new Date(date);
   const year = asofDate.getFullYear();
+  const previousYearDate = new Date(asofDate);
+  previousYearDate.setFullYear(asofDate.getFullYear() - 1);
+  const previousYearDateString = formatDateToYmd(previousYearDate);
   const month = asofDate.getMonth() + 1;
   const currentSesn = getSeasonCode(asofDate);
   const nextSesn = getNextSeasonCode(currentSesn);
@@ -319,6 +330,32 @@ export async function fetchSection1StoreSales({
     rowsCount: rows.length,
   });
 
+  const monthlyStoreSalesQuery = `
+    SELECT
+      LOCAL_SHOP_CD AS shop_cd,
+      YEAR(SALE_DT) AS sale_year,
+      MONTH(SALE_DT) AS sale_month,
+      SUM(ACT_SALE_AMT) AS sales_amt
+    FROM SAP_FNF.DW_HMD_SALE_D
+    WHERE
+      (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+      AND LOCAL_SHOP_CD IN (${storeCodes})
+      AND (
+        SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+        OR SALE_DT BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
+      )
+    GROUP BY LOCAL_SHOP_CD, YEAR(SALE_DT), MONTH(SALE_DT)
+    ORDER BY LOCAL_SHOP_CD, sale_year, sale_month
+  `;
+
+  const monthlyStoreSalesRows = await executeSnowflakeQuery(monthlyStoreSalesQuery, [
+    brand,
+    date,
+    date,
+    previousYearDateString,
+    previousYearDateString,
+  ]);
+
   // TW 리전일 때 환율 적용
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(date) : '';
@@ -345,6 +382,18 @@ export async function fetchSection1StoreSales({
 
   // SQL 결과를 Map으로 변환 (빠른 조회용)
   const rowMap = new Map(rows.map((row: any) => [row.SHOP_CD, row]));
+  const monthlySalesMap = new Map<string, number>();
+
+  monthlyStoreSalesRows.forEach((row: any) => {
+    const shopCd = String(row.SHOP_CD || '');
+    const saleYear = Number(row.SALE_YEAR || 0);
+    const saleMonth = Number(row.SALE_MONTH || 0);
+    if (!shopCd || !saleYear || !saleMonth) return;
+
+    const rawSales = parseFloat(row.SALES_AMT || 0);
+    const key = `${shopCd}:${saleYear}:${saleMonth}`;
+    monthlySalesMap.set(key, rawSales);
+  });
 
   // 모든 targetStores를 순회하며 데이터 생성 (데이터 없으면 0으로)
   targetStores.forEach((storeInfo) => {
@@ -470,6 +519,76 @@ export async function fetchSection1StoreSales({
   tw_outlet.sort(sortByClosedStatus);
   tw_online.sort(sortByClosedStatus);
 
+  const getMonthlySales = (shopCd: string, targetYear: number, targetMonth: number): number => {
+    const rawAmount = monthlySalesMap.get(`${shopCd}:${targetYear}:${targetMonth}`) || 0;
+    return applyExchangeRate(rawAmount);
+  };
+
+  const calculateStoreComparisonMetrics = (stores: any[]) => {
+    if (stores.length === 0) {
+      return {
+        same_store_yoy: null,
+        same_store_yoy_ytd: null,
+        active_store_count_mtd: 0,
+        active_store_count_mtd_py: 0,
+        same_store_count_mtd: 0,
+        active_store_count_ytd_avg: 0,
+        active_store_count_ytd_avg_py: 0,
+        same_store_count_ytd_avg: 0,
+      };
+    }
+
+    const sameStoreMtdCurrentSales = stores.reduce((sum, store) => {
+      return store.mtd_act > 0 && store.mtd_act_py > 0 ? sum + store.mtd_act : sum;
+    }, 0);
+    const sameStoreMtdPrevSales = stores.reduce((sum, store) => {
+      return store.mtd_act > 0 && store.mtd_act_py > 0 ? sum + store.mtd_act_py : sum;
+    }, 0);
+
+    let currentStoreCountSum = 0;
+    let previousStoreCountSum = 0;
+    let sameStoreCountSum = 0;
+    let sameStoreYtdCurrentSales = 0;
+    let sameStoreYtdPrevSales = 0;
+
+    for (let monthIndex = 1; monthIndex <= month; monthIndex += 1) {
+      let activeCurrentCount = 0;
+      let activePreviousCount = 0;
+      let sameStoreCount = 0;
+
+      stores.forEach((store) => {
+        const currentMonthSales = getMonthlySales(store.shop_cd, year, monthIndex);
+        const previousMonthSales = getMonthlySales(store.shop_cd, year - 1, monthIndex);
+        const hasCurrentSales = currentMonthSales > 0;
+        const hasPreviousSales = previousMonthSales > 0;
+
+        if (hasCurrentSales) activeCurrentCount += 1;
+        if (hasPreviousSales) activePreviousCount += 1;
+
+        if (hasCurrentSales && hasPreviousSales) {
+          sameStoreCount += 1;
+          sameStoreYtdCurrentSales += currentMonthSales;
+          sameStoreYtdPrevSales += previousMonthSales;
+        }
+      });
+
+      currentStoreCountSum += activeCurrentCount;
+      previousStoreCountSum += activePreviousCount;
+      sameStoreCountSum += sameStoreCount;
+    }
+
+    return {
+      same_store_yoy: sameStoreMtdPrevSales > 0 ? (sameStoreMtdCurrentSales / sameStoreMtdPrevSales) * 100 : null,
+      same_store_yoy_ytd: sameStoreYtdPrevSales > 0 ? (sameStoreYtdCurrentSales / sameStoreYtdPrevSales) * 100 : null,
+      active_store_count_mtd: stores.filter((store) => store.mtd_act > 0).length,
+      active_store_count_mtd_py: stores.filter((store) => store.mtd_act_py > 0).length,
+      same_store_count_mtd: stores.filter((store) => store.mtd_act > 0 && store.mtd_act_py > 0).length,
+      active_store_count_ytd_avg: month > 0 ? currentStoreCountSum / month : 0,
+      active_store_count_ytd_avg_py: month > 0 ? previousStoreCountSum / month : 0,
+      same_store_count_ytd_avg: month > 0 ? sameStoreCountSum / month : 0,
+    };
+  };
+
   // 채널별 합계 계산 함수
   const calculateSubtotal = (stores: any[], name: string, country: string, channel: string) => {
     if (stores.length === 0) return null;
@@ -507,6 +626,7 @@ export async function fetchSection1StoreSales({
 
     // 합계의 환산 YoY 계산
     const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
+    const comparisonMetrics = calculateStoreComparisonMetrics(stores);
 
     return {
       shop_cd: `${country}_${channel}_TOTAL`,
@@ -524,6 +644,10 @@ export async function fetchSection1StoreSales({
       mom,
       monthEndProjection,
       projectedYoY,
+      same_store_yoy: comparisonMetrics.same_store_yoy,
+      active_store_count_mtd: comparisonMetrics.active_store_count_mtd,
+      active_store_count_mtd_py: comparisonMetrics.active_store_count_mtd_py,
+      same_store_count_mtd: comparisonMetrics.same_store_count_mtd,
       discount_rate_mtd,
       discount_rate_mtd_ly,
       discount_rate_mtd_diff,
@@ -534,6 +658,10 @@ export async function fetchSection1StoreSales({
       progress_ytd,
       ytd_act_py,
       yoy_ytd,
+      same_store_yoy_ytd: comparisonMetrics.same_store_yoy_ytd,
+      active_store_count_ytd_avg: comparisonMetrics.active_store_count_ytd_avg,
+      active_store_count_ytd_avg_py: comparisonMetrics.active_store_count_ytd_avg_py,
+      same_store_count_ytd_avg: comparisonMetrics.same_store_count_ytd_avg,
       discount_rate_ytd,
       discount_rate_ytd_ly,
       discount_rate_ytd_diff,

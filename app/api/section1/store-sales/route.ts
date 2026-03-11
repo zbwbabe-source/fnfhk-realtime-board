@@ -5,7 +5,16 @@ import { fetchSection1StoreSales } from '@/lib/section1/store-sales';
 export const dynamic = 'force-dynamic';
 
 function isLegacySnapshotPayload(payload: any): boolean {
-  return !payload?.season_category_sales?.metrics;
+  const total = payload?.total_subtotal;
+  return (
+    !payload?.season_category_sales?.metrics ||
+    !total ||
+    typeof total.same_store_yoy === 'undefined' ||
+    typeof total.active_store_count_mtd === 'undefined' ||
+    typeof total.active_store_count_mtd_py === 'undefined' ||
+    typeof total.active_store_count_ytd_avg === 'undefined' ||
+    typeof total.active_store_count_ytd_avg_py === 'undefined'
+  );
 }
 
 /**

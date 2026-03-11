@@ -25,6 +25,9 @@ type KpiBlock = {
   value: string;
   discountRate?: string;
   discountDiff?: string;
+  sameStoreValue?: string;
+  sameStoreTooltip?: string;
+  storeCountFlow?: string;
 };
 
 type DetailView = 'season' | 'top5' | 'worst5';
@@ -90,6 +93,18 @@ export default function Section1Card({
     return '0.0%p';
   };
 
+  const formatStoreCount = (value: number | null | undefined) => {
+    if (typeof value !== 'number' || !isFinite(value)) return '-';
+    const formatted = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+    return language === 'ko' ? `${formatted}개` : `${formatted} stores`;
+  };
+
+  const getTrendLabel = (value: number | null) => {
+    if (value === null) return '-';
+    if (language === 'ko') return value >= 100 ? '↗ 성장' : '↘ 감소';
+    return value >= 100 ? '↗ Up' : '↘ Down';
+  };
+
   const emptyKpis = {
     k1: {
       label: salesLabel,
@@ -97,7 +112,7 @@ export default function Section1Card({
       discountRate: '-',
       discountDiff: '-',
     } as KpiBlock,
-    k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
+      k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
     k3: { label: t(language, 'progress'), value: '-' } as KpiBlock,
   };
 
@@ -116,9 +131,13 @@ export default function Section1Card({
     const progress = isYtdMode ? total.progress_ytd : total.progress;
     const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
     const discountRateDiff = isYtdMode ? total.discount_rate_ytd_diff : total.discount_rate_mtd_diff;
+    const sameStoreCompareRate = isYtdMode ? total.same_store_yoy_ytd : total.same_store_yoy;
+    const currentActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg : total.active_store_count_mtd;
+    const previousActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg_py : total.active_store_count_mtd_py;
 
     const hasCompareRate = typeof compareRate === 'number' && isFinite(compareRate);
     const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
+    const hasSameStoreCompareRate = typeof sameStoreCompareRate === 'number' && isFinite(sameStoreCompareRate);
 
     return {
       k1: {
@@ -132,6 +151,22 @@ export default function Section1Card({
         label: t(language, 'yoy'),
         value: hasCompareRate ? `${compareRate.toFixed(0)}%` : '-',
         rawValue: hasCompareRate ? compareRate : null,
+        overallTooltip:
+          language === 'ko'
+            ? `전체 YoY는 전년 동일기간 활성매장 매출 대비 올해 활성매장 전체 매출 기준. 활성매장 수는 ${formatStoreCount(previousActiveStoreCount)} → ${formatStoreCount(currentActiveStoreCount)}.`
+            : `Overall YoY compares current active-store sales against sales from active stores in the same period last year. Active store count is ${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}.`,
+        sameStoreLabel: language === 'ko' ? '동매장 YoY' : 'Same-store YoY',
+        sameStoreValue: hasSameStoreCompareRate ? `${sameStoreCompareRate.toFixed(0)}%` : '-',
+        sameStoreRawValue: hasSameStoreCompareRate ? sameStoreCompareRate : null,
+        sameStoreTooltip:
+          language === 'ko'
+            ? `전년과 올해 동일기간 모두 매출이 있는 매장만 포함. 매장수 ${formatStoreCount(previousActiveStoreCount)} → ${formatStoreCount(currentActiveStoreCount)} 기준과 별도로, 동매장 YoY는 양쪽 기간 모두 매출이 있는 매장만 계산.`
+            : `Includes only stores with sales in both the current period and the same period last year. Store count shows active stores last year to this year, while same-store YoY uses only overlapping active stores.`,
+        storeCountFlow:
+          language === 'ko'
+            ? `매장수: 전년 ${formatStoreCount(previousActiveStoreCount)} → 당년 ${formatStoreCount(currentActiveStoreCount)}`
+            : `Stores ${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}`,
+        sameStoreTrendLabel: getTrendLabel(hasSameStoreCompareRate ? sameStoreCompareRate : null),
       } as KpiBlock & { rawValue: number | null },
       k3: {
         label: t(language, 'progress'),
@@ -346,31 +381,74 @@ export default function Section1Card({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <div className="min-w-0 space-y-1 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:p-3">
-          <p className="text-xs font-medium text-gray-600">{kpis.k1.label}</p>
-          <p className={`${showSeasonCategory ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'} font-bold leading-tight tabular-nums text-gray-900`}>{kpis.k1.value}</p>
-          <p className="text-xs tabular-nums">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:min-h-[132px] sm:p-3">
+          <p className="text-[11px] font-medium text-gray-600">{kpis.k1.label}</p>
+          <div className="flex items-center">
+            <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k1.value}</p>
+          </div>
+          <p className="self-end text-[11px] tabular-nums">
             <span className="text-gray-600">{t(language, 'discountRateLabel')} {kpis.k1.discountRate}</span>{' '}
             <span className={`font-semibold ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
               ({kpis.k1.discountDiff})
             </span>
           </p>
         </div>
-        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
-          <p className="text-xs text-gray-500">{kpis.k2.label}</p>
-          <p className="text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k2.value}</p>
-          <span className={`inline-block rounded-lg border px-2.5 py-1 text-xs font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
-            {(kpis.k2 as any).rawValue !== null 
-              ? ((kpis.k2 as any).rawValue >= 100 ? '↗ 성장' : '↘ 감소')
-              : '-'}
-          </span>
+        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
+          <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
+            <div className="min-w-0 border-r border-gray-200 pr-2.5">
+              <div className="group relative inline-block">
+                <p
+                  className="cursor-help whitespace-nowrap text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
+                >
+                  {kpis.k2.label}
+                </p>
+                <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
+                  {(kpis.k2 as any).overallTooltip}
+                </div>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="group relative inline-block">
+                <p
+                  className="cursor-help whitespace-nowrap text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
+                >
+                  {(kpis.k2 as any).sameStoreLabel}
+                </p>
+                <div className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
+                  {(kpis.k2 as any).sameStoreTooltip}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-[0.92fr_1.08fr] items-center gap-2.5">
+            <div className="min-w-0 border-r border-gray-200 pr-2.5">
+              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k2.value}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{(kpis.k2 as any).sameStoreValue}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
+            <div className="min-w-0 border-r border-gray-200 pr-2.5">
+              <span className={`inline-block whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-semibold ${getYoyColor((kpis.k2 as any).rawValue)}`}>
+                {getTrendLabel((kpis.k2 as any).rawValue)}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className={`inline-block whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-semibold ${getYoyColor((kpis.k2 as any).sameStoreRawValue)}`}>
+                {(kpis.k2 as any).sameStoreTrendLabel}
+              </span>
+            </div>
+          </div>
+          <div className="pt-1 text-center text-[10px] font-semibold leading-tight text-gray-600">
+            {(kpis.k2 as any).storeCountFlow}
+          </div>
         </div>
-        <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
+        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="group relative inline-block">
             <p
-              className="cursor-help text-xs text-gray-500 underline decoration-dotted underline-offset-2"
-              title={t(language, 'progressVsApproved')}
+              className="cursor-help text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
             >
               {kpis.k3.label}
             </p>
@@ -378,7 +456,10 @@ export default function Section1Card({
               {t(language, 'progressVsApproved')}
             </div>
           </div>
-          <p className="text-xl font-bold tabular-nums text-gray-900 sm:text-2xl">{kpis.k3.value}</p>
+          <div className="flex items-center">
+            <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
+          </div>
+          <div />
         </div>
       </div>
 
