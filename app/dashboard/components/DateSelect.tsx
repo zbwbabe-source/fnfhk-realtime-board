@@ -20,6 +20,13 @@ function getWeekdayToken(dateStr: string, language: Language): string {
   return language === 'en' ? en[day] : ko[day];
 }
 
+function formatDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function DateSelect({
   value,
   onChange,
@@ -33,6 +40,7 @@ export default function DateSelect({
   const latestDate = availableDates[0] || '';
   const oldestDate = availableDates[availableDates.length - 1] || '';
   const isDisabled = disabled || availableDates.length === 0;
+  const baseDate = value || latestDate;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -57,6 +65,30 @@ export default function DateSelect({
     if (!resolved) return;
     onChange(resolved);
   };
+
+  const pastMonthEnds = useMemo(() => {
+    if (!baseDate) return [];
+
+    const [yearStr, monthStr] = baseDate.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    if (!year || !month) return [];
+
+    const results: string[] = [];
+    for (let m = month - 1; m >= 1; m -= 1) {
+      results.push(formatDateString(new Date(year, m, 0)));
+    }
+
+    return results
+      .map((date) => ({
+        raw: date,
+        resolved: resolveToAvailableDate(date),
+      }))
+      .filter((item, index, items) => {
+        if (!item.resolved) return false;
+        return items.findIndex((candidate) => candidate.resolved === item.resolved) === index;
+      });
+  }, [baseDate, latestDate, availableDateSet]);
 
   return (
     <div ref={containerRef} className="relative flex items-center gap-2">
@@ -83,7 +115,7 @@ export default function DateSelect({
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Calendar</p>
             <input
               type="date"
-              value={value || latestDate}
+              value={baseDate}
               min={oldestDate}
               max={latestDate}
               lang={language === 'en' ? 'en-US' : 'ko-KR'}
@@ -95,7 +127,7 @@ export default function DateSelect({
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent</p>
             <div className="grid grid-cols-2 gap-2">
-              {availableDates.slice(0, 6).map((date) => (
+              {availableDates.slice(0, 4).map((date) => (
                 <button
                   key={date}
                   type="button"
@@ -114,6 +146,31 @@ export default function DateSelect({
               ))}
             </div>
           </div>
+
+          {pastMonthEnds.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Month End</p>
+              <div className="grid grid-cols-2 gap-2">
+                {pastMonthEnds.map(({ raw, resolved }) => (
+                  <button
+                    key={raw}
+                    type="button"
+                    onClick={() => {
+                      onChange(resolved);
+                      setIsOpen(false);
+                    }}
+                    className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                      value === resolved
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {raw.slice(5)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

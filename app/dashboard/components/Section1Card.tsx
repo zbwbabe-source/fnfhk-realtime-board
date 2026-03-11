@@ -25,9 +25,18 @@ type KpiBlock = {
   value: string;
   discountRate?: string;
   discountDiff?: string;
+  projectedSales?: string;
+  projectedYoy?: string;
+  projectedYoyRaw?: number | null;
+  projectedTooltip?: string;
+  projectedLabel?: string;
+  projectedValue?: string;
+  projectedSummary?: string;
   sameStoreValue?: string;
   sameStoreTooltip?: string;
   storeCountFlow?: string;
+  offlineStoreCountFlow?: string;
+  onlineStoreCountFlow?: string;
 };
 
 type DetailView = 'season' | 'top5' | 'worst5';
@@ -74,6 +83,11 @@ export default function Section1Card({
     : language === 'ko'
       ? '실판매출'
       : 'Actual Sales';
+  const salesLabelTooltip = isTwRegion
+    ? language === 'ko'
+      ? 'TW 실판매출은 V+ 기준입니다.'
+      : 'TW actual sales are based on V+.'
+    : null;
 
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
@@ -105,15 +119,35 @@ export default function Section1Card({
     return value >= 100 ? '↗ Up' : '↘ Down';
   };
 
+  const countActiveStores = (stores: any[], metricKey: 'mtd_act' | 'mtd_act_py' | 'ytd_act' | 'ytd_act_py') =>
+    stores.filter((store) => Number(store?.[metricKey] || 0) > 0).length;
+
   const emptyKpis = {
     k1: {
       label: salesLabel,
       value: '-',
       discountRate: '-',
       discountDiff: '-',
+      projectedSales: '-',
+      projectedYoy: '-',
+      projectedYoyRaw: null,
+      projectedTooltip:
+        language === 'ko'
+          ? '과거 동일 월 매출 기반 환산 로직을 불러오는 중입니다.'
+          : 'Loading projection logic based on historical month sales.',
     } as KpiBlock,
-      k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
-    k3: { label: t(language, 'progress'), value: '-' } as KpiBlock,
+    k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
+    k3: {
+      label: t(language, 'progress'),
+      value: '-',
+      projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
+      projectedValue: '-',
+      projectedTooltip:
+        language === 'ko'
+          ? '과거 동일 월 매출 기반 환산 로직을 불러오는 중입니다.'
+          : 'Loading projection logic based on historical month sales.',
+      projectedSummary: language === 'ko' ? '과거 동일 월 매출 기반 환산' : 'Historical same-month projection',
+    } as KpiBlock,
   };
 
   const calculateKPIs = () => {
@@ -129,15 +163,45 @@ export default function Section1Card({
     const actual = isYtdMode ? total.ytd_act : total.mtd_act;
     const compareRate = isYtdMode ? total.yoy_ytd : total.yoy;
     const progress = isYtdMode ? total.progress_ytd : total.progress;
+    const projectedProgress = total.projected_progress;
     const discountRate = isYtdMode ? total.discount_rate_ytd : total.discount_rate_mtd;
     const discountRateDiff = isYtdMode ? total.discount_rate_ytd_diff : total.discount_rate_mtd_diff;
+    const projectedSales = total.monthEndProjection;
+    const projectedYoy = total.projectedYoY;
     const sameStoreCompareRate = isYtdMode ? total.same_store_yoy_ytd : total.same_store_yoy;
     const currentActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg : total.active_store_count_mtd;
     const previousActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg_py : total.active_store_count_mtd_py;
 
+    const projectionMeta = section1Data?.projection_meta;
+
     const hasCompareRate = typeof compareRate === 'number' && isFinite(compareRate);
     const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
     const hasSameStoreCompareRate = typeof sameStoreCompareRate === 'number' && isFinite(sameStoreCompareRate);
+    const hasProjectedProgress = typeof projectedProgress === 'number' && isFinite(projectedProgress);
+    const projectionYears = (projectionMeta?.trainingYears || []).join(', ');
+    const offlineStores =
+      region === 'TW'
+        ? [...(section1Data?.tw_normal || []), ...(section1Data?.tw_outlet || [])]
+        : [
+            ...(section1Data?.hk_normal || []),
+            ...(section1Data?.hk_outlet || []),
+            ...(section1Data?.mc_normal || []),
+            ...(section1Data?.mc_outlet || []),
+          ];
+    const onlineStores =
+      region === 'TW'
+        ? [...(section1Data?.tw_online || [])]
+        : [...(section1Data?.hk_online || []), ...(section1Data?.mc_online || [])];
+    const currentMetricKey = isYtdMode ? 'ytd_act' : 'mtd_act';
+    const previousMetricKey = isYtdMode ? 'ytd_act_py' : 'mtd_act_py';
+    const offlineStoreCountFlow =
+      language === 'ko'
+        ? `오프라인 ${countActiveStores(offlineStores, previousMetricKey)}개 → ${countActiveStores(offlineStores, currentMetricKey)}개`
+        : `Offline ${countActiveStores(offlineStores, previousMetricKey)} -> ${countActiveStores(offlineStores, currentMetricKey)}`;
+    const onlineStoreCountFlow =
+      language === 'ko'
+        ? `온라인 ${countActiveStores(onlineStores, previousMetricKey)}개 → ${countActiveStores(onlineStores, currentMetricKey)}개`
+        : `Online ${countActiveStores(onlineStores, previousMetricKey)} -> ${countActiveStores(onlineStores, currentMetricKey)}`;
 
     return {
       k1: {
@@ -145,6 +209,20 @@ export default function Section1Card({
         value: formatCurrency(actual),
         discountRate: hasDiscountRate ? formatRate(discountRate) : '-',
         discountDiff: formatPercentPointDiff(discountRateDiff),
+        projectedSales:
+          !isYtdMode && typeof projectedSales === 'number' && isFinite(projectedSales)
+            ? formatCurrency(projectedSales)
+            : '-',
+        projectedYoy:
+          !isYtdMode && typeof projectedYoy === 'number' && isFinite(projectedYoy)
+            ? `${projectedYoy.toFixed(0)}%`
+            : '-',
+        projectedYoyRaw:
+          !isYtdMode && typeof projectedYoy === 'number' && isFinite(projectedYoy) ? projectedYoy : null,
+        projectedTooltip:
+          language === 'ko'
+            ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출과 환산 YoY를 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
+            : `${projectionMeta?.explanation || 'Month-end projection and projected YoY based on the same month daily sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.'}${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
         rawDiscountDiff: typeof discountRateDiff === 'number' && isFinite(discountRateDiff) ? discountRateDiff : null,
       } as KpiBlock & { rawDiscountDiff: number | null },
       k2: {
@@ -166,18 +244,30 @@ export default function Section1Card({
           language === 'ko'
             ? `매장수: 전년 ${formatStoreCount(previousActiveStoreCount)} → 당년 ${formatStoreCount(currentActiveStoreCount)}`
             : `${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}`,
+        offlineStoreCountFlow,
+        onlineStoreCountFlow,
         sameStoreTrendLabel: getTrendLabel(hasSameStoreCompareRate ? sameStoreCompareRate : null),
       } as KpiBlock & { rawValue: number | null },
       k3: {
         label: t(language, 'progress'),
         value: `${progress.toFixed(1)}%`,
         rawValue: typeof progress === 'number' && isFinite(progress) ? progress : null,
+        projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
+        projectedValue: hasProjectedProgress ? `${projectedProgress.toFixed(1)}%` : '-',
+        projectedTooltip:
+          language === 'ko'
+            ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출을 환산하고 목표 대비 진척률로 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
+            : `${projectionMeta?.explanation || 'Month-end projection based on the same month daily sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.'}${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
+        projectedSummary:
+          language === 'ko'
+            ? projectionMeta?.methodSummary || '과거 2개년 동일 월 패턴 + 요일 + 춘절 보정'
+            : projectionMeta?.methodSummary || 'Prior 2 years month pattern + weekday + Lunar New Year',
       } as KpiBlock & { rawValue: number | null },
     };
   };
 
   const kpis = calculateKPIs();
-  
+
   const getYoyColor = (yoy: number | null) => {
     if (yoy === null) return 'text-gray-600 bg-gray-100';
     if (yoy >= 100) return 'text-green-700 bg-green-50 border-green-200';
@@ -190,6 +280,15 @@ export default function Section1Card({
     if (diff < 0) return 'text-green-600';
     return 'text-gray-600';
   };
+
+  const getYoyTextColor = (yoy: number | null) => {
+    if (yoy === null) return 'text-gray-600';
+    if (yoy >= 100) return 'text-green-700';
+    return 'text-red-700';
+  };
+
+  const titleBadgeClass =
+    'inline-flex items-center rounded-md bg-white/85 px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200';
 
   const currencyUnit =
     region === 'TW'
@@ -222,7 +321,7 @@ export default function Section1Card({
       const yoyRaw = isYtdMode ? store.yoy_ytd : store.yoy;
       const discountRateRaw = isYtdMode ? store.discount_rate_ytd : store.discount_rate_mtd;
       const discountDiffRaw = isYtdMode ? store.discount_rate_ytd_diff : store.discount_rate_mtd_diff;
-      
+
       const storeCode = String(store.shop_cd || '');
       const fullName = String(store.shop_name || store.shop_cd || '-');
       const asofDate = date ? new Date(date) : undefined;
@@ -255,26 +354,28 @@ export default function Section1Card({
     .slice(-5)
     .sort((a, b) => b.sales - a.sales);
 
-  const hasNextSeasonSales = showSeasonCategory && seasonCategorySales?.metrics
-    ? (() => {
-        const nextMetric = seasonCategorySales.metrics.nextSeason;
-        const nextSales = isYtdMode ? nextMetric?.ytd_act : nextMetric?.mtd_act;
-        return typeof nextSales === 'number' && nextSales > 0;
-      })()
-    : false;
+  const hasNextSeasonSales =
+    showSeasonCategory && seasonCategorySales?.metrics
+      ? (() => {
+          const nextMetric = seasonCategorySales.metrics.nextSeason;
+          const nextSales = isYtdMode ? nextMetric?.ytd_act : nextMetric?.mtd_act;
+          return typeof nextSales === 'number' && nextSales > 0;
+        })()
+      : false;
 
-  const detailMetrics = showSeasonCategory && seasonCategorySales?.metrics
-    ? [
-        { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
-        ...(hasNextSeasonSales
-          ? [{ key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true } as const]
-          : []),
-        { key: 'pastSeason', title: `${t(language, 'pastSeason')}(${seasonLabels.past || '-'})`, apparelOnly: true },
-        { key: 'hat', title: t(language, 'hat') },
-        { key: 'shoes', title: t(language, 'shoes') },
-        ...(!hasNextSeasonSales ? [{ key: 'bag', title: t(language, 'bag') } as const] : []),
-      ]
-    : [];
+  const detailMetrics =
+    showSeasonCategory && seasonCategorySales?.metrics
+      ? [
+          { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
+          ...(hasNextSeasonSales
+            ? [{ key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true } as const]
+            : []),
+          { key: 'pastSeason', title: `${t(language, 'pastSeason')}(${seasonLabels.past || '-'})`, apparelOnly: true },
+          { key: 'hat', title: t(language, 'hat') },
+          { key: 'shoes', title: t(language, 'shoes') },
+          ...(!hasNextSeasonSales ? [{ key: 'bag', title: t(language, 'bag') } as const] : []),
+        ]
+      : [];
 
   const detailCards =
     activeDetailView === 'season'
@@ -384,11 +485,22 @@ export default function Section1Card({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-[1fr_0.9fr] gap-2.5">
-            <div className="min-w-0 border-r border-blue-100 pr-2.5">
-              <p className="text-[11px] font-medium text-gray-600">{kpis.k1.label}</p>
+            <div className="min-h-[24px] min-w-0 border-r border-blue-100 pr-2.5">
+              {salesLabelTooltip ? (
+                <div className="group relative inline-block">
+                  <p className={`${titleBadgeClass} cursor-help underline decoration-dotted underline-offset-2`}>
+                    {kpis.k1.label}
+                  </p>
+                  <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-40 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
+                    {salesLabelTooltip}
+                  </div>
+                </div>
+              ) : (
+                <p className={titleBadgeClass}>{kpis.k1.label}</p>
+              )}
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-gray-600">{t(language, 'discountRateLabel')}</p>
+            <div className="min-h-[24px] min-w-0">
+              <p className={titleBadgeClass}>{t(language, 'discountRateLabel')}</p>
             </div>
           </div>
           <div className="grid grid-cols-[1fr_0.9fr] items-center gap-2.5">
@@ -399,14 +511,35 @@ export default function Section1Card({
               <p className="discount-rate-emphasis text-lg leading-tight tabular-nums sm:text-xl">{kpis.k1.discountRate}</p>
             </div>
           </div>
-          <div className="grid grid-cols-[1fr_0.9fr] items-end gap-2.5">
-            <div className="min-w-0 border-r border-blue-100 pr-2.5">
-              <div />
+          <div className="grid grid-cols-[1fr_0.9fr] items-start gap-2.5">
+            <div className="grid min-w-0 grid-rows-[16px_auto] border-r border-blue-100 pr-2.5">
+              <div className="group relative block h-4">
+                <p className="cursor-help text-[10px] font-medium leading-none text-gray-500 underline decoration-dotted underline-offset-2">
+                  {language === 'ko' ? '월말환산' : 'Projection'}
+                </p>
+                <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-56 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
+                  {(kpis.k1 as any).projectedTooltip}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-tight tabular-nums text-gray-700">
+                  {(kpis.k1 as any).projectedSales}
+                </p>
+                <p
+                  className={`text-sm font-semibold leading-tight tabular-nums ${getYoyTextColor(
+                    (kpis.k1 as any).projectedYoyRaw ?? null
+                  )}`}
+                >
+                  <span>
+                    ({(kpis.k1 as any).projectedYoy})
+                  </span>
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium text-gray-500">
-                {language === 'ko' ? '전년비' : 'vs LY'}
-              </p>
+            <div className="grid min-w-0 grid-rows-[16px_auto] self-start">
+              <div className="block h-4">
+                <p className="text-[10px] font-medium leading-none text-gray-500">{language === 'ko' ? '전년비' : 'vs LY'}</p>
+              </div>
               <p className={`text-sm font-semibold leading-tight tabular-nums ${getDiscountDiffColor((kpis.k1 as any).rawDiscountDiff)}`}>
                 {kpis.k1.discountDiff}
               </p>
@@ -415,11 +548,9 @@ export default function Section1Card({
         </div>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
-            <div className="min-w-0 border-r border-gray-200 pr-2.5">
+            <div className="min-h-[24px] min-w-0 border-r border-gray-200 pr-2.5">
               <div className="group relative inline-block">
-                <p
-                  className="cursor-help whitespace-nowrap text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
-                >
+                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
                   {kpis.k2.label}
                 </p>
                 <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
@@ -427,11 +558,9 @@ export default function Section1Card({
                 </div>
               </div>
             </div>
-            <div className="min-w-0">
+            <div className="min-h-[24px] min-w-0">
               <div className="group relative inline-block">
-                <p
-                  className="cursor-help whitespace-nowrap text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
-                >
+                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
                   {(kpis.k2 as any).sameStoreLabel}
                 </p>
                 <div className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-52 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
@@ -461,22 +590,40 @@ export default function Section1Card({
             </div>
           </div>
           <div className="pt-1 text-center text-[10px] font-semibold leading-tight text-gray-600">
-            {(kpis.k2 as any).storeCountFlow}
+            <p>{(kpis.k2 as any).offlineStoreCountFlow}</p>
+            <p>{(kpis.k2 as any).onlineStoreCountFlow}</p>
           </div>
         </div>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
-          <div className="group relative inline-block">
-            <p
-              className="cursor-help text-[11px] font-medium text-gray-500 underline decoration-dotted underline-offset-2"
-            >
-              {kpis.k3.label}
-            </p>
-            <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
-              {t(language, 'progressVsApproved')}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="min-h-[24px] min-w-0 border-r border-gray-200 pr-2.5">
+              <div className="group relative inline-block">
+                <p className={`${titleBadgeClass} cursor-help underline decoration-dotted underline-offset-2`}>
+                  {kpis.k3.label}
+                </p>
+                <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-2 py-1 text-[10px] text-white shadow-md group-hover:block">
+                  {t(language, 'progressVsApproved')}
+                </div>
+              </div>
+            </div>
+            <div className="min-h-[24px] min-w-0">
+              <div className="group relative inline-block">
+                <p className={`${titleBadgeClass} cursor-help whitespace-nowrap underline decoration-dotted underline-offset-2`}>
+                  {(kpis.k3 as any).projectedLabel}
+                </p>
+                <div className="pointer-events-none absolute right-0 top-full z-10 mt-1 hidden w-56 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
+                  {(kpis.k3 as any).projectedTooltip}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center">
-            <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
+          <div className="grid grid-cols-2 items-center gap-2.5">
+            <div className="min-w-0 border-r border-gray-200 pr-2.5">
+              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{(kpis.k3 as any).projectedValue}</p>
+            </div>
           </div>
           <div />
         </div>
@@ -486,19 +633,27 @@ export default function Section1Card({
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {detailCards.map((item) => {
-              const yoyColor = item.yoy !== null && typeof item.yoy === 'number' && isFinite(item.yoy)
-                ? (item.yoy >= 100 ? 'text-green-700' : 'text-red-700')
-                : 'text-gray-700';
-              const discountDiffColor = item.discountDiff !== null && typeof item.discountDiff === 'number' && isFinite(item.discountDiff)
-                ? (item.discountDiff > 0 ? 'text-red-600' : item.discountDiff < 0 ? 'text-green-600' : 'text-gray-600')
-                : 'text-gray-600';
-              
+              const yoyColor =
+                item.yoy !== null && typeof item.yoy === 'number' && isFinite(item.yoy)
+                  ? item.yoy >= 100
+                    ? 'text-green-700'
+                    : 'text-red-700'
+                  : 'text-gray-700';
+              const discountDiffColor =
+                item.discountDiff !== null && typeof item.discountDiff === 'number' && isFinite(item.discountDiff)
+                  ? item.discountDiff > 0
+                    ? 'text-red-600'
+                    : item.discountDiff < 0
+                      ? 'text-green-600'
+                      : 'text-gray-600'
+                  : 'text-gray-600';
+
               // 매장 카드인지 시즌 카드인지 확인
               const isStoreCard = activeDetailView !== 'season';
               const storeFullName = isStoreCard ? String((item as any).fullName || item.title) : '';
               const shortCode = isStoreCard ? getStoreShortCode(storeFullName) : null;
               const storeArea = isStoreCard ? ((item as any).area as number | null | undefined) ?? null : null;
-              
+
               return (
                 <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
                   {item.apparelOnly ? (
@@ -512,9 +667,7 @@ export default function Section1Card({
                     </div>
                   ) : isStoreCard ? (
                     <div className="group relative block min-h-[36px]">
-                      <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800">
-                        {shortCode || item.title}
-                      </p>
+                      <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
                       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
                         <p className="font-semibold">{storeFullName || item.title}</p>
                         <p className="mt-1 text-gray-300">
@@ -527,16 +680,14 @@ export default function Section1Card({
                   )}
                   <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
                   <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
-                      {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
+                    {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
                   </p>
                   <p className="mt-0.5 text-xs tabular-nums">
                     <span className="text-gray-600">
                       {t(language, 'discountRateLabel')}{' '}
                       <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
                     </span>{' '}
-                    <span className={`font-semibold ${discountDiffColor}`}>
-                      ({formatPercentPointDiff(item.discountDiff)})
-                    </span>
+                    <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
                   </p>
                 </div>
               );
