@@ -11,6 +11,8 @@ interface DateSelectProps {
   language?: Language;
 }
 
+const MIN_SELECTABLE_DATE = '2026-01-01';
+
 function getWeekdayToken(dateStr: string, language: Language): string {
   const date = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '';
@@ -36,11 +38,15 @@ export default function DateSelect({
 }: DateSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const availableDateSet = useMemo(() => new Set(availableDates), [availableDates]);
-  const latestDate = availableDates[0] || '';
-  const oldestDate = availableDates[availableDates.length - 1] || '';
-  const isDisabled = disabled || availableDates.length === 0;
-  const baseDate = value || latestDate;
+  const selectableDates = useMemo(
+    () => availableDates.filter((date) => date >= MIN_SELECTABLE_DATE),
+    [availableDates]
+  );
+  const availableDateSet = useMemo(() => new Set(selectableDates), [selectableDates]);
+  const latestDate = selectableDates[0] || '';
+  const oldestDate = selectableDates[selectableDates.length - 1] || '';
+  const isDisabled = disabled || selectableDates.length === 0;
+  const baseDate = value && value >= MIN_SELECTABLE_DATE ? value : latestDate;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -56,8 +62,14 @@ export default function DateSelect({
 
   const resolveToAvailableDate = (candidate: string): string => {
     if (!candidate) return '';
-    if (availableDateSet.has(candidate)) return candidate;
-    return availableDates.find((date) => date <= candidate) || latestDate || candidate;
+    const normalizedCandidate = candidate < MIN_SELECTABLE_DATE ? MIN_SELECTABLE_DATE : candidate;
+    if (availableDateSet.has(normalizedCandidate)) return normalizedCandidate;
+    return (
+      selectableDates.find((date) => date <= normalizedCandidate) ||
+      oldestDate ||
+      latestDate ||
+      normalizedCandidate
+    );
   };
 
   const handleDateInputChange = (nextValue: string) => {
@@ -116,7 +128,7 @@ export default function DateSelect({
             <input
               type="date"
               value={baseDate}
-              min={oldestDate}
+              min={MIN_SELECTABLE_DATE}
               max={latestDate}
               lang={language === 'en' ? 'en-US' : 'ko-KR'}
               onChange={(e) => handleDateInputChange(e.target.value)}
@@ -127,7 +139,7 @@ export default function DateSelect({
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent</p>
             <div className="grid grid-cols-2 gap-2">
-              {availableDates.slice(0, 4).map((date) => (
+              {selectableDates.slice(0, 4).map((date) => (
                 <button
                   key={date}
                   type="button"
@@ -165,7 +177,7 @@ export default function DateSelect({
                         : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    {raw.slice(5)}
+                    {raw}
                   </button>
                 ))}
               </div>
