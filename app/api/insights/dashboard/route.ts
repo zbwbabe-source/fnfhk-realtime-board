@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { buildKey, cacheGet, cacheSet } from '@/lib/cache';
-import { EXEC_INSIGHT_SYSTEM_PROMPT, EXEC_INSIGHT_USER_PROMPT } from '@/lib/insights/prompts';
 import type {
   ExecutiveInsightBlock,
   ExecutiveInsightInput,
@@ -14,34 +12,28 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const MODEL = 'gpt-4o-mini';
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const EXEC_INSIGHT_USE_LLM = process.env.EXEC_INSIGHT_USE_LLM === 'true';
+const MODEL = 'rule-based-v2';
 type InsightLanguage = 'ko' | 'en';
-
-function clampText(s: string, max: number): string {
-  if (!s) return '';
-  return s.length <= max ? s : `${s.slice(0, max - 3)}...`;
-}
 
 function toNumber(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function fmtYoy(v: number | null): string {
+function fmtPercent(v: number | null, digits = 0): string {
   if (v === null) return 'N/A';
-  return `${Math.round(v)}%`;
+  return `${v.toFixed(digits)}%`;
 }
 
-function fmtRate(v: number | null): string {
-  if (v === null) return 'N/A';
-  return `${v.toFixed(1)}%`;
-}
-
-function fmtPpDelta(v: number | null, language: InsightLanguage): string {
+function fmtPp(v: number | null, language: InsightLanguage): string {
   if (v === null) return 'N/A';
   const sign = v > 0 ? '+' : '';
   return language === 'ko' ? `${sign}${v.toFixed(1)}%p` : `${sign}${v.toFixed(1)}pp`;
+}
+function fmtDiscountPpKo(v: number | null): string {
+  if (v === null) return 'N/A';
+  if (v > 0) return `+${v.toFixed(1)}%p`;
+  if (v < 0) return `△${Math.abs(v).toFixed(1)}%p`;
+  return '0.0%p';
 }
 
 function fmtNum(v: number | null): string {
@@ -51,173 +43,11 @@ function fmtNum(v: number | null): string {
   return `${Math.round(v)}`;
 }
 
-function fmtDays(v: number | null): string {
-  if (v === null) return 'N/A';
-  return `${Math.round(v)}일`;
-}
-
-function fmtDaysByLang(v: number | null, language: InsightLanguage): string {
-  if (v === null) return 'N/A';
-  return language === 'ko' ? `${Math.round(v)}일` : `${Math.round(v)} days`;
-}
-
-function fmtSellWindowTurns(v: number | null): string {
-  if (v === null) return 'N/A';
-  return `${(v / 180).toFixed(1)}x`;
-}
-
-function formatOldPair(stock: number | null, days: number | null): string {
-  if (stock === null && days === null) return '데이터 없음';
-  if (stock === null || days === null) return '데이터 일부 없음';
-  return `${fmtNum(stock)}·${fmtDays(days)}`;
-}
-
-function formatOldPairByLang(stock: number | null, days: number | null, language: InsightLanguage): string {
-  if (stock === null && days === null) return language === 'ko' ? '데이터 없음' : 'No data';
-  if (stock === null || days === null) return language === 'ko' ? '데이터 일부 없음' : 'Partial data missing';
-  return `${fmtNum(stock)}·${fmtDaysByLang(days, language)}`;
-}
-
-function parseDateParts(isoDate: string): { year: number; month: number; day: number } | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
-  if (!m) return null;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  return { year, month, day };
-}
-
-type SeasonType = 'SS' | 'FW';
-
-type SeasonWindow = {
-  seasonType: SeasonType;
-  start: Date;
-  end: Date;
-  startLabel: string;
-  endLabel: string;
-  elapsedDays: number;
-  totalDays: number;
-};
-
-function toMonthDayLabel(utcDate: Date): string {
-  return `${utcDate.getUTCMonth() + 1}/${utcDate.getUTCDate()}`;
-}
-
-function toIsoDate(utcDate: Date): string {
-  const y = utcDate.getUTCFullYear();
-  const m = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(utcDate.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function resolveSeasonWindow(asOfDate: string): SeasonWindow | null {
-  const parts = parseDateParts(asOfDate);
-  if (!parts) return null;
-  const asOf = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-
-  const seasonType: SeasonType = parts.month >= 3 && parts.month <= 8 ? 'SS' : 'FW';
-  const seasonStartYear = seasonType === 'SS' ? parts.year : parts.month >= 9 ? parts.year : parts.year - 1;
-  const seasonStart = seasonType === 'SS'
-    ? new Date(Date.UTC(seasonStartYear, 2, 1)) // 3/1
-    : new Date(Date.UTC(seasonStartYear, 8, 1)); // 9/1
-  const seasonEnd = seasonType === 'SS'
-    ? new Date(Date.UTC(seasonStartYear, 7, 31)) // 8/31
-    : new Date(Date.UTC(seasonStartYear + 1, 2, 0)); // 2/28 or 2/29
-
-  const clampedAsOf = asOf < seasonStart ? seasonStart : asOf > seasonEnd ? seasonEnd : asOf;
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const elapsed = Math.max(1, Math.floor((clampedAsOf.getTime() - seasonStart.getTime()) / msPerDay) + 1);
-  const total = Math.max(1, Math.floor((seasonEnd.getTime() - seasonStart.getTime()) / msPerDay) + 1);
-
-  return {
-    seasonType,
-    start: seasonStart,
-    end: seasonEnd,
-    startLabel: toMonthDayLabel(seasonStart),
-    endLabel: toMonthDayLabel(seasonEnd),
-    elapsedDays: elapsed,
-    totalDays: total,
-  };
-}
-
-function projectSeasonEndSellthrough(currentRate: number | null, seasonWindow: SeasonWindow | null): number | null {
-  if (currentRate === null || !seasonWindow) return null;
-  const { elapsedDays, totalDays } = seasonWindow;
-  const projected = (currentRate / elapsedDays) * totalDays;
-  return Math.min(100, Math.max(0, projected));
-}
-
-function buildRegionActions(
-  region: 'HKMC' | 'TW',
-  salesYoy: number | null,
-  seasonSellthrough: number | null,
-  projectedSeasonEndSellthrough: number | null,
-  oldStock: number | null,
-  invDays: number | null,
-  stagnantRatio: number | null,
-  stagnantRatioChange: number | null,
-  seasonWindow: SeasonWindow | null,
-  language: InsightLanguage
-): [string, string] {
-  const seasonEndLabel = seasonWindow?.endLabel ?? 'N/A';
-  const isEarlySeason = seasonWindow !== null && seasonWindow.elapsedDays <= 14;
-  const projectedRisk = projectedSeasonEndSellthrough !== null && projectedSeasonEndSellthrough < 70;
-  const action1 =
-    language === 'ko' && isEarlySeason && seasonSellthrough !== null
-      ? `${region} 시즌 초기(${seasonWindow?.startLabel}~) 구간으로 현재 당시즌 판매율 ${fmtRate(seasonSellthrough)}은 추세 확인 단계임. 하위 카테고리 3개를 지정해 2주 테스트 할인/재배치를 실행하고 주차별 반응을 점검.`
-      : language === 'en' && isEarlySeason && seasonSellthrough !== null
-        ? `${region} is in the early season window (${seasonWindow?.startLabel}~); current in-season sell-through ${fmtRate(seasonSellthrough)} is still in trend-validation stage. Select 3 underperforming categories, run a 2-week test markdown/reallocation, and track weekly response.`
-        : language === 'ko' && projectedRisk
-          ? `${region} 시즌마감일(${seasonEndLabel}) 기준 예상 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 소진 부담이 높음. 하위 카테고리 3개를 지정해 2주 할인/재배치를 실행하고 월말까지 실행 성과를 점검.`
-          : language === 'en' && projectedRisk
-            ? `By season close (${seasonEndLabel}), projected ${region} in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, indicating elevated clearance pressure. Select 3 underperforming categories, execute 2-week markdown/reallocation, and review outcomes by month-end.`
-        : seasonSellthrough === null
-          ? language === 'ko'
-        ? `${region} 당시즌 판매율 데이터 점검이 필요함. 데이터 공백 SKU를 이번 주 내 보정하고 월말까지 실행 성과를 점검.`
-            : `${region} in-season sell-through data needs validation. Correct missing-SKU data this week and review execution outcomes by month-end.`
-        : projectedSeasonEndSellthrough !== null
-          ? language === 'ko'
-          ? `${region} 시즌마감일(${seasonEndLabel}) 기준 예상 당시즌 판매율 ${fmtRate(projectedSeasonEndSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`
-            : `By season close (${seasonEndLabel}), projected ${region} in-season sell-through is ${fmtRate(projectedSeasonEndSellthrough)}, and depletion momentum is holding. Expand weekly best SKUs based on top strategies and review outcomes by month-end.`
-          : language === 'ko'
-            ? `${region} 당시즌 판매율 ${fmtRate(seasonSellthrough)}로 소진 흐름이 유지됨. 상위 전략 기반 주간 베스트 SKU를 확대하고 월말까지 실행 성과를 점검.`
-            : `${region} in-season sell-through is ${fmtRate(seasonSellthrough)}, and depletion momentum is holding. Expand weekly best SKUs based on top strategies and review execution outcomes by month-end.`;
-
-  const invThreshold =
-    invDays === null
-      ? null
-      : invDays >= 300
-        ? language === 'ko'
-          ? '300일 이상(초장기 재고)'
-          : '300+ days (ultra long-term)'
-        : invDays >= 180
-          ? language === 'ko'
-            ? '180~299일(장기재고)'
-            : '180-299 days (long-term)'
-          : language === 'ko'
-            ? '180일 미만(일반)'
-            : 'under 180 days (normal)';
-  const invMeaning =
-    invDays === null
-      ? ''
-      : language === 'ko'
-        ? ` 재고일수 ${fmtDaysByLang(invDays, language)}로, 주 판매기간(180일) 기준 약 ${fmtSellWindowTurns(invDays)} 소요되는 수준(${invThreshold}).`
-        : ` Inventory days are ${fmtDaysByLang(invDays, language)}, implying about ${fmtSellWindowTurns(invDays)} sell-through windows (assuming a 180-day primary selling period, ${invThreshold}).`;
-  const oldPart =
-    oldStock === null
-      ? language === 'ko'
-        ? `${region} 과시즌 데이터 정합성 점검이 필요함. 데이터 소스와 집계키를 이번 주 내 재검증.`
-        : `${region} old-season data consistency needs validation. Re-verify data sources and aggregation keys within this week.`
-      : stagnantRatio === null
-        ? language === 'ko'
-          ? `${region} 과시즌 재고 ${fmtNum(oldStock)} 수준임. 정체재고비중 산출 로직을 점검하고 2주 내 대상 SKU를 정리.`
-          : `${region} old-season stock is ${fmtNum(oldStock)}. Verify stagnant-ratio calculation logic and organize target SKUs within 2 weeks.`
-        : language === 'ko'
-          ? `${region} 정체재고비중 ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `전월말 대비 ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}과시즌 재고 ${fmtNum(oldStock)}) 수준임.${invMeaning} 2주 내 대상 SKU를 정리하고 주 1회 추적.`
-          : `${region} stagnant stock ratio is ${fmtRate(stagnantRatio)} (${stagnantRatioChange !== null ? `vs last month-end ${fmtPpDelta(stagnantRatioChange, language)}, ` : ''}old-season stock ${fmtNum(oldStock)}).${invMeaning} Organize target SKUs within 2 weeks and track weekly.`;
-
-  return [action1, oldPart];
+function toneByDelta(v: number | null): InsightTone {
+  if (v === null) return 'neutral';
+  if (v >= 0) return 'positive';
+  if (v > -5) return 'warning';
+  return 'critical';
 }
 
 function normalizeInput(raw: any): ExecutiveInsightInput {
@@ -227,46 +57,66 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
   const brand = String(raw?.brand || '').trim().toUpperCase();
   const region = String(raw?.region || 'ALL').trim().toUpperCase();
 
-  const hkmcFromLegacy = raw?.hkmc ?? {
-    salesMtdYoy: toNumber(raw?.section1?.hkmc_mtd_yoy),
-    salesYtdYoy: toNumber(raw?.section1?.hkmc_ytd_yoy),
-    seasonSellthrough: toNumber(raw?.section2?.hkmc_sellthrough),
-    oldStock: toNumber(raw?.section3?.hkmc_curr_stock),
-    invDays: toNumber(raw?.section3?.hkmc_inv_days),
-    stagnantRatio: toNumber(raw?.section3?.hkmc_stagnant_ratio),
-    stagnantRatioChange: toNumber(raw?.section3?.hkmc_stagnant_ratio_change),
-  };
-
-  const twFromLegacy = raw?.tw ?? {
-    salesMtdYoy: toNumber(raw?.section1?.tw_mtd_yoy),
-    salesYtdYoy: toNumber(raw?.section1?.tw_ytd_yoy),
-    seasonSellthrough: toNumber(raw?.section2?.tw_sellthrough),
-    oldStock: toNumber(raw?.section3?.tw_curr_stock),
-    invDays: toNumber(raw?.section3?.tw_inv_days),
-    stagnantRatio: toNumber(raw?.section3?.tw_stagnant_ratio),
-    stagnantRatioChange: toNumber(raw?.section3?.tw_stagnant_ratio_change),
-  };
+  const hkmcRaw = raw?.hkmc || {};
+  const twRaw = raw?.tw || {};
 
   const hkmc: ExecutiveRegionInput = {
-    salesMtdYoy: toNumber(hkmcFromLegacy?.salesMtdYoy),
-    salesYtdYoy: toNumber(hkmcFromLegacy?.salesYtdYoy),
-    seasonSellthrough: toNumber(hkmcFromLegacy?.seasonSellthrough),
-    oldStock: toNumber(hkmcFromLegacy?.oldStock),
-    invDays: toNumber(hkmcFromLegacy?.invDays),
-    stagnantRatio: toNumber(hkmcFromLegacy?.stagnantRatio),
-    stagnantRatioChange: toNumber(hkmcFromLegacy?.stagnantRatioChange),
+    salesMtdYoy: toNumber(hkmcRaw.salesMtdYoy),
+    salesYtdYoy: toNumber(hkmcRaw.salesYtdYoy),
+    sameStoreMtdYoy: toNumber(hkmcRaw.sameStoreMtdYoy),
+    sameStoreYtdYoy: toNumber(hkmcRaw.sameStoreYtdYoy),
+    seasonSellthrough: toNumber(hkmcRaw.seasonSellthrough),
+    seasonSellthroughYoyPp: toNumber(hkmcRaw.seasonSellthroughYoyPp),
+    seasonTopCategories: Array.isArray(hkmcRaw.seasonTopCategories)
+      ? hkmcRaw.seasonTopCategories
+          .map((v: unknown) => String(v ?? '').trim())
+          .filter((v: string) => !!v)
+          .slice(0, 3)
+      : [],
+    discountRateMtd: toNumber(hkmcRaw.discountRateMtd),
+    discountRateYtd: toNumber(hkmcRaw.discountRateYtd),
+    discountRateMtdDiff: toNumber(hkmcRaw.discountRateMtdDiff),
+    discountRateYtdDiff: toNumber(hkmcRaw.discountRateYtdDiff),
+    oldStock: toNumber(hkmcRaw.oldStock),
+    oldStockYoy: toNumber(hkmcRaw.oldStockYoy),
+    stagnantRatio: toNumber(hkmcRaw.stagnantRatio),
+    stagnantRatioChange: toNumber(hkmcRaw.stagnantRatioChange),
   };
 
   const tw: ExecutiveRegionInput = {
-    salesMtdYoy: toNumber(twFromLegacy?.salesMtdYoy),
-    salesYtdYoy: toNumber(twFromLegacy?.salesYtdYoy),
-    seasonSellthrough: toNumber(twFromLegacy?.seasonSellthrough),
-    oldStock: toNumber(twFromLegacy?.oldStock),
-    invDays: toNumber(twFromLegacy?.invDays),
-    stagnantRatio: toNumber(twFromLegacy?.stagnantRatio),
-    stagnantRatioChange: toNumber(twFromLegacy?.stagnantRatioChange),
+    salesMtdYoy: toNumber(twRaw.salesMtdYoy),
+    salesYtdYoy: toNumber(twRaw.salesYtdYoy),
+    sameStoreMtdYoy: toNumber(twRaw.sameStoreMtdYoy),
+    sameStoreYtdYoy: toNumber(twRaw.sameStoreYtdYoy),
+    seasonSellthrough: toNumber(twRaw.seasonSellthrough),
+    seasonSellthroughYoyPp: toNumber(twRaw.seasonSellthroughYoyPp),
+    seasonTopCategories: Array.isArray(twRaw.seasonTopCategories)
+      ? twRaw.seasonTopCategories
+          .map((v: unknown) => String(v ?? '').trim())
+          .filter((v: string) => !!v)
+          .slice(0, 3)
+      : [],
+    discountRateMtd: toNumber(twRaw.discountRateMtd),
+    discountRateYtd: toNumber(twRaw.discountRateYtd),
+    discountRateMtdDiff: toNumber(twRaw.discountRateMtdDiff),
+    discountRateYtdDiff: toNumber(twRaw.discountRateYtdDiff),
+    oldStock: toNumber(twRaw.oldStock),
+    oldStockYoy: toNumber(twRaw.oldStockYoy),
+    stagnantRatio: toNumber(twRaw.stagnantRatio),
+    stagnantRatioChange: toNumber(twRaw.stagnantRatioChange),
   };
 
+  const riskRuleTextKo = (discountDiff: number | null, oldYoy: number | null) => {
+    const discountRisk =
+      discountDiff !== null && discountDiff >= 1.5
+        ? '\uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uD560\uC778\uC815\uCC45 \uC911\uB2E8 \uD6C4 \uC804\uD658'
+        : '\uD560\uC778\uC728 \uC99D\uAC10 \uC8FC\uAC04 \uBAA8\uB2C8\uD130\uB9C1';
+    const stockRisk =
+      oldYoy !== null && oldYoy > 120
+        ? '\uACFC\uC2DC\uC98C \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC561\uC158 \uC6B0\uC120 \uC804\uD658'
+        : '\uACFC\uC2DC\uC98C \uC794\uC561 YoY 120% \uC784\uACC4\uAC12 \uAC10\uC2DC';
+    return `${discountRisk}; ${stockRisk}`;
+  };
   return {
     region,
     brand,
@@ -279,302 +129,249 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
   };
 }
 
-function toneByDiff(diff: number | null): InsightTone {
-  if (diff === null) return 'neutral';
-  if (diff >= 20) return 'positive';
-  if (diff >= 5) return 'neutral';
-  if (diff >= -10) return 'warning';
-  return 'critical';
-}
+function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightResponse, 'meta'> {
+  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
+  const mode = input.mode || 'MTD';
 
-function toneByLevel(v: number | null, good: number, warn: number): InsightTone {
-  if (v === null) return 'neutral';
-  if (v >= good) return 'positive';
-  if (v >= warn) return 'warning';
-  return 'critical';
-}
+  const salesHkmc = mode === 'YTD' ? input.hkmc.salesYtdYoy ?? null : input.hkmc.salesMtdYoy ?? null;
+  const salesTw = mode === 'YTD' ? input.tw.salesYtdYoy ?? null : input.tw.salesMtdYoy ?? null;
+  const sameHkmc = mode === 'YTD' ? input.hkmc.sameStoreYtdYoy ?? null : input.hkmc.sameStoreMtdYoy ?? null;
+  const sameTw = mode === 'YTD' ? input.tw.sameStoreYtdYoy ?? null : input.tw.sameStoreMtdYoy ?? null;
 
-function buildSignals(input: ExecutiveInsightInput, language: InsightLanguage = 'ko') {
-  const seasonWindow = resolveSeasonWindow(input.asOfDate);
-  const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
-  const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
   const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
   const salesYtdTw = input.tw.salesYtdYoy ?? null;
+  const sameYtdHkmc = input.hkmc.sameStoreYtdYoy ?? null;
+  const sameYtdTw = input.tw.sameStoreYtdYoy ?? null;
+
   const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
   const seasonTw = input.tw.seasonSellthrough ?? null;
-  const stagnantRatioHkmc = input.hkmc.stagnantRatio ?? null;
-  const stagnantRatioTw = input.tw.stagnantRatio ?? null;
-  const stagnantRatioChangeHkmc = input.hkmc.stagnantRatioChange ?? null;
-  const stagnantRatioChangeTw = input.tw.stagnantRatioChange ?? null;
-  const seasonHkmcProjectedEom = projectSeasonEndSellthrough(seasonHkmc, seasonWindow);
-  const seasonTwProjectedEom = projectSeasonEndSellthrough(seasonTw, seasonWindow);
-  const oldHkmc = input.hkmc.oldStock ?? null;
-  const oldTw = input.tw.oldStock ?? null;
-  const invHkmc = input.hkmc.invDays ?? null;
-  const invTw = input.tw.invDays ?? null;
+  const seasonPpHkmc = input.hkmc.seasonSellthroughYoyPp ?? null;
+  const seasonPpTw = input.tw.seasonSellthroughYoyPp ?? null;
+  const seasonTopHkmc = (input.hkmc.seasonTopCategories || []).slice(0, 3);
+  const seasonTopTw = (input.tw.seasonTopCategories || []).slice(0, 3);
+  const seasonTopHkmcText = seasonTopHkmc.length > 0 ? seasonTopHkmc.join(' ') : 'N/A';
+  const seasonTopTwText = seasonTopTw.length > 0 ? seasonTopTw.join(' ') : 'N/A';
 
-  const salesDiff = salesHkmc !== null && salesTw !== null ? salesHkmc - salesTw : null;
-  const seasonDiff = seasonHkmc !== null && seasonTw !== null ? seasonHkmc - seasonTw : null;
+  const oldStockHkmc = input.hkmc.oldStock ?? null;
+  const oldStockTw = input.tw.oldStock ?? null;
+  const oldStockYoyHkmc = input.hkmc.oldStockYoy ?? null;
+  const oldStockYoyTw = input.tw.oldStockYoy ?? null;
+  const discountRateHkmc = input.hkmc.discountRateMtd ?? null;
+  const discountRateTw = input.tw.discountRateMtd ?? null;
+  const discountRateDiffHkmc = input.hkmc.discountRateMtdDiff ?? null;
+  const discountRateDiffTw = input.tw.discountRateMtdDiff ?? null;
+  const salesMtdHkmc = input.hkmc.salesMtdYoy ?? null;
+  const salesMtdTw = input.tw.salesMtdYoy ?? null;
+  const sameMtdHkmc = input.hkmc.sameStoreMtdYoy ?? null;
+  const sameMtdTw = input.tw.sameStoreMtdYoy ?? null;
+  const salesTextKo =
+    `\uB2F9\uC6D4 \uC804\uCCB4 HKMC ${fmtPercent(salesMtdHkmc)},TW ${fmtPercent(salesMtdTw)}\n` +
+    `\uB2F9\uC6D4 \uB3D9\uB9E4\uC7A5 HKMC ${fmtPercent(sameMtdHkmc)},TW ${fmtPercent(sameMtdTw)}\n` +
+    `\uB204\uC801 \uC804\uCCB4 HKMC ${fmtPercent(salesYtdHkmc)},TW ${fmtPercent(salesYtdTw)}\n` +
+    `\uB204\uC801 \uB3D9\uB9E4\uC7A5 HKMC ${fmtPercent(sameYtdHkmc)},TW ${fmtPercent(sameYtdTw)}`;
+  const salesTextEn =
+    `MTD HKMC${fmtPercent(salesMtdHkmc)},TW${fmtPercent(salesMtdTw)}|Same-store${fmtPercent(sameMtdHkmc)},${fmtPercent(sameMtdTw)}\n` +
+    `YTD HKMC${fmtPercent(salesYtdHkmc)},TW${fmtPercent(salesYtdTw)}|Same-store${fmtPercent(sameYtdHkmc)},${fmtPercent(sameYtdTw)}`;
+  const oldTextKo =
+    `\uC794\uC561 : HKMC ${fmtPercent(oldStockYoyHkmc, 0)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 0)} (${fmtNum(oldStockTw)}).\n` +
+    `\uB2F9\uC6D4\uD310\uB9E4 : HKMC ${fmtPercent(salesMtdHkmc)}, TW ${fmtPercent(salesMtdTw)}\n` +
+    `\uB204\uC801\uD310\uB9E4 : HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)}\n` +
+    `\uD560\uC778\uC728 : HKMC ${fmtPercent(discountRateHkmc, 1)} (${fmtDiscountPpKo(discountRateDiffHkmc)}), TW ${fmtPercent(discountRateTw, 1)} (${fmtDiscountPpKo(discountRateDiffTw)})`;
+  const oldTextEn =
+    `Balance: HKMC ${fmtPercent(oldStockYoyHkmc, 0)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 0)} (${fmtNum(oldStockTw)}).\n` +
+    `MTD Sales: HKMC ${fmtPercent(salesMtdHkmc)}, TW ${fmtPercent(salesMtdTw)}\n` +
+    `YTD Sales: HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)}\n` +
+    `MTD Discount: HKMC ${fmtPercent(discountRateHkmc, 1)} (${fmtPp(discountRateDiffHkmc, language)}), TW ${fmtPercent(discountRateTw, 1)} (${fmtPp(discountRateDiffTw, language)})`;
 
   const blocks: ExecutiveInsightBlock[] = [
     {
       id: 'sales',
       label: language === 'ko' ? '매출' : 'Sales',
-      tone: toneByDiff(salesDiff),
+      tone: toneByDelta((salesHkmc ?? 0) - (salesTw ?? 0)),
       text:
         language === 'ko'
-          ? `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`
-          : `Actual sales YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. YTD YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
+          ? mode === 'YTD'
+            ? `누적 YoY HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)} | 누적 동매장 HKMC ${fmtPercent(sameYtdHkmc)}, TW ${fmtPercent(sameYtdTw)}`
+            : `당월 YoY HKMC ${fmtPercent(salesHkmc)}, TW ${fmtPercent(salesTw)} | 동매장 HKMC ${fmtPercent(sameHkmc)}, TW ${fmtPercent(sameTw)}`
+          : mode === 'YTD'
+            ? `YTD YoY HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)} | YTD same-store HKMC ${fmtPercent(sameYtdHkmc)}, TW ${fmtPercent(sameYtdTw)}`
+            : `MTD YoY HKMC ${fmtPercent(salesHkmc)}, TW ${fmtPercent(salesTw)} | Same-store HKMC ${fmtPercent(sameHkmc)}, TW ${fmtPercent(sameTw)}`,
     },
     {
       id: 'season',
-      label: language === 'ko' ? '당시즌' : 'In-season',
-      tone: toneByDiff(seasonDiff),
+      label: language === 'ko' ? '당시즌 판매율' : 'In-season Sell-through',
+      tone: toneByDelta((seasonPpHkmc ?? 0) - (seasonPpTw ?? 0)),
       text:
         language === 'ko'
-          ? `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`
-          : `In-season sell-through is HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}.`,
+          ? `HKMC ${fmtPercent(seasonHkmc, 1)} (${fmtPp(seasonPpHkmc, language)})\nTOP3: ${seasonTopHkmcText}\nTW ${fmtPercent(seasonTw, 1)} (${fmtPp(seasonPpTw, language)})\nTOP3: ${seasonTopTwText}`
+          : `HKMC ${fmtPercent(seasonHkmc, 1)} (${fmtPp(seasonPpHkmc, language)})\nTOP3: ${seasonTopHkmcText}\nTW ${fmtPercent(seasonTw, 1)} (${fmtPp(seasonPpTw, language)})\nTOP3: ${seasonTopTwText}`,
     },
     {
       id: 'old',
       label: language === 'ko' ? '과시즌' : 'Old-season',
-      tone: toneByLevel(Math.max(invHkmc ?? 0, invTw ?? 0), 180, 120),
+      tone: toneByDelta((oldStockYoyHkmc ?? 0) - (oldStockYoyTw ?? 0)),
       text:
         language === 'ko'
-          ? `과시즌 잔액/재고일수는 HKMC ${formatOldPairByLang(oldHkmc, invHkmc, language)}, TW ${formatOldPairByLang(oldTw, invTw, language)}입니다.`
-          : `Old-season stock/inventory days are HKMC ${formatOldPairByLang(oldHkmc, invHkmc, language)}, TW ${formatOldPairByLang(oldTw, invTw, language)}.`,
+          ? `과시즌 잔액 YoY: HKMC ${fmtPercent(oldStockYoyHkmc, 1)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 1)} (${fmtNum(oldStockTw)}).`
+          : `Old-season balance YoY: HKMC ${fmtPercent(oldStockYoyHkmc, 1)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 1)} (${fmtNum(oldStockTw)}).`,
     },
   ];
+  if (blocks[0]?.id === 'sales') {
+    blocks[0].label = language === 'ko' ? '\uC2E4\uD310\uB9E4\uCD9C' : 'Sales';
+    blocks[0].text = language === 'ko' ? salesTextKo : salesTextEn;
+  }
+  if (blocks[2]?.id === 'old') {
+    blocks[2].text = language === 'ko' ? oldTextKo : oldTextEn;
+  }
 
-  const summaryLine = clampText(
-    blocks
-      .map((b) => `${b.label} ${b.text}`)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim(),
-    80
-  );
-  const compareLine = '';
+  const legacyActions =
+    language === 'ko'
+      ? [
+          {
+            priority: 'HKMC' as const,
+            text: `HKMC는 매출/동매장/판매율 변화가 동시에 보이는 카테고리 중심으로 주간 실행안을 1개로 통합해 운영하세요.`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `TW는 판매율 증감과 과시즌 잔액 YoY를 함께 보면서, 저효율 카테고리 2주 액션을 우선 실행하세요.`,
+          },
+        ]
+      : [
+          {
+            priority: 'HKMC' as const,
+            text: `For HKMC, run one weekly plan focused on categories where sales, same-store YoY, and sell-through move together.`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `For TW, prioritize a 2-week action on low-efficiency categories using sell-through delta and old-season balance YoY together.`,
+          },
+        ];
 
-  const [hkmcAction1, hkmcAction2] = buildRegionActions(
-    'HKMC',
-    salesHkmc,
-    seasonHkmc,
-    seasonHkmcProjectedEom,
-    oldHkmc,
-    invHkmc,
-    stagnantRatioHkmc,
-    stagnantRatioChangeHkmc,
-    seasonWindow,
-    language
-  );
-  const [twAction1, twAction2] = buildRegionActions(
-    'TW',
-    salesTw,
-    seasonTw,
-    seasonTwProjectedEom,
-    oldTw,
-    invTw,
-    stagnantRatioTw,
-    stagnantRatioChangeTw,
-    seasonWindow,
-    language
-  );
-
-  const actions = [
-    { priority: 'HKMC-1' as const, text: hkmcAction1 },
-    { priority: 'HKMC-2' as const, text: hkmcAction2 },
-    { priority: 'TW-1' as const, text: twAction1 },
-    { priority: 'TW-2' as const, text: twAction2 },
-  ];
-
-  return {
-    summaryLine,
-    compareLine,
-    blocks,
-    actions,
-    seasonEndDate: seasonWindow ? toIsoDate(seasonWindow.end) : '',
-    seasonHkmcProjectedEom,
-    seasonTwProjectedEom,
+  const hkmcFocusCats = seasonTopHkmc.length > 0 ? seasonTopHkmc.slice(0, 2).join(', ') : 'TOP3 categories';
+  const twFocusCats = seasonTopTw.length > 0 ? seasonTopTw.slice(0, 2).join(', ') : 'TOP3 categories';
+  const hkmcTargetPp = seasonPpHkmc === null ? 1.5 : Math.max(1.0, Math.min(3.0, Math.abs(seasonPpHkmc) * 0.35));
+  const twTargetPp = seasonPpTw === null ? 1.5 : Math.max(1.0, Math.min(3.0, Math.abs(seasonPpTw) * 0.35));
+  const fmtKoDiff = (v: number | null) => {
+    if (v === null) return 'N/A';
+    if (v > 0) return `+${v.toFixed(1)}%p`;
+    if (v < 0) return `△${Math.abs(v).toFixed(1)}%p`;
+    return '0.0%p';
   };
-}
+  const fmtEnDiff = (v: number | null) => {
+    if (v === null) return 'N/A';
+    if (v > 0) return `+${v.toFixed(1)}pp`;
+    if (v < 0) return `-${Math.abs(v).toFixed(1)}pp`;
+    return '0.0pp';
+  };
 
-function forceSalesBlockWithYtd(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
-  const salesHkmc = (input.mode === 'YTD' ? input.hkmc.salesYtdYoy : input.hkmc.salesMtdYoy) ?? null;
-  const salesTw = (input.mode === 'YTD' ? input.tw.salesYtdYoy : input.tw.salesMtdYoy) ?? null;
-  const salesYtdHkmc = input.hkmc.salesYtdYoy ?? null;
-  const salesYtdTw = input.tw.salesYtdYoy ?? null;
+  const actions =
+    language === 'ko'
+      ? [
+          {
+            priority: 'HKMC' as const,
+            text: `대상 ${hkmcFocusCats} / 실행 2주 선택할인(저회전 SKU 중심) / 목표 판매율 +${hkmcTargetPp.toFixed(1)}%p, 동매장 YoY ${fmtPercent(sameMtdHkmc)}→${fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / 기간 2주 / 리스크 할인율 증감 ${fmtKoDiff(discountRateDiffHkmc)}가 +이면 마진 훼손 위험.`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `대상 ${twFocusCats} / 실행 과시즌 잔액 YoY ${fmtPercent(oldStockYoyTw, 0)} 구간 우선 클리어런스 / 목표 판매율 +${twTargetPp.toFixed(1)}%p, 누적판매 YoY ${fmtPercent(salesYtdTw)} 유지 / 기간 2주(3일 간격 점검) / 리스크 할인율 증감 ${fmtKoDiff(discountRateDiffTw)}가 +이면 객단가 하락 위험.`,
+          },
+        ]
+      : [
+          {
+            priority: 'HKMC' as const,
+            text: `Target ${hkmcFocusCats} / Action selective markdown for 2 weeks (low-rotation SKUs) / Goal sell-through +${hkmcTargetPp.toFixed(1)}pp, same-store YoY ${fmtPercent(sameMtdHkmc)}→${fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / Window 2 weeks / Risk discount delta ${fmtEnDiff(discountRateDiffHkmc)} with plus side can damage margin.`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `Target ${twFocusCats} / Action prioritize clearance on old-season balance YoY ${fmtPercent(oldStockYoyTw, 0)} segments / Goal sell-through +${twTargetPp.toFixed(1)}pp while holding YTD YoY ${fmtPercent(salesYtdTw)} / Window 2 weeks (every 3 days review) / Risk discount delta ${fmtEnDiff(discountRateDiffTw)} with plus side can hurt AUR.`,
+          },
+        ];
 
-  return blocks.map((b) => {
-    if (b.id !== 'sales') return b;
-    return {
-      ...b,
-      text: `실판매출 YoY: HKMC ${fmtYoy(salesHkmc)}, TW ${fmtYoy(salesTw)}. 누적 YoY: HKMC ${fmtYoy(salesYtdHkmc)}, TW ${fmtYoy(salesYtdTw)}.`,
-    };
-  });
-}
+  const formatKoDelta = (v: number | null) => {
+    if (v === null) return 'N/A';
+    if (v > 0) return `+${v.toFixed(1)}%p`;
+    if (v < 0) return `\u25B3${Math.abs(v).toFixed(1)}%p`;
+    return '0.0%p';
+  };
+  const formatEnDelta = (v: number | null) => {
+    if (v === null) return 'N/A';
+    if (v > 0) return `+${v.toFixed(1)}pp`;
+    if (v < 0) return `-${Math.abs(v).toFixed(1)}pp`;
+    return '0.0pp';
+  };
+  const buildKoStoreDiagnosis = (discountDiff: number | null, sameYoy: number | null, totalYoy: number | null) => {
+    const prefix =
+      discountDiff === null
+        ? '할인율-매출 연동 점검 필요'
+        : discountDiff > 0
+          ? '할인율 증가 대비 판매 방어 약함'
+          : discountDiff < 0
+            ? '할인율 감소에도 판매 회복 지연'
+            : '할인율 정체 대비 판매 반등 제한';
+    return `${prefix}(동매장 ${fmtPercent(sameYoy)}, 전체 ${fmtPercent(totalYoy)})`;
+  };
+  const normalizedActions =
+    language === 'ko'
+      ? [
+          {
+            priority: 'HKMC' as const,
+            text: `[\uB9E4\uC7A5] \uC9C4\uB2E8: ${buildKoStoreDiagnosis(discountRateDiffHkmc, sameMtdHkmc, salesMtdHkmc)} / \uB300\uC0C1: \uD558\uC704 \uC810\uD3EC 10\uAC1C / \uC2E4\uD589: \uC9C4\uC5F4+\uAC00\uACA9 \uC7AC\uBC30\uCE58 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
+          },
+          {
+            priority: 'HKMC' as const,
+            text: `[\uB2F9\uC2DC\uC98C] \uC9C4\uB2E8: \uCE74\uD14C\uACE0\uB9AC TOP3(${seasonTopHkmcText})\uC5D0\uC11C \uD560\uC778\uC728 \uBCC0\uD654 \uB300\uBE44 \uD310\uB9E4\uC728 \uD68C\uBCF5 \uC18D\uB3C4 \uB355 / \uB300\uC0C1: TOP3(${seasonTopHkmcText}) / \uC2E4\uD589: \uC800\uD68C\uC804 SKU 20\uAC1C \uC120\uD0DD\uD560\uC778+\uB178\uCD9C \uC7AC\uBC30\uCE58 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonHkmc, 1)}\u2192${fmtPercent((seasonHkmc ?? 0) + 2.0, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffHkmc)} \uD655\uB300 \uC2DC \uB9C8\uC9C4 \uD6FC\uC190`,
+          },
+          {
+            priority: 'HKMC' as const,
+            text: `[\uACFC\uC2DC\uC98C] \uC9C4\uB2E8: \uACFC\uC2DC\uC98C \uC794\uC561 YoY ${fmtPercent(oldStockYoyHkmc, 0)}\uB85C \uC7AC\uACE0 \uB204\uC801 \uB9AC\uC2A4\uD06C \uD655\uB300 / \uB300\uC0C1: \uC7AC\uACE0 \uC0C1\uC704 3\uCE74\uD14C\uACE0\uB9AC / \uC2E4\uD589: \uD074\uB9AC\uC5B4\uB7F0\uC2A4+\uCC44\uB110 \uC774\uAD00 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -10%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[\uB9E4\uC7A5] \uC9C4\uB2E8: ${buildKoStoreDiagnosis(discountRateDiffTw, sameMtdTw, salesMtdTw)} / \uB300\uC0C1: \uC628/\uC624\uD504 \uD558\uC704 \uCC44\uB110 / \uC2E4\uD589: \uCC44\uB110 \uBD84\uB9AC \uC6B4\uC601 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[\uB2F9\uC2DC\uC98C] \uC9C4\uB2E8: TOP3(${seasonTopTwText})\uC5D0\uC11C \uD560\uC778\uC728 \uBCC0\uD654 \uB300\uBE44 \uD310\uB9E4\uC728 \uBC18\uC751 \uBD80\uC871 / \uB300\uC0C1: TOP3(${seasonTopTwText}) / \uC2E4\uD589: \uC0C1\uC7043 \uD310\uCD09+\uD558\uC7043 \uD560\uC778\uAD6C\uAC04 \uC870\uC815 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonTw, 1)}\u2192${fmtPercent((seasonTw ?? 0) + 1.5, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffTw)} \uD655\uB300 \uC2DC \uAC1D\uB2E8\uAC00 \uD558\uB77D`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[\uACFC\uC2DC\uC98C] \uC9C4\uB2E8: \uACFC\uC2DC\uC98C \uC794\uC561 YoY ${fmtPercent(oldStockYoyTw, 0)}\uB85C \uCC44\uB110 \uBD80\uB2F4 \uD655\uB300 / \uB300\uC0C1: \uACFC\uC2DC\uC98C \uC0C1\uC704 \uC7AC\uACE0 \uAD6C\uAC04 / \uC2E4\uD589: \uBB36\uC74C\uD310\uB9E4+\uC628\uB77C\uC778 \uD074\uB9AC\uC5B4\uB7F0\uC2A4 \uD398\uC774\uC9C0 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -8%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
+          },
+        ]
+      : [
+          {
+            priority: 'HKMC' as const,
+            text: `[Store] Target: same-store gap (HKMC ${fmtPercent(sameMtdHkmc)} vs total ${fmtPercent(salesMtdHkmc)}) / Action: relayout+repricing for bottom 10 stores / Numeric goal: +1.5pp / Period: 2 weeks / Risk: if discount delta >= +1.5pp and sales YoY <100, stop and switch`,
+          },
+          {
+            priority: 'HKMC' as const,
+            text: `[In-season] Target: TOP3 (${seasonTopHkmcText}) / Action: selective markdown on 20 low-rotation SKUs / Numeric goal: sell-through +2.0pp / Period: 2 weeks / Risk: rising discount delta may damage margin`,
+          },
+          {
+            priority: 'HKMC' as const,
+            text: `[Old-season] Target: old balance YoY ${fmtPercent(oldStockYoyHkmc, 0)} / Action: clearance + channel transfer / Numeric goal: balance YoY -10pp / Period: 4 weeks / Risk: if old-season balance YoY >120%, switch immediately`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[Store] Target: same-store gap (TW ${fmtPercent(sameMtdTw)} vs total ${fmtPercent(salesMtdTw)}) / Action: split offline/online execution / Numeric goal: +1.5pp / Period: 2 weeks / Risk: if discount delta >= +1.5pp and sales YoY <100, stop and switch`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[In-season] Target: TOP3 (${seasonTopTwText}) / Action: push top3 + reset markdown for bottom3 / Numeric goal: sell-through +1.5pp / Period: 2 weeks / Risk: rising discount delta may hurt AUR`,
+          },
+          {
+            priority: 'TW' as const,
+            text: `[Old-season] Target: old balance YoY ${fmtPercent(oldStockYoyTw, 0)} / Action: bundle sale + online clearance page / Numeric goal: balance YoY -8pp / Period: 4 weeks / Risk: if old-season balance YoY >120%, switch immediately`,
+          },
+        ];
 
-function forceSeasonBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
-  const seasonHkmc = input.hkmc.seasonSellthrough ?? null;
-  const seasonTw = input.tw.seasonSellthrough ?? null;
-  return blocks.map((b) => {
-    if (b.id !== 'season') return b;
-    return {
-      ...b,
-      text: `당시즌 판매율은 HKMC ${fmtRate(seasonHkmc)}, TW ${fmtRate(seasonTw)}입니다.`,
-    };
-  });
-}
-
-function forceOldBlock(blocks: ExecutiveInsightBlock[], input: ExecutiveInsightInput): ExecutiveInsightBlock[] {
-  const oldHkmc = input.hkmc.oldStock ?? null;
-  const oldTw = input.tw.oldStock ?? null;
-  const invHkmc = input.hkmc.invDays ?? null;
-  const invTw = input.tw.invDays ?? null;
-  return blocks.map((b) => {
-    if (b.id !== 'old') return b;
-    return {
-      ...b,
-      text: `과시즌 잔액/재고일수는 HKMC ${formatOldPair(oldHkmc, invHkmc)}, TW ${formatOldPair(oldTw, invTw)}입니다.`,
-    };
-  });
-}
-
-function isValidTone(v: unknown): v is InsightTone {
-  return v === 'positive' || v === 'neutral' || v === 'warning' || v === 'critical';
-}
-
-function validateResponseShape(obj: any): obj is Omit<ExecutiveInsightResponse, 'meta'> {
-  if (!obj || typeof obj !== 'object') return false;
-  if (obj.title !== 'Executive Insight') return false;
-  if (typeof obj.asOfLabel !== 'string' || typeof obj.summaryLine !== 'string' || typeof obj.compareLine !== 'string') return false;
-  if (!Array.isArray(obj.blocks) || obj.blocks.length !== 3) return false;
-  if (!Array.isArray(obj.actions) || obj.actions.length !== 4) return false;
-
-  const expectedIds = ['sales', 'season', 'old'];
-  for (let i = 0; i < 3; i += 1) {
-    const b = obj.blocks[i];
-    if (!b || b.id !== expectedIds[i] || typeof b.label !== 'string' || typeof b.text !== 'string' || !isValidTone(b.tone)) {
-      return false;
-    }
-  }
-  const expectedPriorities = ['HKMC-1', 'HKMC-2', 'TW-1', 'TW-2'];
-  for (let i = 0; i < obj.actions.length; i += 1) {
-    const a = obj.actions[i];
-    if (!a || a.priority !== expectedPriorities[i] || typeof a.text !== 'string') {
-      return false;
-    }
-  }
-  return true;
-}
-
-function sanitizeInsightText(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/실행안 확정/g, '우선 대응')
-    .replace(/실행안을 확정/g, '우선 대응안을 정리')
-    .replace(/HKMC\s*우위\s*유지\s*속/gi, 'HKMC/TW 각 특성 속')
-    .replace(/HKMC\s*우위/gi, 'HKMC/TW 특성')
-    .replace(/로 비교됩니다\./g, '입니다.')
-    .replace(/비교됩니다\./g, '입니다.')
-    .replace(/(?:HKMC|TW)\s*실판매출\s*YoY[^.]*기준으로 우선순위를 운영함\.?\s*/g, '')
-    .replace(/실판매출\s*YoY[^.]*기준으로 우선순위를 운영함\.?\s*/g, '')
-    .replace(/N\/A[\/·]N\/A일?/g, '데이터 없음')
-    .trim();
-}
-
-function withMeta(
-  payload: Omit<ExecutiveInsightResponse, 'meta'>,
-  meta: { cached: boolean; generatedAt: string; ttlSeconds: number; model: string },
-  input: ExecutiveInsightInput
-): ExecutiveInsightResponse {
-  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
-  const localized = buildSignals(input, language);
-  if (language === 'en') {
-    return {
-      ...payload,
-      summaryLine: localized.summaryLine,
-      compareLine: localized.compareLine,
-      blocks: localized.blocks,
-      actions: localized.actions,
-      meta: {
-        model: meta.model,
-        cached: meta.cached,
-        generatedAt: meta.generatedAt,
-        ttlSeconds: meta.ttlSeconds,
-      },
-    };
-  }
-
-  const salesForced = forceSalesBlockWithYtd(payload.blocks, input);
-  const seasonForced = forceSeasonBlock(salesForced, input);
-  const oldForced = forceOldBlock(seasonForced, input);
   return {
-    ...payload,
-    summaryLine: clampText(sanitizeInsightText(payload.summaryLine), 80),
+    title: 'Executive Insight',
+    asOfLabel: `${input.asOfDate} | ${input.brand} | ${mode}`,
+    summaryLine: '',
     compareLine: '',
-    blocks: oldForced.map((b) => ({ ...b, text: sanitizeInsightText(b.text) })),
-    // Always bind action text to current numeric inputs (no stale/hallucinated constants).
-    actions: localized.actions.map((a) => ({ ...a, text: sanitizeInsightText(a.text) })),
-    meta: {
-      model: meta.model,
-      cached: meta.cached,
-      generatedAt: meta.generatedAt,
-      ttlSeconds: meta.ttlSeconds,
-    },
-  };
-}
-
-async function generateExecutiveInsight(input: ExecutiveInsightInput): Promise<Omit<ExecutiveInsightResponse, 'meta'>> {
-  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
-  const signals = buildSignals(input, language);
-  const asOfLabel = `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`;
-
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
-    max_tokens: 800,
-    messages: [
-      { role: 'system', content: EXEC_INSIGHT_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: `${EXEC_INSIGHT_USER_PROMPT}
-
-INPUT:
-${JSON.stringify(input, null, 2)}
-
-SIGNALS:
-${JSON.stringify(signals, null, 2)}
-
-Output JSON only.`,
-      },
-    ],
-  });
-
-  const raw = response.choices[0]?.message?.content?.trim() || '{}';
-  const parsed = JSON.parse(raw);
-  if (!validateResponseShape(parsed)) {
-    throw new Error('Invalid JSON schema from model');
-  }
-
-  return {
-    ...parsed,
-    title: 'Executive Insight',
-    asOfLabel,
-  };
-}
-
-function buildRuleFallback(input: ExecutiveInsightInput): Omit<ExecutiveInsightResponse, 'meta'> {
-  const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
-  const signals = buildSignals(input, language);
-  return {
-    title: 'Executive Insight',
-    asOfLabel: `${input.asOfDate} | ${input.brand} | ${input.mode || 'MTD'}`,
-    summaryLine: signals.summaryLine,
-    compareLine: signals.compareLine,
-    blocks: signals.blocks,
-    actions: signals.actions,
+    blocks,
+    actions: normalizedActions,
   };
 }
 
@@ -591,18 +388,30 @@ function buildInputSignature(input: ExecutiveInsightInput): string {
   return [
     f(input.hkmc.salesMtdYoy),
     f(input.hkmc.salesYtdYoy),
+    f(input.hkmc.sameStoreMtdYoy),
+    f(input.hkmc.sameStoreYtdYoy),
     f(input.hkmc.seasonSellthrough),
+    f(input.hkmc.seasonSellthroughYoyPp),
+    f(input.hkmc.discountRateMtd),
+    f(input.hkmc.discountRateYtd),
+    f(input.hkmc.discountRateMtdDiff),
+    f(input.hkmc.discountRateYtdDiff),
     f(input.hkmc.oldStock),
-    f(input.hkmc.invDays),
-    f(input.hkmc.stagnantRatio),
-    f(input.hkmc.stagnantRatioChange),
+    f(input.hkmc.oldStockYoy),
     f(input.tw.salesMtdYoy),
     f(input.tw.salesYtdYoy),
+    f(input.tw.sameStoreMtdYoy),
+    f(input.tw.sameStoreYtdYoy),
     f(input.tw.seasonSellthrough),
+    f(input.tw.seasonSellthroughYoyPp),
+    f(input.tw.discountRateMtd),
+    f(input.tw.discountRateYtd),
+    f(input.tw.discountRateMtdDiff),
+    f(input.tw.discountRateYtdDiff),
     f(input.tw.oldStock),
-    f(input.tw.invDays),
-    f(input.tw.stagnantRatio),
-    f(input.tw.stagnantRatioChange),
+    f(input.tw.oldStockYoy),
+    (input.hkmc.seasonTopCategories || []).join(','),
+    (input.tw.seasonTopCategories || []).join(','),
   ].join('_');
 }
 
@@ -623,7 +432,7 @@ export async function POST(req: Request) {
     const cacheKey = buildKey([
       'insights',
       'exec',
-      'v21',
+      'v22',
       languagePart,
       regionPart,
       input.brand,
@@ -635,40 +444,28 @@ export async function POST(req: Request) {
 
     const cached = forceRefresh ? null : await cacheGet<ExecutiveInsightResponse>(cacheKey);
     if (cached && !forceRefresh) {
-      return NextResponse.json(
-        withMeta(
-          {
-            title: 'Executive Insight',
-            asOfLabel: cached.asOfLabel,
-            summaryLine: cached.summaryLine,
-            compareLine: cached.compareLine,
-            blocks: cached.blocks,
-            actions: cached.actions,
-          },
-          {
-            cached: true,
-            generatedAt: cached.meta?.generatedAt || new Date().toISOString(),
-            ttlSeconds: cached.meta?.ttlSeconds || ttlSeconds,
-            model: cached.meta?.model || MODEL,
-          },
-          input
-        )
-      );
+      return NextResponse.json({
+        ...cached,
+        meta: {
+          model: cached.meta?.model || MODEL,
+          cached: true,
+          generatedAt: cached.meta?.generatedAt || new Date().toISOString(),
+          ttlSeconds: cached.meta?.ttlSeconds || ttlSeconds,
+        },
+      });
     }
 
-    const generatedAt = new Date().toISOString();
-    let payload: Omit<ExecutiveInsightResponse, 'meta'>;
+    const generated = buildInsight(input);
+    const final: ExecutiveInsightResponse = {
+      ...generated,
+      meta: {
+        model: MODEL,
+        cached: false,
+        generatedAt: new Date().toISOString(),
+        ttlSeconds,
+      },
+    };
 
-    try {
-      if (!EXEC_INSIGHT_USE_LLM || !process.env.OPENAI_API_KEY) {
-        throw new Error('LLM path disabled');
-      }
-      payload = await generateExecutiveInsight(input);
-    } catch {
-      payload = buildRuleFallback(input);
-    }
-
-    const final = withMeta(payload, { cached: false, generatedAt, ttlSeconds, model: MODEL }, input);
     await cacheSet(cacheKey, final, ttlSeconds);
     return NextResponse.json(final);
   } catch (error: any) {
