@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 function isLegacySnapshotPayload(payload: any): boolean {
   const total = payload?.total_subtotal;
+  const expectedSameStoreFilterRule = 'exclude_offline_mtd_zero_sales_days_ge_5';
   return (
     !payload?.season_category_sales?.metrics ||
     !total ||
@@ -13,6 +14,8 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof total.same_store_yoy === 'undefined' ||
     typeof total.active_store_count_mtd === 'undefined' ||
     typeof total.active_store_count_mtd_py === 'undefined' ||
+    typeof total.same_store_filter_rule === 'undefined' ||
+    total.same_store_filter_rule !== expectedSameStoreFilterRule ||
     typeof total.active_store_count_ytd_avg === 'undefined' ||
     typeof total.active_store_count_ytd_avg_py === 'undefined' ||
     typeof total.projected_progress === 'undefined' ||

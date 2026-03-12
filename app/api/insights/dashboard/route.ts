@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
+import OpenAI from 'openai';
 import { buildKey, cacheGet, cacheSet } from '@/lib/cache';
 import type {
+  ExecutiveInsightAction,
   ExecutiveInsightBlock,
   ExecutiveInsightInput,
   ExecutiveInsightResponse,
@@ -14,6 +16,86 @@ export const maxDuration = 30;
 
 const MODEL = 'rule-based-v2';
 type InsightLanguage = 'ko' | 'en';
+const REWRITE_MODEL = 'gpt-4o-mini';
+const openaiClient = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
+
+function normalizeStrategyText(text: string): string {
+  return text
+    .replace(/갩/g, '갭')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+async function rewriteActionsWithOpenAI(
+  language: InsightLanguage,
+  brand: string,
+  asOfDate: string,
+  mode: 'MTD' | 'YTD',
+  actions: ExecutiveInsightAction[]
+): Promise<ExecutiveInsightAction[]> {
+  if (!openaiClient || actions.length === 0) return actions;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const prompt =
+      language === 'ko'
+        ? `다음 전략 문구를 자연스럽고 임원 보고용으로 다듬어 주세요.
+- 숫자, 기간, 방향(증가/감소), 구분([매장]/[당시즌]/[과시즌]), 지역(HKMC/TW)은 절대 변경 금지
+- 형식 "현황/대상/실행/수치목표/기간/리스크"는 유지
+- 의미는 유지하고 문장만 매끄럽게 개선
+
+메타: brand=${brand}, asOfDate=${asOfDate}, mode=${mode}
+입력 actions(JSON):
+${JSON.stringify(actions)}`
+        : `Polish the following strategy lines for executive readability.
+- Do not change numbers, periods, direction, region labels, or section tags
+- Keep the structure "Status/Target/Action/Numeric goal/Period/Risk"
+- Keep meaning identical; improve wording only
+
+Meta: brand=${brand}, asOfDate=${asOfDate}, mode=${mode}
+Input actions(JSON):
+${JSON.stringify(actions)}`;
+
+    const resp = await openaiClient.chat.completions.create(
+      {
+        model: REWRITE_MODEL,
+        temperature: 0.2,
+        max_tokens: 900,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              'Return strict JSON only: {"actions":[{"priority":"HKMC|TW","text":"..."}]}. Keep array length/order and priorities unchanged.',
+          },
+          { role: 'user', content: prompt },
+        ],
+      },
+      { signal: controller.signal as any }
+    );
+
+    const raw = resp.choices[0]?.message?.content?.trim() || '{}';
+    const parsed = JSON.parse(raw);
+    const candidate = Array.isArray(parsed?.actions) ? parsed.actions : [];
+    if (candidate.length !== actions.length) return actions;
+
+    return candidate.map((item: any, idx: number) => {
+      const base = actions[idx];
+      const text = typeof item?.text === 'string' ? item.text.trim() : '';
+      const priority = item?.priority === 'TW' ? 'TW' : 'HKMC';
+      if (!text || priority !== base.priority) return base;
+      return { priority: base.priority, text: normalizeStrategyText(text) };
+    });
+  } catch {
+    return actions;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function toNumber(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -32,7 +114,7 @@ function fmtPp(v: number | null, language: InsightLanguage): string {
 function fmtDiscountPpKo(v: number | null): string {
   if (v === null) return 'N/A';
   if (v > 0) return `+${v.toFixed(1)}%p`;
-  if (v < 0) return `△${Math.abs(v).toFixed(1)}%p`;
+  if (v < 0) return `\u25B3${Math.abs(v).toFixed(1)}%p`;
   return '0.0%p';
 }
 
@@ -79,6 +161,9 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     discountRateYtdDiff: toNumber(hkmcRaw.discountRateYtdDiff),
     oldStock: toNumber(hkmcRaw.oldStock),
     oldStockYoy: toNumber(hkmcRaw.oldStockYoy),
+    invDays: toNumber(hkmcRaw.invDays),
+    oldStock2yPlusShare: toNumber(hkmcRaw.oldStock2yPlusShare),
+    oldStock3yPlusShare: toNumber(hkmcRaw.oldStock3yPlusShare),
     stagnantRatio: toNumber(hkmcRaw.stagnantRatio),
     stagnantRatioChange: toNumber(hkmcRaw.stagnantRatioChange),
   };
@@ -102,6 +187,9 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
     discountRateYtdDiff: toNumber(twRaw.discountRateYtdDiff),
     oldStock: toNumber(twRaw.oldStock),
     oldStockYoy: toNumber(twRaw.oldStockYoy),
+    invDays: toNumber(twRaw.invDays),
+    oldStock2yPlusShare: toNumber(twRaw.oldStock2yPlusShare),
+    oldStock3yPlusShare: toNumber(twRaw.oldStock3yPlusShare),
     stagnantRatio: toNumber(twRaw.stagnantRatio),
     stagnantRatioChange: toNumber(twRaw.stagnantRatioChange),
   };
@@ -129,7 +217,7 @@ function normalizeInput(raw: any): ExecutiveInsightInput {
   };
 }
 
-function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightResponse, 'meta'> {
+async function buildInsight(input: ExecutiveInsightInput): Promise<Omit<ExecutiveInsightResponse, 'meta'>> {
   const language: InsightLanguage = input.language === 'en' ? 'en' : 'ko';
   const mode = input.mode || 'MTD';
 
@@ -156,6 +244,14 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
   const oldStockTw = input.tw.oldStock ?? null;
   const oldStockYoyHkmc = input.hkmc.oldStockYoy ?? null;
   const oldStockYoyTw = input.tw.oldStockYoy ?? null;
+  const oldInvDaysHkmc = input.hkmc.invDays ?? null;
+  const oldInvDaysTw = input.tw.invDays ?? null;
+  const old2yShareHkmc = input.hkmc.oldStock2yPlusShare ?? null;
+  const old2yShareTw = input.tw.oldStock2yPlusShare ?? null;
+  const old3yShareHkmc = input.hkmc.oldStock3yPlusShare ?? null;
+  const old3yShareTw = input.tw.oldStock3yPlusShare ?? null;
+  const stagnantRatioHkmc = input.hkmc.stagnantRatio ?? null;
+  const stagnantRatioTw = input.tw.stagnantRatio ?? null;
   const discountRateHkmc = input.hkmc.discountRateMtd ?? null;
   const discountRateTw = input.tw.discountRateMtd ?? null;
   const discountRateDiffHkmc = input.hkmc.discountRateMtdDiff ?? null;
@@ -186,20 +282,20 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
   const blocks: ExecutiveInsightBlock[] = [
     {
       id: 'sales',
-      label: language === 'ko' ? '매출' : 'Sales',
+      label: language === 'ko' ? '留ㅼ텧' : 'Sales',
       tone: toneByDelta((salesHkmc ?? 0) - (salesTw ?? 0)),
       text:
         language === 'ko'
           ? mode === 'YTD'
-            ? `누적 YoY HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)} | 누적 동매장 HKMC ${fmtPercent(sameYtdHkmc)}, TW ${fmtPercent(sameYtdTw)}`
-            : `당월 YoY HKMC ${fmtPercent(salesHkmc)}, TW ${fmtPercent(salesTw)} | 동매장 HKMC ${fmtPercent(sameHkmc)}, TW ${fmtPercent(sameTw)}`
+            ? `?꾩쟻 YoY HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)} | ?꾩쟻 ?숇ℓ??HKMC ${fmtPercent(sameYtdHkmc)}, TW ${fmtPercent(sameYtdTw)}`
+            : `?뱀썡 YoY HKMC ${fmtPercent(salesHkmc)}, TW ${fmtPercent(salesTw)} | ?숇ℓ??HKMC ${fmtPercent(sameHkmc)}, TW ${fmtPercent(sameTw)}`
           : mode === 'YTD'
             ? `YTD YoY HKMC ${fmtPercent(salesYtdHkmc)}, TW ${fmtPercent(salesYtdTw)} | YTD same-store HKMC ${fmtPercent(sameYtdHkmc)}, TW ${fmtPercent(sameYtdTw)}`
             : `MTD YoY HKMC ${fmtPercent(salesHkmc)}, TW ${fmtPercent(salesTw)} | Same-store HKMC ${fmtPercent(sameHkmc)}, TW ${fmtPercent(sameTw)}`,
     },
     {
       id: 'season',
-      label: language === 'ko' ? '당시즌 판매율' : 'In-season Sell-through',
+      label: language === 'ko' ? '\uB2F9\uC2DC\uC98C \uD310\uB9E4\uC728' : 'In-season Sell-through',
       tone: toneByDelta((seasonPpHkmc ?? 0) - (seasonPpTw ?? 0)),
       text:
         language === 'ko'
@@ -208,11 +304,11 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
     },
     {
       id: 'old',
-      label: language === 'ko' ? '과시즌' : 'Old-season',
+      label: language === 'ko' ? '\uACFC\uC2DC\uC98C' : 'Old-season',
       tone: toneByDelta((oldStockYoyHkmc ?? 0) - (oldStockYoyTw ?? 0)),
       text:
         language === 'ko'
-          ? `과시즌 잔액 YoY: HKMC ${fmtPercent(oldStockYoyHkmc, 1)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 1)} (${fmtNum(oldStockTw)}).`
+          ? `怨쇱떆利??붿븸 YoY: HKMC ${fmtPercent(oldStockYoyHkmc, 1)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 1)} (${fmtNum(oldStockTw)}).`
           : `Old-season balance YoY: HKMC ${fmtPercent(oldStockYoyHkmc, 1)} (${fmtNum(oldStockHkmc)}), TW ${fmtPercent(oldStockYoyTw, 1)} (${fmtNum(oldStockTw)}).`,
     },
   ];
@@ -229,11 +325,11 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
       ? [
           {
             priority: 'HKMC' as const,
-            text: `HKMC는 매출/동매장/판매율 변화가 동시에 보이는 카테고리 중심으로 주간 실행안을 1개로 통합해 운영하세요.`,
+            text: `HKMC??留ㅼ텧/?숇ℓ???먮ℓ??蹂?붽? ?숈떆??蹂댁씠??移댄뀒怨좊━ 以묒떖?쇰줈 二쇨컙 ?ㅽ뻾?덉쓣 1媛쒕줈 ?듯빀???댁쁺?섏꽭??`,
           },
           {
             priority: 'TW' as const,
-            text: `TW는 판매율 증감과 과시즌 잔액 YoY를 함께 보면서, 저효율 카테고리 2주 액션을 우선 실행하세요.`,
+            text: `TW???먮ℓ??利앷컧怨?怨쇱떆利??붿븸 YoY瑜??④퍡 蹂대㈃?? ??⑥쑉 移댄뀒怨좊━ 2二??≪뀡???곗꽑 ?ㅽ뻾?섏꽭??`,
           },
         ]
       : [
@@ -254,7 +350,7 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
   const fmtKoDiff = (v: number | null) => {
     if (v === null) return 'N/A';
     if (v > 0) return `+${v.toFixed(1)}%p`;
-    if (v < 0) return `△${Math.abs(v).toFixed(1)}%p`;
+    if (v < 0) return `\u25B3${Math.abs(v).toFixed(1)}%p`;
     return '0.0%p';
   };
   const fmtEnDiff = (v: number | null) => {
@@ -269,17 +365,17 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
       ? [
           {
             priority: 'HKMC' as const,
-            text: `대상 ${hkmcFocusCats} / 실행 2주 선택할인(저회전 SKU 중심) / 목표 판매율 +${hkmcTargetPp.toFixed(1)}%p, 동매장 YoY ${fmtPercent(sameMtdHkmc)}→${fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / 기간 2주 / 리스크 할인율 증감 ${fmtKoDiff(discountRateDiffHkmc)}가 +이면 마진 훼손 위험.`,
+            text: `???${hkmcFocusCats} / ?ㅽ뻾 2二??좏깮?좎씤(??뚯쟾 SKU 以묒떖) / 紐⑺몴 ?먮ℓ??+${hkmcTargetPp.toFixed(1)}%p, ?숇ℓ??YoY ${fmtPercent(sameMtdHkmc)}??{fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / 湲곌컙 2二?/ 由ъ뒪???좎씤??利앷컧 ${fmtKoDiff(discountRateDiffHkmc)}媛 +?대㈃ 留덉쭊 ?쇱넀 ?꾪뿕.`,
           },
           {
             priority: 'TW' as const,
-            text: `대상 ${twFocusCats} / 실행 과시즌 잔액 YoY ${fmtPercent(oldStockYoyTw, 0)} 구간 우선 클리어런스 / 목표 판매율 +${twTargetPp.toFixed(1)}%p, 누적판매 YoY ${fmtPercent(salesYtdTw)} 유지 / 기간 2주(3일 간격 점검) / 리스크 할인율 증감 ${fmtKoDiff(discountRateDiffTw)}가 +이면 객단가 하락 위험.`,
+            text: `???${twFocusCats} / ?ㅽ뻾 怨쇱떆利??붿븸 YoY ${fmtPercent(oldStockYoyTw, 0)} 援ш컙 ?곗꽑 ?대━?대윴??/ 紐⑺몴 ?먮ℓ??+${twTargetPp.toFixed(1)}%p, ?꾩쟻?먮ℓ YoY ${fmtPercent(salesYtdTw)} ?좎? / 湲곌컙 2二?3??媛꾧꺽 ?먭?) / 由ъ뒪???좎씤??利앷컧 ${fmtKoDiff(discountRateDiffTw)}媛 +?대㈃ 媛앸떒媛 ?섎씫 ?꾪뿕.`,
           },
         ]
       : [
           {
             priority: 'HKMC' as const,
-            text: `Target ${hkmcFocusCats} / Action selective markdown for 2 weeks (low-rotation SKUs) / Goal sell-through +${hkmcTargetPp.toFixed(1)}pp, same-store YoY ${fmtPercent(sameMtdHkmc)}→${fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / Window 2 weeks / Risk discount delta ${fmtEnDiff(discountRateDiffHkmc)} with plus side can damage margin.`,
+            text: `Target ${hkmcFocusCats} / Action selective markdown for 2 weeks (low-rotation SKUs) / Goal sell-through +${hkmcTargetPp.toFixed(1)}pp, same-store YoY ${fmtPercent(sameMtdHkmc)}??{fmtPercent((sameMtdHkmc ?? 100) + hkmcTargetPp)} / Window 2 weeks / Risk discount delta ${fmtEnDiff(discountRateDiffHkmc)} with plus side can damage margin.`,
           },
           {
             priority: 'TW' as const,
@@ -300,42 +396,122 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
     return '0.0pp';
   };
   const buildKoStoreDiagnosis = (discountDiff: number | null, sameYoy: number | null, totalYoy: number | null) => {
-    const prefix =
-      discountDiff === null
-        ? '할인율-매출 연동 점검 필요'
-        : discountDiff > 0
-          ? '할인율 증가 대비 판매 방어 약함'
-          : discountDiff < 0
-            ? '할인율 감소에도 판매 회복 지연'
-            : '할인율 정체 대비 판매 반등 제한';
-    return `${prefix}(동매장 ${fmtPercent(sameYoy)}, 전체 ${fmtPercent(totalYoy)})`;
+    const salesImproved = (sameYoy ?? 100) >= 100 || (totalYoy ?? 100) >= 100;
+    const salesWeakened = (sameYoy ?? 100) < 100 && (totalYoy ?? 100) < 100;
+
+    let prefix = '\uD560\uC778\uC728-\uD310\uB9E4 YoY \uC5F0\uACC4 \uD310\uC815 \uC790\uB8CC \uCD94\uAC00 \uD544\uC694';
+
+    if (discountDiff !== null) {
+      if (discountDiff < 0 && salesImproved) {
+        prefix = '\uD560\uC778\uC728 YoY \uAC10\uC18C\uC5D0\uB3C4 \uD310\uB9E4 YoY \uAC1C\uC120 (\uAC00\uACA9 \uD6A8\uC728 \uC591\uD638)';
+      } else if (discountDiff < 0 && salesWeakened) {
+        prefix = '\uD560\uC778\uC728 YoY \uAC10\uC18C\uC640 \uD568\uAED8 \uD310\uB9E4 YoY \uD569\uAE68 (\uC218\uC694 \uBC29\uC5B4 \uBCF4\uC644 \uD544\uC694)';
+      } else if (discountDiff > 0 && salesImproved) {
+        prefix = '\uD560\uC778\uC728 YoY \uD655\uB300\uB85C \uD310\uB9E4 YoY \uAC1C\uC120 (\uD6A8\uACFC-\uB9C8\uC9C4 \uADE0\uD615 \uC810\uAC80)';
+      } else if (discountDiff > 0 && salesWeakened) {
+        prefix = '\uD560\uC778\uC728 YoY \uD655\uB300\uC5D0\uB3C4 \uD310\uB9E4 YoY \uAC1C\uC120 \uC81C\uD55C (\uD310\uCD09 \uD6A8\uC728 \uC800\uD558)';
+      } else if (discountDiff === 0) {
+        prefix = '\uD560\uC778\uC728 YoY \uBCF4\uD569 \uC720\uC9C0 \uAD6C\uAC04\uC5D0\uC11C \uD310\uB9E4 YoY \uBCC0\uD654 \uAD00\uCC30';
+      }
+    }
+
+    return `${prefix}(\uB3D9\uB9E4\uC7A5 ${fmtPercent(sameYoy)}, \uC804\uCCB4 ${fmtPercent(totalYoy)}, \uD560\uC778\uC728 ${formatKoDelta(discountDiff)})`;
   };
+  const getSeasonProgress = (asOfDate: string) => {
+    const d = new Date(`${asOfDate}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    let start: Date;
+    let end: Date;
+
+    // SS: 3/1~8/31, FW: 9/1~2/말일
+    if (month >= 3 && month <= 8) {
+      start = new Date(year, 2, 1);
+      end = new Date(year, 7, 31);
+    } else if (month >= 9) {
+      start = new Date(year, 8, 1);
+      end = new Date(year + 1, 1, new Date(year + 1, 2, 0).getDate());
+    } else {
+      start = new Date(year - 1, 8, 1);
+      end = new Date(year, 1, new Date(year, 2, 0).getDate());
+    }
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const totalDays = Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1;
+    const elapsedRaw = Math.floor((d.getTime() - start.getTime()) / msPerDay) + 1;
+    const elapsedDays = Math.max(0, Math.min(totalDays, elapsedRaw));
+    const progressRate = totalDays > 0 ? (elapsedDays / totalDays) * 100 : null;
+
+    return { progressRate, elapsedDays, totalDays };
+  };
+  const buildKoInSeasonStatus = (sellthrough: number | null, topCats: string, progressRate: number | null) => {
+    if (sellthrough === null || progressRate === null) {
+      return `\uC2DC\uC98C \uACBD\uACFC \uAE30\uC900 \uD310\uB9E4\uC728 \uD398\uC774\uC2A4 \uC0B0\uCD9C \uB370\uC774\uD130 \uD655\uC778 \uD544\uC694`;
+    }
+    const paceGap = sellthrough - progressRate;
+    const gapText = formatKoDelta(paceGap);
+    if (paceGap >= 12) {
+      return `\uC2DC\uC98C \uACBD\uACFC\uC728(\uAE30\uB300 ${progressRate.toFixed(1)}%) \uB300\uBE44 \uD310\uB9E4\uC728\uC774 \uD070 \uD3ED \uC120\uD589(\uC2E4\uC81C ${sellthrough.toFixed(1)}%, \uAC29 ${gapText})\uD558\uC5EC \uC8FC\uB825 \uC81C\uD488 \uC804\uD658 \uC6B0\uC120`;
+    }
+    if (paceGap >= 5) {
+      return `\uC2DC\uC98C \uACBD\uACFC\uC728(\uAE30\uB300 ${progressRate.toFixed(1)}%) \uB300\uBE44 \uD310\uB9E4\uC728 \uC120\uD589(\uC2E4\uC81C ${sellthrough.toFixed(1)}%, \uAC29 ${gapText}) \uAD6C\uAC04\uC73C\uB85C \uC8FC\uB825 \uC804\uD658 \uC900\uBE44 \uAC00\uC18D`;
+    }
+    if (paceGap <= -5) {
+      return `\uC2DC\uC98C \uACBD\uACFC\uC728(\uAE30\uB300 ${progressRate.toFixed(1)}%) \uB300\uBE44 \uD310\uB9E4\uC728 \uC9C0\uC5F0(\uC2E4\uC81C ${sellthrough.toFixed(1)}%, \uAC29 ${gapText})\uC73C\uB85C \uD310\uCD09/\uB178\uCD9C \uBCF4\uC644 \uC6B0\uC120`;
+    }
+    return `\uC2DC\uC98C \uACBD\uACFC\uC728(\uAE30\uB300 ${progressRate.toFixed(1)}%) \uB300\uBE44 \uD310\uB9E4\uC728 \uC720\uC0AC(\uC2E4\uC81C ${sellthrough.toFixed(1)}%, \uAC29 ${gapText}) \uAD6C\uAC04`;
+  };
+  const buildKoOldSeasonStatus = (
+    oldYoy: number | null,
+    invDays: number | null,
+    stagnantRatio: number | null,
+    share2yPlus: number | null,
+    share3yPlus: number | null
+  ) => {
+    const invText = invDays === null ? '' : `재고일수 ${Math.round(invDays)}일`;
+    const stagnantText = stagnantRatio === null ? '' : `정체비중 ${stagnantRatio.toFixed(1)}%`;
+    const share2Text = share2yPlus === null ? '' : `2년차+ ${share2yPlus.toFixed(1)}%`;
+    const share3Text = share3yPlus === null ? '' : `3년차+ ${share3yPlus.toFixed(1)}%`;
+    const oldYoyText = oldYoy === null ? 'N/A' : `${oldYoy.toFixed(0)}%`;
+    const metrics = [invText, stagnantText, share2Text, share3Text].filter(Boolean).join(', ');
+
+    if ((invDays ?? 0) >= 180 || (share3yPlus ?? 0) >= 25 || (stagnantRatio ?? 0) >= 35) {
+      return `재고일수/정체비중/3년차+ 비중 기준 고위험 구간${metrics ? `(${metrics})` : ''}`;
+    }
+    if ((invDays ?? 0) >= 120 || (share2yPlus ?? 0) >= 45 || (stagnantRatio ?? 0) >= 25) {
+      return `재고일수/연차구성 기준 부담 확대 구간${metrics ? `(${metrics})` : ''}`;
+    }
+    return `잔액 YoY ${oldYoyText}는 보조지표로 참고, 재고일수/연차구성 기준 관리 가능 구간${metrics ? `(${metrics})` : ''}`;
+  };
+  const seasonProgress = getSeasonProgress(input.asOfDate);
+  const seasonProgressRate = seasonProgress?.progressRate ?? null;
   const normalizedActions =
     language === 'ko'
       ? [
           {
             priority: 'HKMC' as const,
-            text: `[\uB9E4\uC7A5] \uC9C4\uB2E8: ${buildKoStoreDiagnosis(discountRateDiffHkmc, sameMtdHkmc, salesMtdHkmc)} / \uB300\uC0C1: \uD558\uC704 \uC810\uD3EC 10\uAC1C / \uC2E4\uD589: \uC9C4\uC5F4+\uAC00\uACA9 \uC7AC\uBC30\uCE58 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
+            text: `[\uB9E4\uC7A5] \uD604\uD669: ${buildKoStoreDiagnosis(discountRateDiffHkmc, sameMtdHkmc, salesMtdHkmc)} / \uB300\uC0C1: \uD558\uC704 \uC810\uD3EC 10\uAC1C / \uC2E4\uD589: \uC9C4\uC5F4+\uAC00\uACA9 \uC7AC\uBC30\uCE58 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
           },
           {
             priority: 'HKMC' as const,
-            text: `[\uB2F9\uC2DC\uC98C] \uC9C4\uB2E8: \uCE74\uD14C\uACE0\uB9AC TOP3(${seasonTopHkmcText})\uC5D0\uC11C \uD560\uC778\uC728 \uBCC0\uD654 \uB300\uBE44 \uD310\uB9E4\uC728 \uD68C\uBCF5 \uC18D\uB3C4 \uB355 / \uB300\uC0C1: TOP3(${seasonTopHkmcText}) / \uC2E4\uD589: \uC800\uD68C\uC804 SKU 20\uAC1C \uC120\uD0DD\uD560\uC778+\uB178\uCD9C \uC7AC\uBC30\uCE58 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonHkmc, 1)}\u2192${fmtPercent((seasonHkmc ?? 0) + 2.0, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffHkmc)} \uD655\uB300 \uC2DC \uB9C8\uC9C4 \uD6FC\uC190`,
+            text: `[\uB2F9\uC2DC\uC98C] \uD604\uD669: ${buildKoInSeasonStatus(seasonHkmc, seasonTopHkmcText, seasonProgressRate)} / \uB300\uC0C1: TOP3(${seasonTopHkmcText}) / \uC2E4\uD589: \uC2DC\uC98C \uC120\uD589 \uAD6C\uAC04\uC740 \uC8FC\uB825 \uC81C\uD488 \uC804\uD658 \uAC00\uC18D, \uC9C0\uC5F0 \uAD6C\uAC04\uC740 \uC120\uD0DD \uD310\uCD09+\uB178\uCD9C \uBCF4\uC644 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonHkmc, 1)}\u2192${fmtPercent((seasonHkmc ?? 0) + 2.0, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffHkmc)} \uD655\uB300 \uC2DC \uB9C8\uC9C4 \uD6FC\uC190`,
           },
           {
             priority: 'HKMC' as const,
-            text: `[\uACFC\uC2DC\uC98C] \uC9C4\uB2E8: \uACFC\uC2DC\uC98C \uC794\uC561 YoY ${fmtPercent(oldStockYoyHkmc, 0)}\uB85C \uC7AC\uACE0 \uB204\uC801 \uB9AC\uC2A4\uD06C \uD655\uB300 / \uB300\uC0C1: \uC7AC\uACE0 \uC0C1\uC704 3\uCE74\uD14C\uACE0\uB9AC / \uC2E4\uD589: \uD074\uB9AC\uC5B4\uB7F0\uC2A4+\uCC44\uB110 \uC774\uAD00 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -10%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
+            text: `[\uACFC\uC2DC\uC98C] \uD604\uD669: ${buildKoOldSeasonStatus(oldStockYoyHkmc, oldInvDaysHkmc, stagnantRatioHkmc, old2yShareHkmc, old3yShareHkmc)} / \uB300\uC0C1: \uC7AC\uACE0 \uC0C1\uC704 3\uCE74\uD14C\uACE0\uB9AC / \uC2E4\uD589: \uD074\uB9AC\uC5B4\uB7F0\uC2A4+\uCC44\uB110 \uC774\uAD00 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -10%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
           },
           {
             priority: 'TW' as const,
-            text: `[\uB9E4\uC7A5] \uC9C4\uB2E8: ${buildKoStoreDiagnosis(discountRateDiffTw, sameMtdTw, salesMtdTw)} / \uB300\uC0C1: \uC628/\uC624\uD504 \uD558\uC704 \uCC44\uB110 / \uC2E4\uD589: \uCC44\uB110 \uBD84\uB9AC \uC6B4\uC601 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
+            text: `[\uB9E4\uC7A5] \uD604\uD669: ${buildKoStoreDiagnosis(discountRateDiffTw, sameMtdTw, salesMtdTw)} / \uB300\uC0C1: \uC628/\uC624\uD504 \uD558\uC704 \uCC44\uB110 / \uC2E4\uD589: \uCC44\uB110 \uBD84\uB9AC \uC6B4\uC601 / \uC218\uCE58\uBAA9\uD45C: \uB3D9\uB9E4\uC7A5 YoY +1.5%p / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 +1.5%p \uC774\uC0C1+\uD310\uB9E4 YoY<100 \uC2DC \uC911\uB2E8/\uC804\uD658`,
           },
           {
             priority: 'TW' as const,
-            text: `[\uB2F9\uC2DC\uC98C] \uC9C4\uB2E8: TOP3(${seasonTopTwText})\uC5D0\uC11C \uD560\uC778\uC728 \uBCC0\uD654 \uB300\uBE44 \uD310\uB9E4\uC728 \uBC18\uC751 \uBD80\uC871 / \uB300\uC0C1: TOP3(${seasonTopTwText}) / \uC2E4\uD589: \uC0C1\uC7043 \uD310\uCD09+\uD558\uC7043 \uD560\uC778\uAD6C\uAC04 \uC870\uC815 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonTw, 1)}\u2192${fmtPercent((seasonTw ?? 0) + 1.5, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffTw)} \uD655\uB300 \uC2DC \uAC1D\uB2E8\uAC00 \uD558\uB77D`,
+            text: `[\uB2F9\uC2DC\uC98C] \uD604\uD669: ${buildKoInSeasonStatus(seasonTw, seasonTopTwText, seasonProgressRate)} / \uB300\uC0C1: TOP3(${seasonTopTwText}) / \uC2E4\uD589: \uC2DC\uC98C \uC120\uD589 \uAD6C\uAC04\uC740 \uC8FC\uB825 \uC81C\uD488 \uC804\uD658 \uAC00\uC18D, \uC9C0\uC5F0 \uAD6C\uAC04\uC740 \uC0C1\uC7043 \uD310\uCD09+\uD558\uC7043 \uD560\uC778\uAD6C\uAC04 \uC870\uC815 / \uC218\uCE58\uBAA9\uD45C: \uD310\uB9E4\uC728 ${fmtPercent(seasonTw, 1)}\u2192${fmtPercent((seasonTw ?? 0) + 1.5, 1)} / \uAE30\uAC04: 2\uC8FC / \uB9AC\uC2A4\uD06C: \uD560\uC778\uC728 \uC99D\uAC10 ${formatKoDelta(discountRateDiffTw)} \uD655\uB300 \uC2DC \uAC1D\uB2E8\uAC00 \uD558\uB77D`,
           },
           {
             priority: 'TW' as const,
-            text: `[\uACFC\uC2DC\uC98C] \uC9C4\uB2E8: \uACFC\uC2DC\uC98C \uC794\uC561 YoY ${fmtPercent(oldStockYoyTw, 0)}\uB85C \uCC44\uB110 \uBD80\uB2F4 \uD655\uB300 / \uB300\uC0C1: \uACFC\uC2DC\uC98C \uC0C1\uC704 \uC7AC\uACE0 \uAD6C\uAC04 / \uC2E4\uD589: \uBB36\uC74C\uD310\uB9E4+\uC628\uB77C\uC778 \uD074\uB9AC\uC5B4\uB7F0\uC2A4 \uD398\uC774\uC9C0 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -8%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
+            text: `[\uACFC\uC2DC\uC98C] \uD604\uD669: ${buildKoOldSeasonStatus(oldStockYoyTw, oldInvDaysTw, stagnantRatioTw, old2yShareTw, old3yShareTw)} / \uB300\uC0C1: \uACFC\uC2DC\uC98C \uC0C1\uC704 \uC7AC\uACE0 \uAD6C\uAC04 / \uC2E4\uD589: \uBB36\uC74C\uD310\uB9E4+\uC628\uB77C\uC778 \uD074\uB9AC\uC5B4\uB7F0\uC2A4 \uD398\uC774\uC9C0 / \uC218\uCE58\uBAA9\uD45C: \uC794\uC561 YoY -8%p / \uAE30\uAC04: 4\uC8FC / \uB9AC\uC2A4\uD06C: \uC794\uC561 YoY 120% \uCD08\uACFC \uC2DC \uC989\uC2DC \uC7AC\uACE0\uC18C\uC9C4 \uC804\uD658`,
           },
         ]
       : [
@@ -365,13 +541,25 @@ function buildInsight(input: ExecutiveInsightInput): Omit<ExecutiveInsightRespon
           },
         ];
 
+  const rewrittenActions = await rewriteActionsWithOpenAI(
+    language,
+    input.brand,
+    input.asOfDate,
+    mode,
+    normalizedActions
+  );
+  const finalActions = rewrittenActions.map((action) => ({
+    ...action,
+    text: normalizeStrategyText(action.text),
+  }));
+
   return {
     title: 'Executive Insight',
     asOfLabel: `${input.asOfDate} | ${input.brand} | ${mode}`,
     summaryLine: '',
     compareLine: '',
     blocks,
-    actions: normalizedActions,
+    actions: finalActions,
   };
 }
 
@@ -398,6 +586,10 @@ function buildInputSignature(input: ExecutiveInsightInput): string {
     f(input.hkmc.discountRateYtdDiff),
     f(input.hkmc.oldStock),
     f(input.hkmc.oldStockYoy),
+    f(input.hkmc.invDays),
+    f(input.hkmc.oldStock2yPlusShare),
+    f(input.hkmc.oldStock3yPlusShare),
+    f(input.hkmc.stagnantRatio),
     f(input.tw.salesMtdYoy),
     f(input.tw.salesYtdYoy),
     f(input.tw.sameStoreMtdYoy),
@@ -410,6 +602,10 @@ function buildInputSignature(input: ExecutiveInsightInput): string {
     f(input.tw.discountRateYtdDiff),
     f(input.tw.oldStock),
     f(input.tw.oldStockYoy),
+    f(input.tw.invDays),
+    f(input.tw.oldStock2yPlusShare),
+    f(input.tw.oldStock3yPlusShare),
+    f(input.tw.stagnantRatio),
     (input.hkmc.seasonTopCategories || []).join(','),
     (input.tw.seasonTopCategories || []).join(','),
   ].join('_');
@@ -455,7 +651,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const generated = buildInsight(input);
+    const generated = await buildInsight(input);
     const final: ExecutiveInsightResponse = {
       ...generated,
       meta: {
@@ -472,3 +668,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || 'Failed to generate executive insight' }, { status: 500 });
   }
 }
+
+

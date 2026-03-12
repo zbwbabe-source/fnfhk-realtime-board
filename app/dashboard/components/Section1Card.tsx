@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
@@ -234,8 +234,8 @@ export default function Section1Card({
         sameStoreRawValue: hasSameStoreCompareRate ? sameStoreCompareRate : null,
         sameStoreTooltip:
           language === 'ko'
-            ? `전년과 올해 동일기간 모두 매출이 있는 매장만 포함. 매장수 ${formatStoreCount(previousActiveStoreCount)} → ${formatStoreCount(currentActiveStoreCount)} 기준과 별도로, 동매장 YoY는 양쪽 기간 모두 매출이 있는 매장만 계산.`
-            : `Includes only stores with sales in both the current period and the same period last year. Store count shows active stores last year to this year, while same-store YoY uses only overlapping active stores.`,
+            ? `동매장 YoY는 전년/당년 동일기간 모두 매출이 있는 매장만 포함합니다. 오프라인 매장은 당월 0매출일이 5일 이상이면 당년 산식에서 제외합니다.`
+            : `Same-store YoY includes only stores with sales in both periods. Offline stores with 5+ zero-sales days in the current month are excluded from the current-year side.`,
         storeCountFlow:
           language === 'ko'
             ? `매장수: 전년 ${formatStoreCount(previousActiveStoreCount)} → 당년 ${formatStoreCount(currentActiveStoreCount)}`

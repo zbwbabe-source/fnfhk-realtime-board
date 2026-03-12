@@ -370,6 +370,22 @@ export async function fetchSection1StoreSales({
     previousYearDateString,
   ]);
 
+  const dailyStoreSalesRows = await executeSnowflakeQuery(
+    `
+      SELECT
+        LOCAL_SHOP_CD AS shop_cd,
+        TO_DATE(SALE_DT) AS sale_dt,
+        SUM(ACT_SALE_AMT) AS sales_amt
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE
+        (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND LOCAL_SHOP_CD IN (${storeCodes})
+        AND SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
+      GROUP BY LOCAL_SHOP_CD, TO_DATE(SALE_DT)
+    `,
+    [brand, date, date]
+  );
+
   // TW 리전일 때 환율 적용
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(date) : '';
@@ -397,6 +413,8 @@ export async function fetchSection1StoreSales({
   // SQL 결과를 Map으로 변환 (빠른 조회용)
   const rowMap = new Map(rows.map((row: any) => [row.SHOP_CD, row]));
   const monthlySalesMap = new Map<string, number>();
+  const positiveSalesDayCountMap = new Map<string, number>();
+  const zeroSalesDayMap = new Map<string, number>();
 
   monthlyStoreSalesRows.forEach((row: any) => {
     const shopCd = String(row.SHOP_CD || '');
@@ -407,6 +425,20 @@ export async function fetchSection1StoreSales({
     const rawSales = parseFloat(row.SALES_AMT || 0);
     const key = `${shopCd}:${saleYear}:${saleMonth}`;
     monthlySalesMap.set(key, rawSales);
+  });
+
+  dailyStoreSalesRows.forEach((row: any) => {
+    const shopCd = String(row.SHOP_CD || '');
+    if (!shopCd) return;
+    const salesAmt = parseFloat(row.SALES_AMT || 0);
+    if (salesAmt <= 0) return;
+    positiveSalesDayCountMap.set(shopCd, (positiveSalesDayCountMap.get(shopCd) || 0) + 1);
+  });
+
+  const elapsedDaysInMonth = asofDate.getDate();
+  targetStores.forEach((storeInfo) => {
+    const positiveDays = positiveSalesDayCountMap.get(storeInfo.store_code) || 0;
+    zeroSalesDayMap.set(storeInfo.store_code, Math.max(0, elapsedDaysInMonth - positiveDays));
   });
 
   const getMonthlySales = (shopCd: string, targetYear: number, targetMonth: number): number => {
@@ -498,6 +530,7 @@ export async function fetchSection1StoreSales({
       discount_rate_mtd_diff,
       mtd_tag,
       mtd_tag_py,
+      mtd_zero_sales_days: zeroSalesDayMap.get(storeInfo.store_code) || 0,
 
       // YTD 데이터
       ytd_target,
@@ -564,11 +597,22 @@ export async function fetchSection1StoreSales({
       };
     }
 
+    const isOfflineStore = (store: any) => store?.channel !== '온라인';
+    const isExcludedByZeroSalesRule = (store: any) =>
+      isOfflineStore(store) &&
+      typeof store.mtd_zero_sales_days === 'number' &&
+      store.mtd_zero_sales_days >= 5;
+
+    const isEligibleSameStoreMtd = (store: any) =>
+      store.mtd_act > 0 &&
+      store.mtd_act_py > 0 &&
+      !isExcludedByZeroSalesRule(store);
+
     const sameStoreMtdCurrentSales = stores.reduce((sum, store) => {
-      return store.mtd_act > 0 && store.mtd_act_py > 0 ? sum + store.mtd_act : sum;
+      return isEligibleSameStoreMtd(store) ? sum + store.mtd_act : sum;
     }, 0);
     const sameStoreMtdPrevSales = stores.reduce((sum, store) => {
-      return store.mtd_act > 0 && store.mtd_act_py > 0 ? sum + store.mtd_act_py : sum;
+      return isEligibleSameStoreMtd(store) ? sum + store.mtd_act_py : sum;
     }, 0);
 
     let currentStoreCountSum = 0;
@@ -585,7 +629,9 @@ export async function fetchSection1StoreSales({
       stores.forEach((store) => {
         const currentMonthSales = getMonthlySales(store.shop_cd, year, monthIndex);
         const previousMonthSales = getMonthlySales(store.shop_cd, year - 1, monthIndex);
-        const hasCurrentSales = currentMonthSales > 0;
+        const isCurrentAsOfMonth = monthIndex === month;
+        const isCurrentMonthEligible = !isCurrentAsOfMonth || !isExcludedByZeroSalesRule(store);
+        const hasCurrentSales = currentMonthSales > 0 && isCurrentMonthEligible;
         const hasPreviousSales = previousMonthSales > 0;
 
         if (hasCurrentSales) activeCurrentCount += 1;
@@ -606,9 +652,9 @@ export async function fetchSection1StoreSales({
     return {
       same_store_yoy: sameStoreMtdPrevSales > 0 ? (sameStoreMtdCurrentSales / sameStoreMtdPrevSales) * 100 : null,
       same_store_yoy_ytd: sameStoreYtdPrevSales > 0 ? (sameStoreYtdCurrentSales / sameStoreYtdPrevSales) * 100 : null,
-      active_store_count_mtd: stores.filter((store) => store.mtd_act > 0).length,
+      active_store_count_mtd: stores.filter((store) => store.mtd_act > 0 && !isExcludedByZeroSalesRule(store)).length,
       active_store_count_mtd_py: stores.filter((store) => store.mtd_act_py > 0).length,
-      same_store_count_mtd: stores.filter((store) => store.mtd_act > 0 && store.mtd_act_py > 0).length,
+      same_store_count_mtd: stores.filter((store) => isEligibleSameStoreMtd(store)).length,
       active_store_count_ytd_avg: month > 0 ? currentStoreCountSum / month : 0,
       active_store_count_ytd_avg_py: month > 0 ? previousStoreCountSum / month : 0,
       same_store_count_ytd_avg: month > 0 ? sameStoreCountSum / month : 0,
@@ -702,6 +748,7 @@ export async function fetchSection1StoreSales({
       active_store_count_ytd_avg: comparisonMetrics.active_store_count_ytd_avg,
       active_store_count_ytd_avg_py: comparisonMetrics.active_store_count_ytd_avg_py,
       same_store_count_ytd_avg: comparisonMetrics.same_store_count_ytd_avg,
+      same_store_filter_rule: 'exclude_offline_mtd_zero_sales_days_ge_5',
       discount_rate_ytd,
       discount_rate_ytd_ly,
       discount_rate_ytd_diff,

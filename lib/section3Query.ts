@@ -32,6 +32,8 @@ export interface Section3Response {
     discount_rate: number;
     inv_days_raw: number | null;
     inv_days: number | null;
+    old_stock_2y_plus_share: number | null;
+    old_stock_3y_plus_share: number | null;
   } | null;
   years: Array<{
     year_bucket: string;
@@ -1018,6 +1020,18 @@ ORDER BY
   const resolvedPeriodTagSales = alignedPeriodTagSales;
   const resolvedPeriodActSales = alignedPeriodActSales;
   const resolvedCurrentMonthTagSales = alignedCurrentMonthTagSales;
+  const yearStockRows = yearRows.map((row: any) => ({
+    bucket: String(row.YEAR_BUCKET || '').trim(),
+    currStockAmt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+  }));
+  const totalYearStockAmt = yearStockRows.reduce((sum, row) => sum + row.currStockAmt, 0);
+  const is2yPlusBucket = (bucket: string) =>
+    bucket.includes('2') || bucket.includes('3') || bucket.toLowerCase().includes('2y') || bucket.toLowerCase().includes('3y');
+  const is3yPlusBucket = (bucket: string) => bucket.includes('3') || bucket.toLowerCase().includes('3y');
+  const oldStock2yPlusAmt = yearStockRows.filter((row) => is2yPlusBucket(row.bucket)).reduce((sum, row) => sum + row.currStockAmt, 0);
+  const oldStock3yPlusAmt = yearStockRows.filter((row) => is3yPlusBucket(row.bucket)).reduce((sum, row) => sum + row.currStockAmt, 0);
+  const oldStock2yPlusShare = totalYearStockAmt > 0 ? (oldStock2yPlusAmt / totalYearStockAmt) * 100 : null;
+  const oldStock3yPlusShare = totalYearStockAmt > 0 ? (oldStock3yPlusAmt / totalYearStockAmt) * 100 : null;
 
   const response: Section3Response = {
     asof_date: date,
@@ -1054,6 +1068,8 @@ ORDER BY
           : parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
+      old_stock_2y_plus_share: oldStock2yPlusShare,
+      old_stock_3y_plus_share: oldStock3yPlusShare,
     } : null,
     years: lightweight ? [] : yearRows.map((row: any) => ({
       year_bucket: row.YEAR_BUCKET,

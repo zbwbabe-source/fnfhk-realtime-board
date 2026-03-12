@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 import type { ExecutiveInsightResponse } from '@/lib/insights/types';
 
@@ -29,17 +29,18 @@ export default function DailyHighlight({
   twSection2Data,
   twSection3Data,
 }: DailyHighlightProps) {
+  type StrategyRegion = 'HKMC' | 'TW';
+  type StrategyRow = {
+    region: StrategyRegion;
+    category: string;
+    status: string;
+    target: string;
+    execution: string;
+    risk: string;
+  };
+
   const [data, setData] = useState<ExecutiveInsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hkmcOpinion, setHkmcOpinion] = useState('');
-  const [twOpinion, setTwOpinion] = useState('');
-  const [isHkmcEditing, setIsHkmcEditing] = useState(false);
-  const [isTwEditing, setIsTwEditing] = useState(false);
-  const [opinionLoading, setOpinionLoading] = useState(false);
-  const [hkmcOpinionSaving, setHkmcOpinionSaving] = useState(false);
-  const [twOpinionSaving, setTwOpinionSaving] = useState(false);
-  const [hkmcOpinionSavedAt, setHkmcOpinionSavedAt] = useState<string | null>(null);
-  const [twOpinionSavedAt, setTwOpinionSavedAt] = useState<string | null>(null);
   const [showStrategyPanel, setShowStrategyPanel] = useState(false);
   const isInsightInputReady =
     !!hkmcSection1Data?.total_subtotal &&
@@ -96,6 +97,45 @@ export default function DailyHighlight({
         .slice(0, 3)
         .map((item) => `${item.name}(${(item.sellthrough as number).toFixed(1)}%)`);
     };
+    const getOldStockAgingShares = (years: any): { share2yPlus: number | null; share3yPlus: number | null } => {
+      if (!Array.isArray(years) || years.length === 0) {
+        return { share2yPlus: null, share3yPlus: null };
+      }
+
+      const normalized = years
+        .filter((row) => row && typeof row === 'object')
+        .map((row) => ({
+          bucket: String(row.year_bucket || '').trim(),
+          amount: typeof row.curr_stock_amt === 'number' && Number.isFinite(row.curr_stock_amt) ? row.curr_stock_amt : 0,
+        }));
+
+      const total = normalized.reduce((sum, row) => sum + row.amount, 0);
+      if (total <= 0) {
+        return { share2yPlus: null, share3yPlus: null };
+      }
+
+      const is2yPlus = (bucket: string) =>
+        bucket.includes('2') || bucket.includes('3') || bucket.toLowerCase().includes('2y') || bucket.toLowerCase().includes('3y');
+      const is3yPlus = (bucket: string) => bucket.includes('3') || bucket.toLowerCase().includes('3y');
+
+      const amount2yPlus = normalized.filter((row) => is2yPlus(row.bucket)).reduce((sum, row) => sum + row.amount, 0);
+      const amount3yPlus = normalized.filter((row) => is3yPlus(row.bucket)).reduce((sum, row) => sum + row.amount, 0);
+
+      return {
+        share2yPlus: (amount2yPlus / total) * 100,
+        share3yPlus: (amount3yPlus / total) * 100,
+      };
+    };
+    const hkmcAgingShares = getOldStockAgingShares(hkmcSection3Data?.years);
+    const twAgingShares = getOldStockAgingShares(twSection3Data?.years);
+    const hkmc2yPlusShare =
+      hkmcAgingShares.share2yPlus ?? (typeof hkmcSection3Data?.header?.old_stock_2y_plus_share === 'number' ? hkmcSection3Data.header.old_stock_2y_plus_share : null);
+    const hkmc3yPlusShare =
+      hkmcAgingShares.share3yPlus ?? (typeof hkmcSection3Data?.header?.old_stock_3y_plus_share === 'number' ? hkmcSection3Data.header.old_stock_3y_plus_share : null);
+    const tw2yPlusShare =
+      twAgingShares.share2yPlus ?? (typeof twSection3Data?.header?.old_stock_2y_plus_share === 'number' ? twSection3Data.header.old_stock_2y_plus_share : null);
+    const tw3yPlusShare =
+      twAgingShares.share3yPlus ?? (typeof twSection3Data?.header?.old_stock_3y_plus_share === 'number' ? twSection3Data.header.old_stock_3y_plus_share : null);
 
     return {
       brand,
@@ -118,6 +158,8 @@ export default function DailyHighlight({
         oldStock: hkmcSection3Data?.header?.curr_stock_amt ?? null,
         oldStockYoy: hkmcSection3Data?.header?.curr_stock_yoy_pct ?? null,
         invDays: hkmcSection3Data?.header?.inv_days ?? null,
+        oldStock2yPlusShare: hkmc2yPlusShare,
+        oldStock3yPlusShare: hkmc3yPlusShare,
         stagnantRatio: hkmcStagnantRatio,
         stagnantRatioChange:
           hkmcStagnantRatio !== null && hkmcPrevStagnantRatio !== null
@@ -139,6 +181,8 @@ export default function DailyHighlight({
         oldStock: twSection3Data?.header?.curr_stock_amt ?? null,
         oldStockYoy: twSection3Data?.header?.curr_stock_yoy_pct ?? null,
         invDays: twSection3Data?.header?.inv_days ?? null,
+        oldStock2yPlusShare: tw2yPlusShare,
+        oldStock3yPlusShare: tw3yPlusShare,
         stagnantRatio: twStagnantRatio,
         stagnantRatioChange:
           twStagnantRatio !== null && twPrevStagnantRatio !== null
@@ -196,111 +240,6 @@ export default function DailyHighlight({
     };
   }, [inputPayload, date, brand, isInsightInputReady]);
 
-  useEffect(() => {
-    if (!date || !brand) return;
-    let mounted = true;
-    setOpinionLoading(true);
-
-    async function fetchOpinion() {
-      try {
-        const response = await fetch(
-          `/api/insights/dashboard/opinion?brand=${encodeURIComponent(brand)}&date=${encodeURIComponent(date)}`,
-          { cache: 'no-store' }
-        );
-        if (!response.ok) return;
-        const json = await response.json();
-        if (!mounted) return;
-        setHkmcOpinion(typeof json?.hkmcOpinion === 'string' ? json.hkmcOpinion : '');
-        setTwOpinion(typeof json?.twOpinion === 'string' ? json.twOpinion : '');
-        setIsHkmcEditing(false);
-        setIsTwEditing(false);
-        const savedAt = typeof json?.savedAt === 'string' ? json.savedAt : null;
-        setHkmcOpinionSavedAt(savedAt);
-        setTwOpinionSavedAt(savedAt);
-      } finally {
-        if (mounted) setOpinionLoading(false);
-      }
-    }
-
-    fetchOpinion();
-    return () => {
-      mounted = false;
-    };
-  }, [date, brand]);
-
-  const handleSaveHkmcOpinion = async () => {
-    if (!date || !brand || hkmcOpinionSaving) return;
-    setHkmcOpinionSaving(true);
-    try {
-      const response = await fetch('/api/insights/dashboard/opinion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brand,
-          date,
-          hkmcOpinion,
-        }),
-      });
-      if (!response.ok) return;
-      const json = await response.json();
-      setHkmcOpinionSavedAt(typeof json?.savedAt === 'string' ? json.savedAt : new Date().toISOString());
-      setIsHkmcEditing(false);
-    } finally {
-      setHkmcOpinionSaving(false);
-    }
-  };
-
-  const handleSaveTwOpinion = async () => {
-    if (!date || !brand || twOpinionSaving) return;
-    setTwOpinionSaving(true);
-    try {
-      const response = await fetch('/api/insights/dashboard/opinion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brand,
-          date,
-          twOpinion,
-        }),
-      });
-      if (!response.ok) return;
-      const json = await response.json();
-      setTwOpinionSavedAt(typeof json?.savedAt === 'string' ? json.savedAt : new Date().toISOString());
-      setIsTwEditing(false);
-    } finally {
-      setTwOpinionSaving(false);
-    }
-  };
-
-  const renderInlineMarkdown = (text: string) => {
-    const tokenPattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
-    return text.split(tokenPattern).map((part, idx) => {
-      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-        return <strong key={idx}>{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('*') && part.endsWith('*') && part.length >= 3) {
-        return <em key={idx}>{part.slice(1, -1)}</em>;
-      }
-      if (part.startsWith('`') && part.endsWith('`') && part.length >= 3) {
-        return (
-          <code key={idx} className="rounded bg-gray-100 px-1 py-0.5 text-[11px]">
-            {part.slice(1, -1)}
-          </code>
-        );
-      }
-      return <Fragment key={idx}>{part}</Fragment>;
-    });
-  };
-
-  const renderMarkdownBlock = (text: string) => {
-    const lines = text.split('\n');
-    return lines.map((line, idx) => (
-      <p key={idx} className={idx === 0 ? '' : 'mt-1'}>
-        {renderInlineMarkdown(line)}
-      </p>
-    ));
-  };
-
   const toneClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
     if (tone === 'positive') return 'text-emerald-700 bg-emerald-50';
     if (tone === 'warning') return 'text-amber-700 bg-amber-50';
@@ -324,7 +263,7 @@ export default function DailyHighlight({
   const oldBalanceYoyClass = (value: number) => (value < 100 ? 'text-emerald-600' : 'text-rose-600');
   const oldSalesYoyClass = (value: number) => (value >= 100 ? 'text-emerald-600' : 'text-rose-600');
   const renderSalesLine = (line: string, idx: number) => {
-    const prefixMatch = line.match(/^(당월\s전체|당월\s동매장|누적\s전체|누적\s동매장|당월|누적|동매장)\s*/);
+    const prefixMatch = line.match(/^(MTD|YTD|Total|Same-store)\s*/i);
     const prefix = prefixMatch?.[1] ?? '';
     const rest = prefix ? line.slice(prefixMatch?.[0]?.length ?? 0) : line;
     const parts = rest.split(/(\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0);
@@ -356,18 +295,18 @@ export default function DailyHighlight({
       const lines = block.text.split('\n');
       return lines.map((line, idx) => {
         const trimmed = line.trim();
-        const isBalanceLine = /^(잔액|Balance)/.test(trimmed);
-        const isDiscountLine = /^(할인율|Discount)/.test(trimmed);
+        const isBalanceLine = /^Balance/i.test(trimmed);
+        const isDiscountLine = /^Discount/i.test(trimmed);
         const parts = isDiscountLine
-          ? line.split(/(\([+△-]?\d+(?:\.\d+)?%p\)|\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0)
+          ? line.split(/(\([+??]?\d+(?:\.\d+)?%p\)|\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0)
           : line.split(/(\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0);
         return (
           <span key={`old-v2-line-${idx}`} className="font-normal text-gray-800">
             {idx > 0 ? <br /> : null}
             {parts.map((part, partIdx) => {
-              if (isDiscountLine && /^\([+△-]?\d+(?:\.\d+)?%p\)$/.test(part)) {
+              if (isDiscountLine && /^\([+??]?\d+(?:\.\d+)?%p\)$/.test(part)) {
                 const raw = Number.parseFloat(part.replace(/[^\d.]/g, ''));
-                const diffValue = part.includes('△') || part.includes('-') ? -raw : raw;
+                const diffValue = part.includes('-') ? -raw : raw;
                 const diffClass =
                   diffValue < 0 ? 'text-emerald-600' : diffValue > 0 ? 'text-rose-600' : 'text-gray-600';
                 return (
@@ -402,8 +341,8 @@ export default function DailyHighlight({
       const lines = block.text.split('\n');
       return lines.map((line, idx) => {
         const trimmed = line.trim();
-        const isBalanceLine = idx === 0 || /^(잔액|Balance)/.test(trimmed);
-        const isDiscountLine = idx === 3 || /^(할인율|Discount)/.test(trimmed) || /%p/.test(trimmed);
+        const isBalanceLine = idx === 0 || /^Balance/i.test(trimmed);
+        const isDiscountLine = idx === 3 || /^Discount/i.test(trimmed) || /%p/.test(trimmed);
         const parts = isDiscountLine
           ? line.split(/(\([^)]+%p\)|\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0)
           : line.split(/(\d+(?:\.\d+)?%)/g).filter((part) => part.length > 0);
@@ -413,7 +352,7 @@ export default function DailyHighlight({
             {parts.map((part, partIdx) => {
               if (isDiscountLine && /^\([^)]+%p\)$/.test(part)) {
                 const raw = Number.parseFloat(part.replace(/[^\d.]/g, ''));
-                const diffValue = part.includes('△') || part.includes('-') ? -raw : raw;
+                const diffValue = part.includes('-') ? -raw : raw;
                 const diffClass =
                   diffValue < 0 ? 'text-emerald-600' : diffValue > 0 ? 'text-rose-600' : 'text-gray-600';
                 return (
@@ -458,6 +397,68 @@ export default function DailyHighlight({
     });
   };
 
+  const strategyRows = useMemo<StrategyRow[]>(() => {
+    const source = data?.actions || [];
+    return source.map((action) => {
+      const rawText = String(action.text || '').trim();
+      const labelMap: Record<string, keyof Pick<StrategyRow, 'status' | 'target' | 'execution' | 'risk'>> = {
+        '현황': 'status',
+        '진단': 'status',
+        '대상': 'target',
+        '실행': 'execution',
+        '리스크': 'risk',
+        'Status': 'status',
+        'Situation': 'status',
+        'Current': 'status',
+        'Target': 'target',
+        'Action': 'execution',
+        'Risk': 'risk',
+      };
+
+      const row: StrategyRow = {
+        region: action.priority,
+        category: '-',
+        status: '-',
+        target: '-',
+        execution: '-',
+        risk: '-',
+      };
+
+      const sectionMatch = rawText.match(/^\[([^\]]+)\]/);
+      if (sectionMatch) {
+        row.category = sectionMatch[1].trim();
+      }
+
+      rawText
+        .replace(/^\[[^\]]+\]\s*/, '')
+        // Split only by field separators like " / ", not value slashes like "온/오프".
+        .split(/\s\/\s/)
+        .forEach((chunk) => {
+          const trimmed = chunk.trim();
+          if (!trimmed) return;
+          const fieldMatch = trimmed.match(/^([^:]+):\s*(.+)$/);
+          if (!fieldMatch) {
+            if (row.status === '-') row.status = trimmed;
+            return;
+          }
+          const key = fieldMatch[1].trim();
+          const value = fieldMatch[2].trim();
+          const mapped = labelMap[key];
+          if (mapped) row[mapped] = value;
+        });
+
+      return row;
+    });
+  }, [data?.actions]);
+
+  const groupedStrategyRows = useMemo(
+    () => ({
+      HKMC: strategyRows.filter((row) => row.region === 'HKMC'),
+      TW: strategyRows.filter((row) => row.region === 'TW'),
+    }),
+    [strategyRows]
+  );
+
   return (
     <section className="mb-4 rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -490,7 +491,7 @@ export default function DailyHighlight({
           <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-gray-900">
-                {language === 'ko' ? 'AI추천전략 / 법인전략' : 'AI Strategy / Subsidiary Strategy'}
+                {language === 'ko' ? 'AI 추천 전략' : 'AI Strategy'}
               </h3>
               <button
                 type="button"
@@ -501,127 +502,49 @@ export default function DailyHighlight({
               </button>
             </div>
             <summary className="hidden">
-              {language === 'ko' ? '상세 보기 (AI추천전략 / 법인전략)' : 'Details (AI Strategy / Subsidiary Strategy)'}
+              {language === 'ko' ? '상세 보기 (AI 추천 전략)' : 'Details (AI Strategy)'}
             </summary>
 
             {showStrategyPanel ? (
             <div className="space-y-2 pt-2">
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold text-gray-900">{t(language, 'aiRecommendedStrategy')}</h3>
-                {(data?.actions || []).map((action) => (
-                  <p key={action.priority} className="text-sm text-gray-700">
-                    <span className="font-semibold text-gray-900">{action.priority}.</span> {action.text}
-                  </p>
-                ))}
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <h3 className="text-sm font-semibold text-gray-900">{language === 'ko' ? '법인전략' : 'Subsidiary Strategy'}</h3>
-                <div className="space-y-1 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-                  <p className="text-xs font-semibold text-gray-600">{language === 'ko' ? '홍콩법인 의견' : 'HKMC Opinion'}</p>
-                  {isHkmcEditing ? (
-                    <textarea
-                      value={hkmcOpinion}
-                      onChange={(e) => setHkmcOpinion(e.target.value)}
-                      rows={2}
-                      placeholder={language === 'ko' ? '홍콩법인 의견을 입력하세요.' : 'Enter HKMC opinion.'}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    />
-                  ) : (
-                    <div className="min-h-[44px] px-1 py-1 text-sm text-gray-700">
-                      {hkmcOpinion ? renderMarkdownBlock(hkmcOpinion) : <p className="text-gray-400">{language === 'ko' ? '의견 없음' : 'No opinion'}</p>}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500">
-                      {opinionLoading
-                        ? language === 'ko'
-                          ? '불러오는 중...'
-                          : 'Loading...'
-                        : hkmcOpinionSavedAt
-                          ? `${language === 'ko' ? '저장됨' : 'Saved'}: ${hkmcOpinionSavedAt.slice(0, 16).replace('T', ' ')}`
-                          : language === 'ko'
-                            ? '아직 저장되지 않음'
-                            : 'Not saved yet'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isHkmcEditing) {
-                          void handleSaveHkmcOpinion();
-                          return;
-                        }
-                        setIsHkmcEditing(true);
-                      }}
-                      disabled={hkmcOpinionSaving || opinionLoading}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {hkmcOpinionSaving
-                        ? language === 'ko'
-                          ? '저장 중...'
-                          : 'Saving...'
-                        : isHkmcEditing
-                          ? language === 'ko'
-                            ? '저장'
-                            : 'Save'
-                          : language === 'ko'
-                            ? '편집'
-                            : 'Edit'}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
-                  <p className="text-xs font-semibold text-gray-600">{language === 'ko' ? '대만법인 의견' : 'TW Opinion'}</p>
-                  {isTwEditing ? (
-                    <textarea
-                      value={twOpinion}
-                      onChange={(e) => setTwOpinion(e.target.value)}
-                      rows={2}
-                      placeholder={language === 'ko' ? '대만법인 의견을 입력하세요.' : 'Enter TW opinion.'}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    />
-                  ) : (
-                    <div className="min-h-[44px] px-1 py-1 text-sm text-gray-700">
-                      {twOpinion ? renderMarkdownBlock(twOpinion) : <p className="text-gray-400">{language === 'ko' ? '의견 없음' : 'No opinion'}</p>}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500">
-                      {opinionLoading
-                        ? language === 'ko'
-                          ? '불러오는 중...'
-                          : 'Loading...'
-                        : twOpinionSavedAt
-                          ? `${language === 'ko' ? '저장됨' : 'Saved'}: ${twOpinionSavedAt.slice(0, 16).replace('T', ' ')}`
-                          : language === 'ko'
-                            ? '아직 저장되지 않음'
-                            : 'Not saved yet'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isTwEditing) {
-                          void handleSaveTwOpinion();
-                          return;
-                        }
-                        setIsTwEditing(true);
-                      }}
-                      disabled={twOpinionSaving || opinionLoading}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {twOpinionSaving
-                        ? language === 'ko'
-                          ? '저장 중...'
-                          : 'Saving...'
-                        : isTwEditing
-                          ? language === 'ko'
-                            ? '저장'
-                            : 'Save'
-                          : language === 'ko'
-                            ? '편집'
-                            : 'Edit'}
-                    </button>
-                  </div>
+                <div className="space-y-3">
+                  {(['HKMC', 'TW'] as const).map((region) => {
+                    const rows = groupedStrategyRows[region];
+                    if (rows.length === 0) return null;
+                    return (
+                      <div key={`strategy-${region}`} className="rounded-lg border border-gray-200 bg-white">
+                        <div className="border-b border-gray-200 px-3 py-2">
+                          <p className="text-xs font-semibold tracking-wide text-gray-700">{region}</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-[760px] w-full text-xs text-gray-700">
+                            <thead>
+                              <tr className="bg-gray-50 text-gray-800">
+                                <th className="px-3 py-2 text-left font-semibold">{language === 'ko' ? '구분' : 'Type'}</th>
+                                <th className="px-3 py-2 text-left font-semibold text-purple-700">{language === 'ko' ? '현황' : 'Status'}</th>
+                                <th className="px-3 py-2 text-left font-semibold text-blue-700">{language === 'ko' ? '대상' : 'Target'}</th>
+                                <th className="px-3 py-2 text-left font-semibold text-emerald-700">{language === 'ko' ? '실행' : 'Action'}</th>
+                                <th className="px-3 py-2 text-left font-semibold text-rose-700">{language === 'ko' ? '리스크' : 'Risk'}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row, idx) => (
+                                <tr key={`${region}-${row.category}-${idx}`} className="border-t border-gray-100 align-top">
+                                  <td className="px-3 py-2 font-semibold text-gray-900">{row.category}</td>
+                                  <td className="px-3 py-2">{row.status}</td>
+                                  <td className="px-3 py-2">{row.target}</td>
+                                  <td className="px-3 py-2">{row.execution}</td>
+                                  <td className="px-3 py-2">{row.risk}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -43,6 +43,9 @@ export interface ExecutiveRegionInput {
   discountRateYtdDiff?: number | null;
   oldStock?: number | null;
   oldStockYoy?: number | null;
+  invDays?: number | null;
+  oldStock2yPlusShare?: number | null;
+  oldStock3yPlusShare?: number | null;
   stagnantRatio?: number | null;
   stagnantRatioChange?: number | null; // %p (vs last month-end)
 }
