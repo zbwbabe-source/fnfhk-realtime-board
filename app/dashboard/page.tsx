@@ -125,9 +125,14 @@ export default function DashboardPage() {
 
         const mode = isYtdMode ? 'ytd' : 'mtd';
         const summaryKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}`;
-        const shouldForceRefresh = refreshKey > 0;
-        const fetchOptions = { signal: controller.signal };
-        const section3FetchOptions = { signal: controller.signal };
+        const isLatestSelectedDate = !!latestDate && date === latestDate;
+        const shouldForceRefresh = refreshKey > 0 || isLatestSelectedDate;
+        const fetchOptions: RequestInit = isLatestSelectedDate
+          ? { signal: controller.signal, cache: 'no-store' }
+          : { signal: controller.signal };
+        const section3FetchOptions: RequestInit = isLatestSelectedDate
+          ? { signal: controller.signal, cache: 'no-store' }
+          : { signal: controller.signal };
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const fetchJson = async (
           url: string,
@@ -241,7 +246,8 @@ export default function DashboardPage() {
     prefetchedDetailKeysRef.current.add(prefetchKey);
 
     const controller = new AbortController();
-    const forceRefreshParam = refreshKey > 0 ? '&forceRefresh=true' : '';
+    const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
+    const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
     const detailWarmupUrls = [
       `/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}${forceRefreshParam}`,
       `/api/section1/store-sales?region=TW&brand=${brand}&date=${date}${forceRefreshParam}`,
@@ -253,7 +259,7 @@ export default function DashboardPage() {
 
     void Promise.allSettled(
       detailWarmupUrls.map((url) =>
-        fetch(url, { signal: controller.signal, cache: 'no-store' })
+        fetch(url, shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal })
       )
     ).then((results) => {
       if (controller.signal.aborted) return;
@@ -290,9 +296,13 @@ export default function DashboardPage() {
         setSection1Data(null);
         setDataLoadStatus((prev) => ({ ...prev, section1: 'loading' }));
 
-        const forceRefreshParam = refreshKey > 0 ? '&forceRefresh=true' : '';
+        const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
+        const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}${forceRefreshParam}`;
-        const res = await fetch(url, { signal: controller.signal });
+        const res = await fetch(
+          url,
+          shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal }
+        );
 
         if (!res.ok) {
           throw new Error('Failed to fetch section1 detail data');
@@ -374,7 +384,7 @@ export default function DashboardPage() {
     }
 
     fetchMeta();
-  }, []);
+  }, [brand, fallbackDate]);
 
   useEffect(() => {
     let disposed = false;
