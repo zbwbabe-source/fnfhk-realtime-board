@@ -390,6 +390,18 @@ export default function Section3Card({
       {deltaText ? <p className={`font-semibold ${deltaClass}`}>{deltaText}</p> : null}
     </div>
   );
+  const getBottomCardClassName = (key: string) => {
+    if (key === 'stagnant') {
+      return 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50 shadow-[0_8px_24px_rgba(244,63,94,0.08)]';
+    }
+    return 'border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-sm';
+  };
+  const getBottomCardTitleClassName = (key: string) => {
+    return key === 'stagnant' ? 'text-rose-900' : 'text-gray-800';
+  };
+  const getBottomCardValueClassName = (key: string) => {
+    return key === 'stagnant' ? 'text-rose-950' : 'text-gray-900';
+  };
 
   return (
     <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
@@ -512,14 +524,14 @@ export default function Section3Card({
               const discountCombinedLabel = language === 'ko' ? '할인율(목표비)' : 'Discount (vs Target)';
 
               return (
-                <div key={card.key} className="min-w-0 rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
+                <div key={card.key} className={`min-w-0 rounded-lg border p-3 ${getBottomCardClassName(card.key)}`}>
                   <div className="mb-2">
-                    <p className="text-sm font-bold leading-snug text-gray-800">
+                    <p className={`text-sm font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
                       {card.title}
                       {card.seasonCode ? <span className="text-[11px] font-medium text-gray-500">({card.seasonCode})</span> : null}
                     </p>
                   </div>
-                  <p className="text-lg font-bold leading-tight text-gray-900">
+                  <p className={`text-lg font-bold leading-tight ${getBottomCardValueClassName(card.key)}`}>
                     {card.completed
                       ? language === 'ko'
                         ? '소진완료'
@@ -550,7 +562,7 @@ export default function Section3Card({
                       </>
                     ) : card.completed ? (
                       <p className="text-[12px] leading-tight text-emerald-600">
-                        {language === 'ko' ? '잔여 재고 없음' : 'No remaining stock'}
+                        {language === 'ko' ? '잔여재고 0' : 'No remaining stock'}
                       </p>
                     ) : (
                       <>
