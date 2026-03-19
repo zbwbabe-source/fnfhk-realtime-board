@@ -65,15 +65,18 @@ export default function Section3Card({
   };
 
   const getPeriodStartInfo = () => {
-    if (section3Data?.period_start_date) {
+    if (section3Data?.period_start_date && section3Data?.asof_date) {
       const startDate = section3Data.period_start_date;
-      const year = startDate.slice(2, 4);
-      const month = startDate.slice(5, 7);
-      const day = startDate.slice(8, 10);
+      const endDate = section3Data.asof_date;
+      const startYear = startDate.slice(2, 4);
+      const startMonth = startDate.slice(5, 7);
+      const startDay = startDate.slice(8, 10);
+      const endMonth = endDate.slice(5, 7);
+      const endDay = endDate.slice(8, 10);
 
       return language === 'ko'
-        ? `(${year}/${parseInt(month, 10)}/${parseInt(day, 10)}~)`
-        : `(from ${year}/${parseInt(month, 10)}/${parseInt(day, 10)})`;
+        ? `(${startYear}/${parseInt(startMonth, 10)}/${parseInt(startDay, 10)}~${parseInt(endMonth, 10)}/${parseInt(endDay, 10)})`
+        : `(${startYear}/${parseInt(startMonth, 10)}/${parseInt(startDay, 10)}~${parseInt(endMonth, 10)}/${parseInt(endDay, 10)})`;
     }
 
     return '';
@@ -93,6 +96,8 @@ export default function Section3Card({
     }
     return 'Month-end projection using simple daily run-rate from current month depleted sales';
   };
+
+  const periodStartInfo = getPeriodStartInfo();
 
   const calculateKPIs = () => {
     if (!section3Data?.header) {
@@ -116,6 +121,7 @@ export default function Section3Card({
     const cumulativeTagSales = header.period_tag_sales || 0;
     const cumulativeActSales = header.period_act_sales || 0;
     const currentMonthTagSales = header.current_month_depleted || 0;
+    const currentMonthTagSalesLy = header.current_month_depleted_ly as number | null | undefined;
     const cumulativeDiscountRate =
       cumulativeTagSales > 0 && Number.isFinite(cumulativeActSales) ? (1 - cumulativeActSales / cumulativeTagSales) * 100 : null;
     const currentMonthDiscountRate =
@@ -125,6 +131,19 @@ export default function Section3Card({
 
     const depletedSalesLy = header.period_tag_sales_ly as number | null | undefined;
     const depletedActLy = header.period_act_sales_ly as number | null | undefined;
+    const cumulativeDiscountRateLy =
+      depletedSalesLy !== null &&
+      depletedSalesLy !== undefined &&
+      depletedSalesLy > 0 &&
+      depletedActLy !== null &&
+      depletedActLy !== undefined &&
+      Number.isFinite(depletedActLy)
+        ? (1 - depletedActLy / depletedSalesLy) * 100
+        : null;
+    const cumulativeDiscountRateDiffPct =
+      cumulativeDiscountRate !== null && cumulativeDiscountRateLy !== null
+        ? cumulativeDiscountRate - cumulativeDiscountRateLy
+        : null;
     const yoyBase =
       depletedSalesLy !== null && depletedSalesLy !== undefined && depletedSalesLy > 0
         ? depletedSalesLy
@@ -136,6 +155,10 @@ export default function Section3Card({
         ? cumulativeTagSales
         : cumulativeActSales;
     const depletedSalesYoyPct = yoyBase !== null ? (yoyCurrent / yoyBase) * 100 : null;
+    const currentMonthSalesYoyPct =
+      currentMonthTagSalesLy !== null && currentMonthTagSalesLy !== undefined && currentMonthTagSalesLy > 0
+        ? (currentMonthTagSales / currentMonthTagSalesLy) * 100
+        : null;
 
     const hasTargetInfo = region === 'HKMC' && !!header.target_info?.available;
     const selectedTarget = hasTargetInfo ? header.target_info[targetMode] : null;
@@ -180,12 +203,27 @@ export default function Section3Card({
             : null,
         badgeClass: 'text-orange-700 bg-orange-50',
         meta: [
-          `${language === 'ko' ? '누적' : 'Cumulative'} ${formatCurrency(cumulativeTagSales)}`,
-          <span key="k2-discount">
-            {t(language, 'discountRate')}{' '}
-            <span className="font-semibold italic text-sky-700">{formatPercent(cumulativeDiscountRate, 1)}</span>
-          </span>,
           `${t(language, 'yoy')} ${formatPercent(depletedSalesYoyPct, 0)}`,
+          <span key="k2-discount" className="inline-flex min-h-[28px] flex-col">
+            <span>
+              {t(language, 'discountRate')}{' '}
+              <span className="font-semibold italic text-sky-700">{formatPercent(cumulativeDiscountRate, 1)}</span>
+            </span>
+            <span
+              className={`font-semibold ${
+                cumulativeDiscountRateDiffPct !== null
+                  ? cumulativeDiscountRateDiffPct > 0
+                    ? 'text-rose-600'
+                    : cumulativeDiscountRateDiffPct < 0
+                      ? 'text-emerald-600'
+                      : 'text-gray-500'
+                  : 'text-gray-500'
+              }`}
+            >
+              {language === 'ko' ? '전년비 ' : 'vs LY '}
+              {formatSignedPercentPoint(cumulativeDiscountRateDiffPct)}
+            </span>
+          </span>,
         ],
       },
       k3: hasTargetInfo
@@ -218,9 +256,6 @@ export default function Section3Card({
             badgeClass: metricTone(stagnantRatioChange, 0),
             meta: [
               `${t(language, 'vsLastMonthEnd')} ${formatSignedPercentPoint(stagnantRatioChange)}`,
-              `${t(language, 'inventoryDays')} ${
-                inventoryDays !== null && inventoryDays !== undefined ? `${Math.round(inventoryDays)}${language === 'ko' ? '일' : ''}` : '-'
-              }`,
             ],
           },
       hasTargetInfo,
@@ -234,7 +269,6 @@ export default function Section3Card({
       : 0;
   const showRiskBadge = stagnantRatioRisk >= 30;
   const seasonType = getSection3SeasonType();
-  const periodStartInfo = getPeriodStartInfo();
   const currencyUnit =
     region === 'TW'
       ? language === 'ko'
@@ -242,6 +276,25 @@ export default function Section3Card({
         : `Unit: ${currencyCode}`
       : t(language, 'cardUnit');
   const summaryCards = section3Data?.summary_cards;
+  const yearCards = summaryCards?.year_cards || [];
+  const normalizedYearCards = (() => {
+    const cards = [...yearCards];
+    const hasThirdYearCard = cards.some((card: any) => card?.year_bucket === '3년차 이상');
+    if (region === 'TW' && !hasThirdYearCard) {
+      cards.push({
+        year_bucket: '3년차 이상',
+        season_code: '',
+        curr_stock_amt: 0,
+        stagnant_stock_amt: 0,
+        period_tag_sales: 0,
+        sales_yoy_pct: null,
+        discount_rate: null,
+        target_info: null,
+        completed: true,
+      });
+    }
+    return cards;
+  })();
   const bottomCards = summaryCards
     ? [
         {
@@ -256,7 +309,7 @@ export default function Section3Card({
           targetInfo: section3Data?.header?.target_info?.[targetMode] || null,
           discountRate: section3Data?.header?.discount_rate ?? null,
         },
-        ...(summaryCards.year_cards || []).map((card: any) => ({
+        ...normalizedYearCards.map((card: any) => ({
           key: card.year_bucket,
           title: card.year_bucket === '3년차 이상' ? '3년차' : card.year_bucket,
           seasonCode: card.year_bucket === '3년차 이상' ? '' : card.season_code,
@@ -266,6 +319,7 @@ export default function Section3Card({
           salesYoyPct: card.sales_yoy_pct,
           targetInfo: card.target_info?.[targetMode] || null,
           discountRate: card.discount_rate,
+          completed: !!card.completed,
         })),
         summaryCards.stagnant_card
           ? {
@@ -280,7 +334,7 @@ export default function Section3Card({
               stagnantRatio: summaryCards.stagnant_card.stagnant_ratio,
               prevMonthStagnantRatio: summaryCards.stagnant_card.prev_month_stagnant_ratio,
               invDays: summaryCards.stagnant_card.inv_days,
-              breakdown: (summaryCards.year_cards || []).map((yearCard: any) => ({
+              breakdown: normalizedYearCards.map((yearCard: any) => ({
                 label: yearCard.year_bucket === '3년차 이상' ? '3년차' : yearCard.year_bucket,
                 value: yearCard.stagnant_stock_amt,
               })),
@@ -320,7 +374,7 @@ export default function Section3Card({
 
   return (
     <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
-      <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
+      <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold leading-tight text-gray-900">
             {t(language, 'section3Title')}
@@ -359,7 +413,7 @@ export default function Section3Card({
         {[kpis.k1, kpis.k2, kpis.k3].map((item, index) => (
           <div
             key={item.label}
-            className={`min-w-0 space-y-2 rounded-xl border p-2.5 sm:p-3 ${
+            className={`min-w-0 space-y-1.5 rounded-xl border p-2.5 sm:p-3 ${
               index === 0
                 ? 'border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50'
                 : 'border-gray-200 bg-gradient-to-br from-gray-50 to-white'
@@ -367,11 +421,17 @@ export default function Section3Card({
           >
             <div className="flex min-h-[32px] items-start gap-2">
               <p className="text-xs text-gray-600">{item.label}</p>
-              {index === 1 && periodStartInfo && periodInfoPlacement === 'inline' && (
-                <div className="rounded-md bg-orange-50 px-2 py-1 text-[11px] font-medium text-orange-900">
-                  {periodStartInfo}
-                </div>
-              )}
+            </div>
+            <div className="min-h-[16px] text-[11px] leading-tight">
+              {index === 1 && periodStartInfo
+                ? (
+                    <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 font-medium text-orange-900">
+                      {language === 'ko'
+                        ? `소진기간 ${periodStartInfo.replace(/^\(|\)$/g, '')}`
+                        : `Period ${periodStartInfo.replace(/^\(|\)$/g, '')}`}
+                    </span>
+                  )
+                : null}
             </div>
             <p className={`${compactMainMetric ? 'text-lg sm:text-xl' : 'text-[1.7rem] sm:text-[2rem]'} font-bold leading-tight tabular-nums text-gray-900`}>
               {item.value}
@@ -387,7 +447,7 @@ export default function Section3Card({
                   </span>
                 </span>
               ) : (
-                <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${item.badgeClass}`}>
+                <span className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium ${item.badgeClass}`}>
                   {item.badge}
                 </span>
               )
@@ -406,16 +466,16 @@ export default function Section3Card({
         ))}
       </div>
 
-      <div className="mt-2 pt-0 text-[11px] text-gray-500">
-        {periodStartInfo && periodInfoPlacement === 'footer' && (
+      {periodStartInfo && periodInfoPlacement === 'footer' && (
+        <div className="mt-1 text-[11px] text-gray-500">
           <span className="ml-2">
             | {language === 'ko' ? `소진재고액 기준 ${periodStartInfo}` : `Depleted-stock period ${periodStartInfo}`}
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {bottomCards.length > 0 && (
-        <div className="mt-2 border-t border-gray-100 pt-3">
+        <div className="mt-1.5 border-t border-gray-100 pt-2.5">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {bottomCards.map((card: any) => {
               const cardDiscountRate =
@@ -441,7 +501,13 @@ export default function Section3Card({
                       {card.seasonCode ? <span className="text-[11px] font-medium text-gray-500">({card.seasonCode})</span> : null}
                     </p>
                   </div>
-                  <p className="text-lg font-bold leading-tight text-gray-900">{formatCurrency(card.stockAmt || 0)}</p>
+                  <p className="text-lg font-bold leading-tight text-gray-900">
+                    {card.completed
+                      ? language === 'ko'
+                        ? '소진완료'
+                        : 'Cleared'
+                      : formatCurrency(card.stockAmt || 0)}
+                  </p>
                   <div className="mt-2.5 space-y-0.5">
                     {card.key === 'stagnant' ? (
                       <>
@@ -464,6 +530,10 @@ export default function Section3Card({
                             )
                           )}
                       </>
+                    ) : card.completed ? (
+                      <p className="text-[12px] leading-tight text-emerald-600">
+                        {language === 'ko' ? '잔여 재고 없음' : 'No remaining stock'}
+                      </p>
                     ) : (
                       <>
                         {renderMetricLine(

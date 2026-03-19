@@ -36,6 +36,7 @@ export interface Section3Response {
     period_act_sales_ly: number | null;
     current_month_depleted: number;
     current_month_depleted_act: number;
+    current_month_depleted_ly?: number | null;
     current_month_discount_rate: number | null;
     discount_rate: number;
     inv_days_raw: number | null;
@@ -1070,6 +1071,8 @@ ORDER BY
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
   const alignedPeriodActSalesLy =
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
+  const alignedCurrentMonthTagSalesLy =
+    applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
   const seasonSalesMap = new Map<
     string,
     { periodTag: number; periodAct: number; monthTag: number; monthAct: number }
@@ -1105,7 +1108,11 @@ ORDER BY
     current.monthTag += values.monthTag;
     current.monthAct += values.monthAct;
   }
-  const getBucketSeasonSalesTotal = (bucket: string, shift = 0) => {
+  const getBucketSeasonSalesMetric = (
+    bucket: string,
+    metric: 'periodTag' | 'periodAct' | 'monthTag' | 'monthAct',
+    shift = 0
+  ) => {
     let total = 0;
     for (const [seasonCode, values] of seasonSalesMap.entries()) {
       const match = seasonCode.match(/^(\d{2})([FS])$/);
@@ -1115,7 +1122,7 @@ ORDER BY
       const matchedBucket =
         diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
       if (matchedBucket === bucket) {
-        total += values.periodTag;
+        total += values[metric];
       }
     }
     return total;
@@ -1193,8 +1200,10 @@ ORDER BY
   const oldStock2yPlusShare = totalYearStockAmt > 0 ? (oldStock2yPlusAmt / totalYearStockAmt) * 100 : null;
   const oldStock3yPlusShare = totalYearStockAmt > 0 ? (oldStock3yPlusAmt / totalYearStockAmt) * 100 : null;
   const bucketKeys = ['1년차', '2년차', '3년차 이상'] as const;
-  const totalBucketCurrentSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesTotal(key, 0), 0);
-  const totalBucketPrevSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesTotal(key, 1), 0);
+  const totalBucketCurrentSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesMetric(key, 'periodTag', 0), 0);
+  const totalBucketPrevSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesMetric(key, 'periodTag', 1), 0);
+  const totalBucketCurrentActSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesMetric(key, 'periodAct', 0), 0);
+  const totalBucketPrevActSales = bucketKeys.reduce((sum, key) => sum + getBucketSeasonSalesMetric(key, 'periodAct', 1), 0);
   const monthCode = getSection3MonthCode(date);
   const targetCategoryKey: Section3TargetCategory = categoryFilter === 'clothes' ? 'wear' : 'all';
   const monthlyTarget = region === 'HKMC' ? getSection3Target(monthCode, 'monthly', targetCategoryKey) : null;
@@ -1270,14 +1279,15 @@ ORDER BY
       depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
       period_tag_sales: totalBucketCurrentSales,
       period_tag_sales_ly: totalBucketPrevSales,
-      period_act_sales: resolvedPeriodActSales,
-      period_act_sales_ly: alignedPeriodActSalesLy,
+      period_act_sales: totalBucketCurrentActSales,
+      period_act_sales_ly: totalBucketPrevActSales,
       current_month_depleted: resolvedCurrentMonthTagSales,
       current_month_depleted_act: resolvedCurrentMonthActSales,
+      current_month_depleted_ly: alignedCurrentMonthTagSalesLy,
       current_month_discount_rate: resolvedCurrentMonthDiscountRate,
       discount_rate:
-        resolvedPeriodTagSales > 0
-          ? 1 - resolvedPeriodActSales / resolvedPeriodTagSales
+        totalBucketCurrentSales > 0
+          ? 1 - totalBucketCurrentActSales / totalBucketCurrentSales
           : parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
@@ -1348,8 +1358,8 @@ ORDER BY
       const currentMonthDiscountRate =
         currentMonthTagSales > 0 ? 1 - currentMonthActSales / currentMonthTagSales : null;
 
-      const currentBucketSalesForYoy = getBucketSeasonSalesTotal(bucket, 0);
-      const prevBucketSalesForYoy = getBucketSeasonSalesTotal(bucket, 1);
+      const currentBucketSalesForYoy = getBucketSeasonSalesMetric(bucket, 'periodTag', 0);
+      const prevBucketSalesForYoy = getBucketSeasonSalesMetric(bucket, 'periodTag', 1);
       const salesYoyPct =
         prevBucketSalesForYoy > 0 ? (currentBucketSalesForYoy / prevBucketSalesForYoy) * 100 : null;
 
