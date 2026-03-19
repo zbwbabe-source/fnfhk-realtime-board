@@ -12,6 +12,8 @@ interface Section3CardProps {
   compactMainMetric?: boolean;
   currencyCode?: 'HKD' | 'TWD';
   hkdToTwdRate?: number;
+  simpleDetail?: boolean;
+  fixedHeight?: boolean;
 }
 
 export default function Section3Card({
@@ -24,6 +26,8 @@ export default function Section3Card({
   compactMainMetric = false,
   currencyCode = 'HKD',
   hkdToTwdRate = 1,
+  simpleDetail = false,
+  fixedHeight = false,
 }: Section3CardProps) {
   const targetMode: 'monthly' = 'monthly';
   const formatCurrency = (num: number) => {
@@ -373,7 +377,7 @@ export default function Section3Card({
   );
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+    <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold leading-tight text-gray-900">
@@ -381,7 +385,6 @@ export default function Section3Card({
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section3Subtitle')}</p>
-          <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>
         </div>
 
         <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">
@@ -413,16 +416,16 @@ export default function Section3Card({
         {[kpis.k1, kpis.k2, kpis.k3].map((item, index) => (
           <div
             key={item.label}
-            className={`min-w-0 space-y-1.5 rounded-xl border p-2.5 sm:p-3 ${
+            className={`min-w-0 rounded-xl border p-2.5 sm:p-3 ${
               index === 0
                 ? 'border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50'
                 : 'border-gray-200 bg-gradient-to-br from-gray-50 to-white'
-            }`}
+            } ${simpleDetail ? 'sm:min-h-[116px]' : 'space-y-1.5'}`}
           >
-            <div className="flex min-h-[32px] items-start gap-2">
+            <div className={`flex items-start gap-2 ${simpleDetail ? 'min-h-[20px]' : 'min-h-[32px]'}`}>
               <p className="text-xs text-gray-600">{item.label}</p>
             </div>
-            <div className="min-h-[16px] text-[11px] leading-tight">
+            <div className={`${simpleDetail ? 'min-h-[20px]' : 'min-h-[16px]'} text-[11px] leading-tight`}>
               {index === 1 && periodStartInfo
                 ? (
                     <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 font-medium text-orange-900">
@@ -433,10 +436,10 @@ export default function Section3Card({
                   )
                 : null}
             </div>
-            <p className={`${compactMainMetric ? 'text-lg sm:text-xl' : 'text-[1.7rem] sm:text-[2rem]'} font-bold leading-tight tabular-nums text-gray-900`}>
+            <p className={`${simpleDetail ? 'mt-1 text-2xl' : compactMainMetric ? 'text-lg sm:text-xl' : 'text-[1.7rem] sm:text-[2rem]'} font-bold leading-tight tabular-nums text-gray-900`}>
               {item.value}
             </p>
-            {item.badge && (
+            {!simpleDetail && item.badge && (
               index === 2 ? (
                 <span className="group relative inline-block">
                   <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${item.badgeClass}`}>
@@ -452,12 +455,12 @@ export default function Section3Card({
                 </span>
               )
             )}
-            {(item as any).extraBadge && (
+            {!simpleDetail && (item as any).extraBadge && (
               <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${(item as any).extraBadgeClass || 'text-gray-700 bg-gray-100'}`}>
                 {(item as any).extraBadge}
               </span>
             )}
-            {item.meta.map((line: any, metaIndex: number) => (
+            {!simpleDetail && item.meta.map((line: any, metaIndex: number) => (
               <p key={metaIndex} className="text-[11px] leading-tight text-gray-500">
                 {line}
               </p>
@@ -466,7 +469,7 @@ export default function Section3Card({
         ))}
       </div>
 
-      {periodStartInfo && periodInfoPlacement === 'footer' && (
+      {!simpleDetail && periodStartInfo && periodInfoPlacement === 'footer' && (
         <div className="mt-1 text-[11px] text-gray-500">
           <span className="ml-2">
             | {language === 'ko' ? `소진재고액 기준 ${periodStartInfo}` : `Depleted-stock period ${periodStartInfo}`}
@@ -474,7 +477,7 @@ export default function Section3Card({
         </div>
       )}
 
-      {bottomCards.length > 0 && (
+      {!simpleDetail && bottomCards.length > 0 && (
         <div className="mt-1.5 border-t border-gray-100 pt-2.5">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {bottomCards.map((card: any) => {
@@ -581,6 +584,10 @@ export default function Section3Card({
           </div>
         </div>
       )}
+
+      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+        {currencyUnit} | {t(language, 'tagBasis')}
+      </div>
     </article>
   );
 }

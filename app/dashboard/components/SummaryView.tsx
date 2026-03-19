@@ -76,6 +76,7 @@ export default function SummaryView({
           onYtdModeToggle={onYtdModeToggle}
           detailViewMode={section1DetailViewMode}
           onDetailViewModeChange={onSection1DetailViewModeChange}
+          fixedHeight={true}
         />
         <Section2Card
           section2Data={section2Data}
@@ -85,6 +86,7 @@ export default function SummaryView({
           region={regionCode}
           compactMainMetric={true}
           showCategoryRanking={true}
+          fixedHeight={true}
         />
         <Section3Card
           section3Data={section3Data}
@@ -93,6 +95,7 @@ export default function SummaryView({
           categoryFilter={section3CategoryFilter}
           onCategoryFilterChange={onSection3CategoryFilterChange}
           compactMainMetric={true}
+          fixedHeight={true}
         />
       </div>
     </section>

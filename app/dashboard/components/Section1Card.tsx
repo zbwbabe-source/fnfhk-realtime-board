@@ -18,6 +18,8 @@ interface Section1CardProps {
   onDetailViewModeChange?: (view: DetailView) => void;
   currencyCode?: 'HKD' | 'TWD';
   hkdToTwdRate?: number;
+  simpleDetail?: boolean;
+  fixedHeight?: boolean;
 }
 
 type KpiBlock = {
@@ -67,6 +69,8 @@ export default function Section1Card({
   onDetailViewModeChange,
   currencyCode = 'HKD',
   hkdToTwdRate = 1,
+  simpleDetail = false,
+  fixedHeight = false,
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
   const activeDetailView = detailViewMode ?? detailView;
@@ -169,6 +173,13 @@ export default function Section1Card({
     const previousActiveStoreCount = isYtdMode ? total.active_store_count_ytd_avg_py : total.active_store_count_mtd_py;
 
     const projectionMeta = section1Data?.projection_meta;
+    const forecastSource = total.forecast_source || section1Data?.forecast_source || null;
+    const forecastMonths = Array.isArray(total.forecast_months)
+      ? total.forecast_months
+      : Array.isArray(section1Data?.forecast_months)
+        ? section1Data.forecast_months
+        : [];
+    const forecastMonthSummary = forecastMonths.map((item: any) => item.month).join(', ');
 
     const hasCompareRate = typeof compareRate === 'number' && isFinite(compareRate);
     const hasDiscountRate = typeof discountRate === 'number' && !isNaN(discountRate);
@@ -216,9 +227,17 @@ export default function Section1Card({
         projectedYoyRaw:
           typeof projectedYoy === 'number' && isFinite(projectedYoy) ? projectedYoy : null,
         projectedTooltip:
-          language === 'ko'
-            ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출과 환산 YoY를 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
-            : `Month-end projection and projected YoY are based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
+          forecastSource === 'excel' && isYtdMode
+            ? (
+              language === 'ko'
+                ? `기준월(${section1Data?.base_month || date.slice(0, 7)})까지는 실판매출, 이후 월은 엑셀 forecast를 반영합니다.${forecastMonthSummary ? ` 대상월: ${forecastMonthSummary}` : ''}`
+                : `Actual sales are used through the base month (${section1Data?.base_month || date.slice(0, 7)}), and later months use Excel forecast.${forecastMonthSummary ? ` Forecast months: ${forecastMonthSummary}` : ''}`
+            )
+            : (
+              language === 'ko'
+                ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출과 환산 YoY를 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
+                : `Month-end projection and projected YoY are based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`
+            ),
         rawDiscountDiff: typeof discountRateDiff === 'number' && isFinite(discountRateDiff) ? discountRateDiff : null,
       } as KpiBlock & { rawDiscountDiff: number | null },
       k2: {
@@ -251,13 +270,23 @@ export default function Section1Card({
         projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
         projectedValue: hasProjectedProgress ? `${projectedProgress.toFixed(1)}%` : '-',
         projectedTooltip:
-          language === 'ko'
-            ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출을 환산하고 목표 대비 진척률로 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
-            : `Month-end projection is based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`,
+          forecastSource === 'excel' && isYtdMode
+            ? (
+              language === 'ko'
+                ? `YTD 환산은 기준월 actual + 이후 월 forecast 합산입니다.${forecastMonthSummary ? ` 대상월: ${forecastMonthSummary}` : ''}`
+                : `YTD projection is calculated as base-month actual plus later-month forecast.${forecastMonthSummary ? ` Forecast months: ${forecastMonthSummary}` : ''}`
+            )
+            : (
+              language === 'ko'
+                ? `${projectionMeta?.explanation || '과거 2개년 동일 월 일별 매출을 기준으로 요일, 월중 구간, 춘절 영향을 반영해 월말 매출을 환산하고 목표 대비 진척률로 계산합니다.'}${projectionYears ? ` 학습연도: ${projectionYears}` : ''}`
+                : `Month-end projection is based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`
+            ),
         projectedSummary:
-          language === 'ko'
-            ? projectionMeta?.methodSummary || '과거 2개년 동일 월 패턴 + 요일 + 춘절 보정'
-            : 'Prior 2 years month pattern + weekday + Lunar New Year',
+          forecastSource === 'excel' && isYtdMode
+            ? (language === 'ko' ? '기준월 actual + 이후월 forecast' : 'Base-month actual + later-month forecast')
+            : (language === 'ko'
+                ? projectionMeta?.methodSummary || '과거 2개년 동일 월 패턴 + 요일 + 춘절 보정'
+                : 'Prior 2 years month pattern + weekday + Lunar New Year'),
       } as KpiBlock & { rawValue: number | null },
     };
   };
@@ -393,7 +422,7 @@ export default function Section1Card({
         }));
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+    <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -479,6 +508,23 @@ export default function Section1Card({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+        {simpleDetail ? (
+          <>
+            <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-3 sm:min-h-[116px]">
+              <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k1.label}</p>
+              <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k1.value}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 sm:min-h-[116px]">
+              <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k2.label}</p>
+              <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k2.value}</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 sm:min-h-[116px]">
+              <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k3.label}</p>
+              <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k3.value}</p>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-[1fr_0.9fr] gap-2.5">
             <div className="min-h-[24px] min-w-0 border-r border-blue-100 pr-2.5">
@@ -623,9 +669,11 @@ export default function Section1Card({
           </div>
           <div />
         </div>
+          </>
+        )}
       </div>
 
-      {detailCards.length > 0 && (
+      {!simpleDetail && detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {detailCards.map((item) => {

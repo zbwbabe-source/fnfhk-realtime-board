@@ -13,6 +13,7 @@ interface Section2CardProps {
   currencyCode?: 'HKD' | 'TWD';
   hkdToTwdRate?: number;
   showCategoryRanking?: boolean;
+  fixedHeight?: boolean;
 }
 
 export default function Section2Card({
@@ -25,6 +26,7 @@ export default function Section2Card({
   currencyCode = 'HKD',
   hkdToTwdRate = 1,
   showCategoryRanking = false,
+  fixedHeight = false,
 }: Section2CardProps) {
   type CategoryRankingCard = {
     key: string;
@@ -141,7 +143,7 @@ export default function Section2Card({
   }, [section2Data, periodView]);
 
   return (
-    <article className="h-full min-h-[520px] rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+    <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 leading-tight">

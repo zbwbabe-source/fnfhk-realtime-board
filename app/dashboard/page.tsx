@@ -685,6 +685,8 @@ export default function DashboardPage() {
                   showSeasonCategory={false}
                   currencyCode={region === 'TW' ? twCurrency : 'HKD'}
                   hkdToTwdRate={twHkdToTwdRate}
+                  simpleDetail={true}
+                  fixedHeight={true}
                 />
                 <Section1StoreBarChart
                   region={region}
@@ -709,6 +711,7 @@ export default function DashboardPage() {
                   compactMainMetric={true}
                   currencyCode={region === 'TW' ? twCurrency : 'HKD'}
                   hkdToTwdRate={twHkdToTwdRate}
+                  fixedHeight={true}
                 />
                 <Section2Treemap
                   region={region}
@@ -731,6 +734,8 @@ export default function DashboardPage() {
                   compactMainMetric={true}
                   currencyCode={region === 'TW' ? twCurrency : 'HKD'}
                   hkdToTwdRate={twHkdToTwdRate}
+                  simpleDetail={true}
+                  fixedHeight={true}
                 />
               </div>
             </div>
