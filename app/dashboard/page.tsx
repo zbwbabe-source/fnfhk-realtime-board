@@ -11,6 +11,7 @@ import Section2Card from './components/Section2Card';
 import Section2SellThrough from './components/Section2SellThrough';
 import Section2Treemap from './components/Section2Treemap';
 import Section3Card from './components/Section3Card';
+import Section3TargetHeatmap from './components/Section3TargetHeatmap';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryView from './components/SummaryView';
 import DataManagementModal from './components/DataManagementModal';
@@ -737,6 +738,13 @@ export default function DashboardPage() {
                   simpleDetail={true}
                   fixedHeight={true}
                 />
+                {region === 'HKMC' ? (
+                  <Section3TargetHeatmap
+                    section3Data={section3Data}
+                    region={region}
+                    language={language}
+                  />
+                ) : null}
               </div>
             </div>
 

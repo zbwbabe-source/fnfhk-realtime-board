@@ -53,6 +53,7 @@ interface StoreRow {
   monthEndProjection: number;
   projectedYoY: number;
   discount_rate_mtd: number;
+  discount_rate_mtd_diff?: number;
   
   // YTD
   ytd_target: number;
@@ -61,6 +62,7 @@ interface StoreRow {
   ytd_act_py: number;
   yoy_ytd: number;
   discount_rate_ytd: number;
+  discount_rate_ytd_diff?: number;
 }
 
 interface ChartDataPoint {
@@ -74,6 +76,7 @@ interface ChartDataPoint {
   color: string; // 막대 색상
   area: number | null; // 면적 (평) - 툴팁용
   discountRate: number; // 할인율 (%) - 툴팁용
+  discountRateDiff: number | null; // 할인율 전년비 증감 (%p)
   py_value: number; // 전년 매출 - 신규 매장 판별용
 }
 
@@ -102,6 +105,7 @@ export default function Section1StoreBarChart({
   currencyCode = 'HKD',
   hkdToTwdRate = 1,
 }: StoreBarChartProps) {
+  const normalizeStoreChannel = (channel: string) => (channel === '리테일' ? '정상' : channel);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -236,23 +240,24 @@ export default function Section1StoreBarChart({
     
     if (selectedChannel !== ALL_CHANNEL) {
       filteredStores = allStores.filter(store => {
+        const normalizedChannel = normalizeStoreChannel(store.channel);
         // 채널명 매핑
         let storeChannel = '';
         if (store.country === 'MC') {
-          storeChannel = store.shop_cd === 'MC4' || store.channel === '아울렛' ? 'MC아울렛' : 'MC정상';
+          storeChannel = store.shop_cd === 'MC4' || normalizedChannel === '아울렛' ? 'MC아울렛' : 'MC정상';
         } else if (store.country === 'TW') {
           // TW의 경우
-          if (store.channel === '온라인') {
+          if (normalizedChannel === '온라인') {
             storeChannel = 'TW온라인';
           } else {
-            storeChannel = `TW${store.channel}`; // TW정상 또는 TW아울렛
+            storeChannel = `TW${normalizedChannel}`; // TW정상 또는 TW아울렛
           }
         } else {
           // HK의 경우
-          if (store.channel === '온라인') {
+          if (normalizedChannel === '온라인') {
             storeChannel = 'HK온라인';
           } else {
-            storeChannel = `HK${store.channel}`; // HK정상 또는 HK아울렛
+            storeChannel = `HK${normalizedChannel}`; // HK정상 또는 HK아울렛
           }
         }
         return storeChannel === selectedChannel;
@@ -264,27 +269,27 @@ export default function Section1StoreBarChart({
     // 차트 데이터 변환
     const result: ChartDataPoint[] = filteredStores
       .filter(store => {
-        // 영업종료 매장 제외: mtd_act와 ytd_act가 모두 0인 경우
         const actualSales = isYtdMode ? store.ytd_act : store.mtd_act;
         return actualSales > 0;
       })
       .map(store => {
+      const normalizedChannel = normalizeStoreChannel(store.channel);
       // 채널명 매핑
       let storeChannel = '';
       if (store.country === 'MC') {
-        storeChannel = store.shop_cd === 'MC4' || store.channel === '아울렛' ? 'MC아울렛' : 'MC정상';
+        storeChannel = store.shop_cd === 'MC4' || normalizedChannel === '아울렛' ? 'MC아울렛' : 'MC정상';
       } else if (store.country === 'TW') {
-        if (store.channel === '온라인') {
+        if (normalizedChannel === '온라인') {
           storeChannel = 'TW온라인';
         } else {
-          storeChannel = `TW${store.channel}`;
+          storeChannel = `TW${normalizedChannel}`;
         }
       } else {
         // HK
-        if (store.channel === '온라인') {
+        if (normalizedChannel === '온라인') {
           storeChannel = 'HK온라인';
         } else {
-          storeChannel = `HK${store.channel}`;
+          storeChannel = `HK${normalizedChannel}`;
         }
       }
       
@@ -308,6 +313,9 @@ export default function Section1StoreBarChart({
 
       // 할인율 (API에서 제공)
       const discountRate = isYtdMode ? (store.discount_rate_ytd || 0) : (store.discount_rate_mtd || 0);
+      const discountRateDiffRaw = isYtdMode ? store.discount_rate_ytd_diff : store.discount_rate_mtd_diff;
+      const discountRateDiff =
+        typeof discountRateDiffRaw === 'number' && isFinite(discountRateDiffRaw) ? discountRateDiffRaw : null;
 
       let sales = actualSales;
 
@@ -337,6 +345,7 @@ export default function Section1StoreBarChart({
         color,
         area,
         discountRate,
+        discountRateDiff,
         py_value: actualPyValue, // 전년 매출 추가 (신규 매장 판별용)
       };
     }).filter((item): item is ChartDataPoint => item !== null); // null 제거
@@ -564,9 +573,26 @@ export default function Section1StoreBarChart({
               </div>
               <div className="flex justify-between items-center gap-3">
                 <span className="text-xs text-gray-600">할인율:</span>
-                <span className="discount-rate-emphasis text-sm">
-                  {data.discountRate > 0 ? `${data.discountRate.toFixed(1)}%` : 'N/A'}
-                </span>
+                <div className="text-right">
+                  <div className="discount-rate-emphasis text-sm">
+                    {data.discountRate > 0 ? `${data.discountRate.toFixed(1)}%` : 'N/A'}
+                  </div>
+                  <div
+                    className={`text-xs font-semibold ${
+                      data.discountRateDiff !== null
+                        ? data.discountRateDiff > 0
+                          ? 'text-red-600'
+                          : data.discountRateDiff < 0
+                            ? 'text-green-600'
+                            : 'text-gray-500'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    {data.discountRateDiff !== null
+                      ? `${data.discountRateDiff > 0 ? '+' : ''}${data.discountRateDiff.toFixed(1)}%p`
+                      : 'N/A'}
+                  </div>
+                </div>
               </div>
             </>
           )}

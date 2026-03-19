@@ -29,6 +29,21 @@ export default function Section3Card({
   simpleDetail = false,
   fixedHeight = false,
 }: Section3CardProps) {
+  const getYearBucketRank = (raw: string | null | undefined) => {
+    if (!raw) return null;
+    if (raw.includes('3')) return 3;
+    if (raw.includes('2')) return 2;
+    if (raw.includes('1')) return 1;
+    return null;
+  };
+  const getYearBucketLabel = (raw: string | null | undefined) => {
+    const rank = getYearBucketRank(raw);
+    if (rank === 1) return language === 'ko' ? '1년차' : 'Y1';
+    if (rank === 2) return language === 'ko' ? '2년차' : 'Y2';
+    if (rank === 3) return language === 'ko' ? '3년차' : 'Y3';
+    return raw || '';
+  };
+
   const targetMode: 'monthly' = 'monthly';
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
@@ -202,8 +217,8 @@ export default function Section3Card({
         badge:
           currentMonthTagSales > 0
             ? hasTargetInfo && monthlyTargetGross
-              ? `${language === 'ko' ? '당월' : 'Current Month'} ${formatCurrency(currentMonthTagSales)} / ${language === 'ko' ? '월목표' : 'Monthly Target'} ${formatCurrency(monthlyTargetGross)}`
-              : `${language === 'ko' ? '당월' : 'Current Month'} ${formatCurrency(currentMonthTagSales)}`
+              ? `${language === 'ko' ? '당월' : 'MTD'} ${formatCurrency(currentMonthTagSales)} / ${language === 'ko' ? '월목표' : 'Tgt'} ${formatCurrency(monthlyTargetGross)}`
+              : `${language === 'ko' ? '당월' : 'MTD'} ${formatCurrency(currentMonthTagSales)}`
             : null,
         badgeClass: 'text-orange-700 bg-orange-50',
         meta: [
@@ -283,7 +298,7 @@ export default function Section3Card({
   const yearCards = summaryCards?.year_cards || [];
   const normalizedYearCards = (() => {
     const cards = [...yearCards];
-    const hasThirdYearCard = cards.some((card: any) => card?.year_bucket === '3년차 이상');
+    const hasThirdYearCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === 3);
     if (region === 'TW' && !hasThirdYearCard) {
       cards.push({
         year_bucket: '3년차 이상',
@@ -315,8 +330,8 @@ export default function Section3Card({
         },
         ...normalizedYearCards.map((card: any) => ({
           key: card.year_bucket,
-          title: card.year_bucket === '3년차 이상' ? '3년차' : card.year_bucket,
-          seasonCode: card.year_bucket === '3년차 이상' ? '' : card.season_code,
+          title: getYearBucketLabel(card.year_bucket),
+          seasonCode: getYearBucketRank(card.year_bucket) === 3 ? '' : card.season_code,
           stockAmt: card.curr_stock_amt,
           stagnantStockAmt: card.stagnant_stock_amt,
           salesAmt: card.period_tag_sales,
@@ -339,7 +354,7 @@ export default function Section3Card({
               prevMonthStagnantRatio: summaryCards.stagnant_card.prev_month_stagnant_ratio,
               invDays: summaryCards.stagnant_card.inv_days,
               breakdown: normalizedYearCards.map((yearCard: any) => ({
-                label: yearCard.year_bucket === '3년차 이상' ? '3년차' : yearCard.year_bucket,
+                label: getYearBucketLabel(yearCard.year_bucket),
                 value: yearCard.stagnant_stock_amt,
               })),
             }
@@ -450,7 +465,7 @@ export default function Section3Card({
                   </span>
                 </span>
               ) : (
-                <span className={`inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-medium ${item.badgeClass}`}>
+                <span className={`inline-block max-w-full rounded-md px-2 py-0.5 text-[11px] font-medium leading-tight break-words ${item.badgeClass}`}>
                   {item.badge}
                 </span>
               )

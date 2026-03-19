@@ -145,6 +145,25 @@ export interface Section3Response {
       inv_days: number | null;
     } | null;
   };
+  target_heatmap?: {
+    mode: 'monthly';
+    rows: Array<{
+      year_bucket: string;
+      cells: Array<{
+        category_key: 'wear' | 'accessory' | 'all';
+        label: string;
+        available: boolean;
+        completed: boolean;
+        actual_sold_amt: number;
+        target_sold_gross: number | null;
+        progress_pct: number | null;
+        projected_progress_pct: number | null;
+        actual_discount_rate: number | null;
+        target_discount_rate: number | null;
+        discount_delta_pct: number | null;
+      }>;
+    }>;
+  } | null;
 }
 
 /**
@@ -201,7 +220,9 @@ region_shop AS (
 `;
   
   const shopFilter = 'AND LOCAL_SHOP_CD IN (SELECT local_shop_cd FROM region_shop)';
-  const apparelCategoryList = getApparelCategories()
+  const apparelCategories = getApparelCategories().map((code) => String(code).toUpperCase());
+  const apparelCategorySet = new Set(apparelCategories);
+  const apparelCategoryList = apparelCategories
     .map((code) => `'${code.replace(/'/g, "''")}'`)
     .join(', ');
   const stockCategoryFilter =
@@ -1008,6 +1029,23 @@ ORDER BY
       AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
     GROUP BY S.SESN
   `;
+  const alignedSeasonCategorySalesQuery = `
+    SELECT
+      S.SESN,
+      SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS PERIOD_TAG_SALES_TOTAL,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS PERIOD_ACT_SALES_TOTAL,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_TAG_SALES_TOTAL,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_ACT_SALES_TOTAL
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      AND RIGHT(S.SESN, 1) = ?
+      AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+      AND SUBSTR(S.PART_CD, 3, 2) IS NOT NULL
+    GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
+  `;
   const alignedSalesRowsPromise = executeSnowflakeQuery(alignedSalesQuery, [
     periodStartForSales,
     date,
@@ -1050,12 +1088,27 @@ ORDER BY
     periodStartForSales,
     date,
   ]);
+  const alignedSeasonCategorySalesRowsPromise = executeSnowflakeQuery(alignedSeasonCategorySalesQuery, [
+    periodStartForSales,
+    date,
+    periodStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    currentTypeForSales,
+    currentYYForSales - 1,
+    periodStartForSales,
+    date,
+  ]);
 
-  const [rows, alignedSalesRows, alignedSalesLyRows, alignedSeasonSalesRows] = await Promise.all([
+  const [rows, alignedSalesRows, alignedSalesLyRows, alignedSeasonSalesRows, alignedSeasonCategorySalesRows] = await Promise.all([
     rowsPromise,
     alignedSalesRowsPromise,
     alignedSalesLyRowsPromise,
     alignedSeasonSalesRowsPromise,
+    alignedSeasonCategorySalesRowsPromise,
   ]);
   console.log(`??Section3Query - Result: ${rows.length} rows`);
 
@@ -1087,6 +1140,39 @@ ORDER BY
       },
     ])
   );
+  const bucketCategorySales = new Map<
+    string,
+    Record<'wear' | 'accessory' | 'all', { periodTag: number; periodAct: number; monthTag: number; monthAct: number }>
+  >([
+    ['1년차', { wear: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, accessory: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, all: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 } }],
+    ['2년차', { wear: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, accessory: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, all: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 } }],
+    ['3년차 이상', { wear: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, accessory: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 }, all: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 } }],
+  ]);
+  for (const row of alignedSeasonCategorySalesRows || []) {
+    const seasonCode = String(row.SESN || '').trim().toUpperCase();
+    const match = seasonCode.match(/^(\d{2})([FS])$/);
+    if (!match || match[2] !== currentTypeForSales) continue;
+    const seasonYY = Number(match[1]);
+    const diff = currentYYForSales - seasonYY;
+    const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
+    if (!bucket) continue;
+    const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const target = bucketCategorySales.get(bucket);
+    if (!target) continue;
+    const periodTag = applyExchangeRate(parseFloat(row.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
+    const periodAct = applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
+    const monthTag = applyExchangeRate(parseFloat(row.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+    const monthAct = applyExchangeRate(parseFloat(row.CURRENT_MONTH_ACT_SALES_TOTAL || 0)) || 0;
+    target[categoryKey].periodTag += periodTag;
+    target[categoryKey].periodAct += periodAct;
+    target[categoryKey].monthTag += monthTag;
+    target[categoryKey].monthAct += monthAct;
+    target.all.periodTag += periodTag;
+    target.all.periodAct += periodAct;
+    target.all.monthTag += monthTag;
+    target.all.monthAct += monthAct;
+  }
   const bucketCurrentMonthSalesMap = new Map<
     string,
     { periodTag: number; periodAct: number; monthTag: number; monthAct: number }
@@ -1344,6 +1430,14 @@ ORDER BY
           cumulative: getSection3YearBucketTargets(date, targetCategoryKey, 'cumulative'),
         }
       : null;
+  const heatmapBucketTargets =
+    region === 'HKMC'
+      ? {
+          wear: getSection3YearBucketTargets(date, 'wear', 'monthly'),
+          accessory: getSection3YearBucketTargets(date, 'accessory', 'monthly'),
+          all: getSection3YearBucketTargets(date, 'all', 'monthly'),
+        }
+      : null;
 
   response.summary_cards = {
     year_cards: yearRows.map((row: any) => {
@@ -1423,6 +1517,51 @@ ORDER BY
         }
       : null,
   };
+
+  response.target_heatmap =
+    region === 'HKMC'
+      ? {
+          mode: 'monthly',
+          rows: ['1년차', '2년차', '3년차 이상'].map((bucket) => {
+            const sales = bucketCategorySales.get(bucket) ?? {
+              wear: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 },
+              accessory: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 },
+              all: { periodTag: 0, periodAct: 0, monthTag: 0, monthAct: 0 },
+            };
+            const buildCell = (categoryKey: 'wear' | 'accessory' | 'all', label: string) => {
+              const target = heatmapBucketTargets?.[categoryKey]?.[bucket] ?? null;
+              const actual = sales[categoryKey];
+              const projectedActual = elapsedDays > 0 ? (actual.monthTag / elapsedDays) * daysInMonth : null;
+              const actualDiscountRate = actual.monthTag > 0 ? 1 - actual.monthAct / actual.monthTag : null;
+              const targetDiscountRate = target?.target_discount_rate ?? null;
+              return {
+                category_key: categoryKey,
+                label,
+                available: !!target,
+                completed: !target && actual.monthTag <= 0,
+                actual_sold_amt: actual.monthTag,
+                target_sold_gross: target?.target_sold_gross ?? null,
+                progress_pct: buildProgressPct(actual.monthTag, target?.target_sold_gross),
+                projected_progress_pct: buildProgressPct(projectedActual ?? 0, target?.target_sold_gross),
+                actual_discount_rate: actualDiscountRate,
+                target_discount_rate: targetDiscountRate,
+                discount_delta_pct:
+                  actualDiscountRate !== null && targetDiscountRate !== null
+                    ? (actualDiscountRate - targetDiscountRate) * 100
+                    : null,
+              };
+            };
+            return {
+              year_bucket: bucket,
+              cells: [
+                buildCell('wear', '의류'),
+                buildCell('accessory', '악세'),
+                buildCell('all', '전체'),
+              ],
+            };
+          }),
+        }
+      : null;
 
   if (includeYoY && response.header) {
     try {
