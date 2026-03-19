@@ -1,0 +1,36 @@
+{
+  "source_file": "d:\\Downloads\\HKMC Old Season Target.xlsx",
+  "sheet_name": "2026 PLAN (2)",
+  "plan_year": 2026,
+  "month_code_rule": {
+    "JAN": "2601",
+    "FEB": "2602",
+    "MAR": "2603",
+    "APR": "2604",
+    "MAY": "2605",
+    "JUN": "2606",
+    "JUL": "2607",
+    "AUG": "2608",
+    "SEP": "2609",
+    "OCT": "2610",
+    "NOV": "2611",
+    "DEC": "2612"
+  },
+  "section3_target_modes": [
+    "monthly",
+    "cumulative"
+  ],
+  "section3_target_categories": [
+    "wear",
+    "accessory",
+    "all"
+  ],
+  "tables": {
+    "monthly_detail": 564,
+    "monthly_targets": 12,
+    "summary_2026": 36,
+    "summary_2025": 36,
+    "yoy_summary": 36,
+    "section3_targets": 72
+  }
+}

@@ -141,7 +141,7 @@ export default function Section2Card({
   }, [section2Data, periodView]);
 
   return (
-    <article className="rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
+    <article className="h-full min-h-[520px] rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 leading-tight">
@@ -266,15 +266,15 @@ export default function Section2Card({
                     ? `${(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct)!.toFixed(0)}%`
                     : '-'}
                 </p>
-                <p className="mt-0.5 text-xs tabular-nums">
-                  <span className="text-gray-600">
-                    {language === 'ko' ? '할인율' : 'Discount'}{' '}
-                    {(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate) !== null &&
-                    Number.isFinite(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)
-                      ? <span className="discount-rate-emphasis">{`${(periodView === 'cum' ? item.discountRate : item.mtdDiscountRate)!.toFixed(1)}%`}</span>
-                      : '-'}
-                  </span>{' '}
-                  <span
+                <div className="mt-0.5 min-h-[46px] text-xs tabular-nums">
+                  <p className="text-gray-600">{language === "ko" ? "할인율" : "Discount"}</p>
+                  <p className="discount-rate-emphasis">
+                    {(periodView === "cum" ? item.discountRate : item.mtdDiscountRate) !== null &&
+                    Number.isFinite(periodView === "cum" ? item.discountRate : item.mtdDiscountRate)
+                      ? `${(periodView === "cum" ? item.discountRate : item.mtdDiscountRate)!.toFixed(1)}%`
+                      : "-" }
+                  </p>
+                  <p
                     className={`font-semibold ${
                       (periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff) === null ||
                       !Number.isFinite(periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)
@@ -296,8 +296,8 @@ export default function Section2Card({
                           ? `\u25B3${Math.abs((periodView === 'cum' ? item.discountRateDiff : item.mtdDiscountRateDiff)!).toFixed(1)}%p`
                           : '0.0%p'}
                     )
-                  </span>
-                </p>
+                  </p>
+                </div>
               </div>
             ))}
           </div>

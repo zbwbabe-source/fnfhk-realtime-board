@@ -12,10 +12,18 @@ export interface StoreSalesRow {
   channel: string;
   target_mth: number;
   mtd_act: number;
+  actual_mtd?: number;
   mtd_act_py: number;
   yoy: number;
   progress: number;
+  ytd_act?: number;
+  actual_ytd?: number;
   forecast: number | null;
+  forecast_source?: 'excel' | null;
+  forecast_months?: Array<{
+    month: string;
+    amount: number;
+  }>;
 }
 
 export interface ProductRow {
@@ -34,8 +42,14 @@ export interface NoInboundRow {
 
 export interface Section1Response {
   asof_date: string;
+  base_month?: string;
   region: string;
   brand: string;
+  forecast_source?: 'excel' | null;
+  forecast_months?: Array<{
+    month: string;
+    amount: number;
+  }>;
   hk_normal: StoreSalesRow[];
   hk_outlet: StoreSalesRow[];
   hk_online: StoreSalesRow[];

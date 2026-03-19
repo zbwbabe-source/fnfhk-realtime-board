@@ -661,14 +661,14 @@ export default function DashboardPage() {
               hkmcSection3Data={hkmcSection3Data}
               twSection1Data={twSection1Data}
               twSection2Data={twSection2Data}
-              twSection3Data={twSection3Data}
-              categoryFilter={categoryFilter}
-              section3CategoryFilter={section3CategoryFilter}
-              onCategoryFilterChange={setCategoryFilter}
-              onSection3CategoryFilterChange={setSection3CategoryFilter}
-              section1DetailViewMode={section1DetailViewMode}
-              onSection1DetailViewModeChange={setSection1DetailViewMode}
-            />
+                twSection3Data={twSection3Data}
+                categoryFilter={categoryFilter}
+                section3CategoryFilter={section3CategoryFilter}
+                onCategoryFilterChange={setCategoryFilter}
+                onSection3CategoryFilterChange={setSection3CategoryFilter}
+                section1DetailViewMode={section1DetailViewMode}
+                onSection1DetailViewModeChange={setSection1DetailViewMode}
+              />
           </>
         ) : (
           <>

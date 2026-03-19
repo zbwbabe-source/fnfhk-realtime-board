@@ -113,7 +113,7 @@ export const translations = {
     stagnantStock: '정체재고(TAG)',
     stagnantRatio: '정체재고비중',
     stagnantRatioDesc: '정체재고 / 현재재고',
-    depletedStock: '소진재고액(TAG)',
+    depletedStock: '소진재고액',
     currentMonthOnly: '당월',
     vsLastMonthEnd: '전월말 대비',
     discountRate: '할인율',

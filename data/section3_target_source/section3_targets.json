@@ -1,0 +1,650 @@
+{
+  "2601": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 3628230.61,
+        "target_sold_gross": 6583015.0,
+        "target_discount_rate": 0.448849712479768
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 631096.38,
+        "target_sold_gross": 1197007.0,
+        "target_discount_rate": 0.47277135388514857
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 4259326.99,
+        "target_sold_gross": 7780022.0,
+        "target_discount_rate": 0.45253021263950155
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 3628230.61,
+        "target_sold_gross": 6583015.0,
+        "target_discount_rate": 0.448849712479768
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 631096.38,
+        "target_sold_gross": 1197007.0,
+        "target_discount_rate": 0.47277135388514857
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 4259326.99,
+        "target_sold_gross": 7780022.0,
+        "target_discount_rate": 0.45253021263950155
+      }
+    }
+  },
+  "2602": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2770991.8099999996,
+        "target_sold_gross": 5148403.0,
+        "target_discount_rate": 0.4617764363046173
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 376977.36999999994,
+        "target_sold_gross": 731624.0,
+        "target_discount_rate": 0.48473892327206336
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 3147969.1799999997,
+        "target_sold_gross": 5880027.0,
+        "target_discount_rate": 0.46463355015206564
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 6399222.42,
+        "target_sold_gross": 11731418.0,
+        "target_discount_rate": 0.4545226825947213
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 1008073.75,
+        "target_sold_gross": 1928631.0,
+        "target_discount_rate": 0.4773112378676896
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 7407296.17,
+        "target_sold_gross": 13660049.0,
+        "target_discount_rate": 0.4577401464665317
+      }
+    }
+  },
+  "2603": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 1833300.0,
+        "target_sold_gross": 2829000.0,
+        "target_discount_rate": 0.3519618239660658
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 113400.0,
+        "target_sold_gross": 140253.39366515836,
+        "target_discount_rate": 0.1914634146341463
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 1946700.0,
+        "target_sold_gross": 2969253.393665158,
+        "target_discount_rate": 0.3443806432441081
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 1833300.0,
+        "target_sold_gross": 2829000.0,
+        "target_discount_rate": 0.3519618239660658
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 113400.0,
+        "target_sold_gross": 140253.39366515836,
+        "target_discount_rate": 0.1914634146341463
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 1946700.0,
+        "target_sold_gross": 2969253.393665158,
+        "target_discount_rate": 0.3443806432441081
+      }
+    }
+  },
+  "2604": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2281650.0,
+        "target_sold_gross": 3758984.848484848,
+        "target_discount_rate": 0.39301431318094415
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 129850.0,
+        "target_sold_gross": 201867.64705882352,
+        "target_discount_rate": 0.3567567567567568
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2411500.0,
+        "target_sold_gross": 3960852.495543672,
+        "target_discount_rate": 0.39116642119009426
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 4114950.0,
+        "target_sold_gross": 6587984.848484848,
+        "target_discount_rate": 0.3753856308661083
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 243250.0,
+        "target_sold_gross": 342121.0407239819,
+        "target_discount_rate": 0.2889943293600278
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 4358200.0,
+        "target_sold_gross": 6930105.88920883,
+        "target_discount_rate": 0.3711207202784097
+      }
+    }
+  },
+  "2605": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2487100.0,
+        "target_sold_gross": 4162809.523809524,
+        "target_discount_rate": 0.4025429254509889
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 125400.0,
+        "target_sold_gross": 202852.94117647057,
+        "target_discount_rate": 0.3818181818181817
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2612500.0,
+        "target_sold_gross": 4365662.464985995,
+        "target_discount_rate": 0.4015799386798491
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 6602050.0,
+        "target_sold_gross": 10750794.372294372,
+        "target_discount_rate": 0.3859011928445034
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 368650.0,
+        "target_sold_gross": 544973.9819004525,
+        "target_discount_rate": 0.32354568797132166
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 6970700.0,
+        "target_sold_gross": 11295768.354194824,
+        "target_discount_rate": 0.38289279830961265
+      }
+    }
+  },
+  "2606": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2287180.0,
+        "target_sold_gross": 3990234.708994709,
+        "target_discount_rate": 0.4268056475865233
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 115320.0,
+        "target_sold_gross": 203381.28274616078,
+        "target_discount_rate": 0.4329861703943998
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2402500.0,
+        "target_sold_gross": 4193615.99174087,
+        "target_discount_rate": 0.42710538954171984
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 8889230.0,
+        "target_sold_gross": 14741029.08128908,
+        "target_discount_rate": 0.39697357959335566
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 483970.0,
+        "target_sold_gross": 748355.2646466133,
+        "target_discount_rate": 0.3532884408469562
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 9373200.0,
+        "target_sold_gross": 15489384.345935693,
+        "target_discount_rate": 0.39486297255839853
+      }
+    }
+  },
+  "2607": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2497500.0,
+        "target_sold_gross": 4810714.285714286,
+        "target_discount_rate": 0.48084632516703796
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 157500.0,
+        "target_sold_gross": 299756.0975609756,
+        "target_discount_rate": 0.4745728234336859
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2655000.0,
+        "target_sold_gross": 5110470.383275262,
+        "target_discount_rate": 0.4804783511340045
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 11386730.0,
+        "target_sold_gross": 19551743.367003366,
+        "target_discount_rate": 0.41761050223189344
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 641470.0,
+        "target_sold_gross": 1048111.3622075889,
+        "target_discount_rate": 0.387975340092773
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 12028200.0,
+        "target_sold_gross": 20599854.729210954,
+        "target_discount_rate": 0.4161026784842419
+      }
+    }
+  },
+  "2608": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2580150.0,
+        "target_sold_gross": 4920933.333333334,
+        "target_discount_rate": 0.4756787330316743
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 175350.0,
+        "target_sold_gross": 333728.4552845529,
+        "target_discount_rate": 0.474572823433686
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2755500.0,
+        "target_sold_gross": 5254661.788617887,
+        "target_discount_rate": 0.47560849568497754
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 13966880.0,
+        "target_sold_gross": 24472676.700336702,
+        "target_discount_rate": 0.4292867849715908
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 816820.0,
+        "target_sold_gross": 1381839.8174921419,
+        "target_discount_rate": 0.40888951840856547
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 14783700.0,
+        "target_sold_gross": 25854516.51782884,
+        "target_discount_rate": 0.428196617414779
+      }
+    }
+  },
+  "2609": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 154000.0,
+        "target_sold_gross": 332500.0,
+        "target_discount_rate": 0.5368421052631579
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 30800.0,
+        "target_sold_gross": 62192.30769230769,
+        "target_discount_rate": 0.5047619047619047
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 184800.0,
+        "target_sold_gross": 394692.3076923077,
+        "target_discount_rate": 0.531787175989086
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 154000.0,
+        "target_sold_gross": 332500.0,
+        "target_discount_rate": 0.5368421052631579
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 30800.0,
+        "target_sold_gross": 62192.30769230769,
+        "target_discount_rate": 0.5047619047619047
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 184800.0,
+        "target_sold_gross": 394692.3076923077,
+        "target_discount_rate": 0.531787175989086
+      }
+    }
+  },
+  "2610": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 1549040.0,
+        "target_sold_gross": 2251677.455877456,
+        "target_discount_rate": 0.31205066873294474
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 182240.0,
+        "target_sold_gross": 250448.8749345892,
+        "target_discount_rate": 0.2723465016658734
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 1731280.0,
+        "target_sold_gross": 2502126.330812045,
+        "target_discount_rate": 0.30807650330024416
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 1703040.0,
+        "target_sold_gross": 2584177.455877456,
+        "target_discount_rate": 0.34097405109443857
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 213040.0,
+        "target_sold_gross": 312641.1826268969,
+        "target_discount_rate": 0.318579854995495
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 1916080.0,
+        "target_sold_gross": 2896818.6385043524,
+        "target_discount_rate": 0.3385571417790637
+      }
+    }
+  },
+  "2611": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2597400.0,
+        "target_sold_gross": 3609181.818181818,
+        "target_discount_rate": 0.2803355079217148
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 192400.0,
+        "target_sold_gross": 264411.5646258503,
+        "target_discount_rate": 0.27234650166587326
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2789800.0,
+        "target_sold_gross": 3873593.3828076683,
+        "target_discount_rate": 0.2797901781890464
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 4300440.0,
+        "target_sold_gross": 6193359.274059273,
+        "target_discount_rate": 0.3056369234040268
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 405440.0,
+        "target_sold_gross": 577052.7472527472,
+        "target_discount_rate": 0.2973952521147627
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 4705880.0,
+        "target_sold_gross": 6770412.021312021,
+        "target_discount_rate": 0.30493447294097475
+      }
+    }
+  },
+  "2612": {
+    "monthly": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 2273700.0,
+        "target_sold_gross": 3456012.987012987,
+        "target_discount_rate": 0.34210316669986063
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 275600.0,
+        "target_sold_gross": 378751.7006802721,
+        "target_discount_rate": 0.2723465016658734
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 2549300.0,
+        "target_sold_gross": 3834764.687693259,
+        "target_discount_rate": 0.33521344655609353
+      }
+    },
+    "cumulative": {
+      "wear": {
+        "category": "WEAR",
+        "category_label_ko": "의류",
+        "category_label_en": "Wear",
+        "target_sold_amt": 6574140.0,
+        "target_sold_gross": 9649372.26107226,
+        "target_discount_rate": 0.31869764974022596
+      },
+      "accessory": {
+        "category": "ACCESSORY",
+        "category_label_ko": "악세",
+        "category_label_en": "Accessory",
+        "target_sold_amt": 681040.0,
+        "target_sold_gross": 955804.4479330193,
+        "target_discount_rate": 0.2874693129198266
+      },
+      "all": {
+        "category": "TOTAL",
+        "category_label_ko": "전체",
+        "category_label_en": "Total",
+        "target_sold_amt": 7255180.0,
+        "target_sold_gross": 10605176.70900528,
+        "target_discount_rate": 0.31588315790727595
+      }
+    }
+  }
+}
