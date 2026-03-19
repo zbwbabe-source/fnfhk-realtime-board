@@ -15,6 +15,7 @@ import Section3TargetHeatmap from './components/Section3TargetHeatmap';
 import Section3OldSeasonInventory from './components/Section3OldSeasonInventory';
 import SummaryView from './components/SummaryView';
 import DataManagementModal from './components/DataManagementModal';
+import GuideModal from './components/GuideModal';
 import { t, type Language } from '@/lib/translations';
 import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
 
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
@@ -496,7 +498,13 @@ export default function DashboardPage() {
                 onClick={() => setIsDataManagementOpen(true)}
                 className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
-                {t(language, 'dataManagement')}
+                {language === 'ko' ? '데이터소스' : 'Data Sources'}
+              </button>
+              <button
+                onClick={() => setIsGuideOpen(true)}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Guide
               </button>
               <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
@@ -798,6 +806,7 @@ export default function DashboardPage() {
         )}
       </div>
       <DataManagementModal open={isDataManagementOpen} onClose={() => setIsDataManagementOpen(false)} />
+      <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} language={language} />
     </div>
   );
 }

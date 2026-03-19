@@ -41,6 +41,10 @@ const DATA_FILES: DataFileConfig[] = [
   { displayName: 'data/tw_exchange_rate.json', relativePath: 'data/tw_exchange_rate.json', kind: 'derived', usedBy: ['TW/HK exchange logic'] },
   { displayName: 'data/category.csv', relativePath: 'data/category.csv', kind: 'upload', usedBy: ['Category filter / mapping'] },
   { displayName: 'public/HKMCweight_2026_daily.csv', relativePath: 'public/HKMCweight_2026_daily.csv', kind: 'upload', usedBy: ['Weight-based calculation logic'] },
+  { displayName: 'data/section3_target_source/monthly_detail.csv', relativePath: 'data/section3_target_source/monthly_detail.csv', kind: 'derived', usedBy: ['Section3 target preprocessing'] },
+  { displayName: 'data/section3_target_source/monthly_targets.csv', relativePath: 'data/section3_target_source/monthly_targets.csv', kind: 'derived', usedBy: ['Section3 monthly target aggregation'] },
+  { displayName: 'data/section3_target_source/section3_targets.csv', relativePath: 'data/section3_target_source/section3_targets.csv', kind: 'derived', usedBy: ['Section3 target source'] },
+  { displayName: 'data/section3_target_source/section3_targets.json', relativePath: 'data/section3_target_source/section3_targets.json', kind: 'derived', usedBy: ['Section3 summary card / heatmap'] },
 ];
 
 const SQL_TABLES: SqlTableConfig[] = [
