@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { cacheGet, cacheSet, buildKey } from '@/lib/cache';
+import { formatDateYYYYMMDD, getYesterday } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand');
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
+    const maxAllowedDate = formatDateYYYYMMDD(getYesterday());
 
     console.log('🔍 API Latest Date - Received params:', { region, brand, forceRefresh });
 
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
       FROM SAP_FNF.DW_HMD_SALE_D
       WHERE LOCAL_SHOP_CD IN (${storeFilter})
         ${brandFilter}
+        AND SALE_DT <= '${maxAllowedDate}'
         AND SALE_DT >= DATEADD(MONTH, -3, CURRENT_DATE())
     `;
 
@@ -107,6 +110,7 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       latest_date: latestDate,
+      max_allowed_date: maxAllowedDate,
     };
 
     // ✅ Cache the response for 1 minute (60 seconds)

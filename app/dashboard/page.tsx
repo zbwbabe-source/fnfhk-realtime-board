@@ -30,6 +30,12 @@ function getKstYesterdayString(): string {
   return `${year}-${month}-${day}`;
 }
 
+function clampDateToMax(candidate: string, maxDate: string): string {
+  if (!candidate) return '';
+  if (!maxDate) return candidate;
+  return candidate > maxDate ? maxDate : candidate;
+}
+
 export default function DashboardPage() {
   const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
@@ -353,7 +359,10 @@ export default function DashboardPage() {
         const latestData = latestRes?.ok ? await latestRes.json() : null;
         const metaDates: string[] = Array.isArray(data.available_dates) ? data.available_dates : [];
         const metaTopDate = metaDates[0] || '';
-        let resolvedLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+        let resolvedLatestDate = clampDateToMax(
+          typeof latestData?.latest_date === 'string' ? latestData.latest_date : '',
+          fallbackDate
+        );
 
         // Guard against stale latest-date cache response by preferring fresher meta top date.
         if (resolvedLatestDate && metaTopDate && resolvedLatestDate < metaTopDate) {
@@ -402,7 +411,10 @@ export default function DashboardPage() {
         if (!res.ok) return;
 
         const latestData = await res.json();
-        let nextLatestDate = typeof latestData?.latest_date === 'string' ? latestData.latest_date : '';
+        let nextLatestDate = clampDateToMax(
+          typeof latestData?.latest_date === 'string' ? latestData.latest_date : '',
+          fallbackDate
+        );
         const knownLatest = availableDates[0] || latestDate;
 
         if (nextLatestDate && knownLatest && nextLatestDate < knownLatest) {
@@ -411,8 +423,10 @@ export default function DashboardPage() {
           });
           if (refreshRes.ok) {
             const refreshedLatestData = await refreshRes.json();
-            const refreshedLatestDate =
-              typeof refreshedLatestData?.latest_date === 'string' ? refreshedLatestData.latest_date : '';
+            const refreshedLatestDate = clampDateToMax(
+              typeof refreshedLatestData?.latest_date === 'string' ? refreshedLatestData.latest_date : '',
+              fallbackDate
+            );
             if (refreshedLatestDate) {
               nextLatestDate = refreshedLatestDate;
             }
@@ -460,7 +474,7 @@ export default function DashboardPage() {
       window.removeEventListener('pageshow', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [brand, date, latestDate, availableDates]);
+  }, [brand, date, latestDate, availableDates, fallbackDate]);
 
   const allDataLoaded = dataLoadStatus.section1 === 'success' && dataLoadStatus.section2 === 'success' && dataLoadStatus.section3 === 'success';
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
