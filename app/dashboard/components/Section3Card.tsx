@@ -77,6 +77,19 @@ export default function Section3Card({
     if (v >= 100) return 'text-green-700 bg-green-50';
     return 'text-red-700 bg-red-50';
   };
+  const getProgressCardTone = (progressPct: number | null | undefined, projectedPct: number | null | undefined) => {
+    const effectivePct = projectedPct ?? progressPct;
+    if (effectivePct === null || effectivePct === undefined || !Number.isFinite(effectivePct)) {
+      return 'border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-sm';
+    }
+    if (effectivePct >= 100) {
+      return 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-green-50 shadow-[0_10px_24px_rgba(16,185,129,0.10)]';
+    }
+    if (effectivePct >= 85) {
+      return 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 shadow-[0_10px_24px_rgba(245,158,11,0.10)]';
+    }
+    return 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-red-50 shadow-[0_10px_24px_rgba(244,63,94,0.10)]';
+  };
 
   const getSection3SeasonType = () => {
     if (!section3Data?.season_type) return '';
@@ -396,6 +409,16 @@ export default function Section3Card({
     }
     return 'border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-sm';
   };
+  const getBottomProgressCardClassName = (
+    key: string,
+    progressPct: number | null | undefined,
+    projectedPct: number | null | undefined
+  ) => {
+    if (key === 'stagnant') {
+      return getBottomCardClassName(key);
+    }
+    return getProgressCardTone(progressPct, projectedPct);
+  };
   const getBottomCardTitleClassName = (key: string) => {
     return key === 'stagnant' ? 'text-rose-900' : 'text-gray-800';
   };
@@ -444,7 +467,12 @@ export default function Section3Card({
           <div
             key={item.label}
             className={`min-w-0 rounded-xl border p-2.5 sm:p-3 ${
-              index === 0
+              index === 2 && kpis.hasTargetInfo
+                ? getProgressCardTone(
+                    section3Data?.header?.target_info?.[targetMode]?.progress_pct ?? null,
+                    section3Data?.header?.target_info?.[targetMode]?.projected_progress_pct ?? null
+                  )
+                : index === 0
                 ? 'border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50'
                 : 'border-gray-200 bg-gradient-to-br from-gray-50 to-white'
             } ${simpleDetail ? 'sm:min-h-[116px]' : 'space-y-1.5'}`}
@@ -522,9 +550,10 @@ export default function Section3Card({
                   ? `YoY ${formatPercent(card.salesYoyPct, 0)}`
                   : null;
               const discountCombinedLabel = language === 'ko' ? '할인율(목표비)' : 'Discount (vs Target)';
+              const progressCardClassName = getBottomProgressCardClassName(card.key, progressPct, projectedPct);
 
               return (
-                <div key={card.key} className={`min-w-0 rounded-lg border p-3 ${getBottomCardClassName(card.key)}`}>
+                <div key={card.key} className={`min-w-0 rounded-lg border p-3 ${progressCardClassName}`}>
                   <div className="mb-2">
                     <p className={`text-sm font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
                       {card.title}
