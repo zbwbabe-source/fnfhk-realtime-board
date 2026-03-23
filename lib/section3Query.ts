@@ -7,6 +7,7 @@ import {
   getSection3MonthCode,
   getSection3Target,
   getSection3YearBucketTargets,
+  getSection3YearBucketTargetWindows,
   type Section3TargetCategory,
 } from '@/lib/section3-targets.server';
 
@@ -161,6 +162,9 @@ export interface Section3Response {
         actual_discount_rate: number | null;
         target_discount_rate: number | null;
         discount_delta_pct: number | null;
+        year_end_target_stock: number | null;
+        rolling_year_end_stock: number | null;
+        rolling_year_end_gap: number | null;
       }>;
     }>;
   } | null;
@@ -1102,13 +1106,73 @@ ORDER BY
     periodStartForSales,
     date,
   ]);
+  const allStoreCodesStr =
+    allStores.length > 0 ? allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+  const previousYearEndDate = `${yearForSales - 1}-12-31`;
+  const yearToDateStart = `${yearForSales}-01-01`;
+  const yearEndStockQuery = `
+    WITH latest_stock_date AS (
+      SELECT MAX(STOCK_DT) AS stock_dt
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+      WHERE ${brandFilter}
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+    )
+    SELECT
+      ST.SESN,
+      SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
+      COALESCE(SUM(ST.TAG_STOCK_AMT), 0) AS YEAR_END_STOCK_AMT
+    FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+    CROSS JOIN latest_stock_date L
+    WHERE ${brandFilter}
+      AND ST.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+      AND ST.STOCK_DT = L.stock_dt
+      AND RIGHT(ST.SESN, 1) = ?
+      AND TRY_TO_NUMBER(LEFT(ST.SESN, 2)) <= ?
+    GROUP BY ST.SESN, SUBSTR(ST.PRDT_CD, 7, 2)
+  `;
+  const ytdCategorySalesQuery = `
+    SELECT
+      S.SESN,
+      SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+      COALESCE(SUM(S.TAG_SALE_AMT), 0) AS YTD_TAG_SALES_TOTAL
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      AND RIGHT(S.SESN, 1) = ?
+      AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+      AND SUBSTR(S.PART_CD, 3, 2) IS NOT NULL
+    GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
+  `;
+  const yearEndStockRowsPromise = executeSnowflakeQuery(yearEndStockQuery, [
+    previousYearEndDate,
+    currentTypeForSales,
+    currentYYForSales - 1,
+  ]);
+  const ytdCategorySalesRowsPromise = executeSnowflakeQuery(ytdCategorySalesQuery, [
+    currentTypeForSales,
+    currentYYForSales - 1,
+    yearToDateStart,
+    date,
+  ]);
 
-  const [rows, alignedSalesRows, alignedSalesLyRows, alignedSeasonSalesRows, alignedSeasonCategorySalesRows] = await Promise.all([
+  const [
+    rows,
+    alignedSalesRows,
+    alignedSalesLyRows,
+    alignedSeasonSalesRows,
+    alignedSeasonCategorySalesRows,
+    yearEndStockRows,
+    ytdCategorySalesRows,
+  ] = await Promise.all([
     rowsPromise,
     alignedSalesRowsPromise,
     alignedSalesLyRowsPromise,
     alignedSeasonSalesRowsPromise,
     alignedSeasonCategorySalesRowsPromise,
+    yearEndStockRowsPromise,
+    ytdCategorySalesRowsPromise,
   ]);
   console.log(`??Section3Query - Result: ${rows.length} rows`);
 
@@ -1173,6 +1237,62 @@ ORDER BY
     target.all.monthTag += monthTag;
     target.all.monthAct += monthAct;
   }
+  const emptyBucketAmount = () => ({ wear: 0, accessory: 0, all: 0 });
+  const bucketYearEndStockMap = new Map<string, Record<'wear' | 'accessory' | 'all', number>>([
+    ['1년차', emptyBucketAmount()],
+    ['2년차', emptyBucketAmount()],
+    ['3년차 이상', emptyBucketAmount()],
+  ]);
+  const bucketYtdActualSalesMap = new Map<string, Record<'wear' | 'accessory' | 'all', number>>([
+    ['1년차', emptyBucketAmount()],
+    ['2년차', emptyBucketAmount()],
+    ['3년차 이상', emptyBucketAmount()],
+  ]);
+  const addBucketCategoryAmount = (
+    map: Map<string, Record<'wear' | 'accessory' | 'all', number>>,
+    bucket: string,
+    categoryKey: 'wear' | 'accessory',
+    value: number
+  ) => {
+    const target = map.get(bucket);
+    if (!target) return;
+    target[categoryKey] += value;
+    target.all += value;
+  };
+  for (const row of yearEndStockRows || []) {
+    const seasonCode = String(row.SESN || '').trim().toUpperCase();
+    const match = seasonCode.match(/^(\d{2})([FS])$/);
+    if (!match || match[2] !== currentTypeForSales) continue;
+    const seasonYY = Number(match[1]);
+    const diff = currentYYForSales - seasonYY;
+    const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
+    if (!bucket) continue;
+    const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const yearEndStockAmt = applyExchangeRate(parseFloat(row.YEAR_END_STOCK_AMT || 0)) || 0;
+    addBucketCategoryAmount(bucketYearEndStockMap, bucket, categoryKey, yearEndStockAmt);
+  }
+  for (const row of ytdCategorySalesRows || []) {
+    const seasonCode = String(row.SESN || '').trim().toUpperCase();
+    const match = seasonCode.match(/^(\d{2})([FS])$/);
+    if (!match || match[2] !== currentTypeForSales) continue;
+    const seasonYY = Number(match[1]);
+    const diff = currentYYForSales - seasonYY;
+    const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
+    if (!bucket) continue;
+    const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const ytdSalesAmt = applyExchangeRate(parseFloat(row.YTD_TAG_SALES_TOTAL || 0)) || 0;
+    addBucketCategoryAmount(bucketYtdActualSalesMap, bucket, categoryKey, ytdSalesAmt);
+  }
+  const bucketTargetWindows =
+    region === 'HKMC'
+      ? {
+          wear: getSection3YearBucketTargetWindows(date, 'wear'),
+          accessory: getSection3YearBucketTargetWindows(date, 'accessory'),
+          all: getSection3YearBucketTargetWindows(date, 'all'),
+        }
+      : null;
   const bucketCurrentMonthSalesMap = new Map<
     string,
     { periodTag: number; periodAct: number; monthTag: number; monthAct: number }
@@ -1530,10 +1650,17 @@ ORDER BY
             };
             const buildCell = (categoryKey: 'wear' | 'accessory' | 'all', label: string) => {
               const target = heatmapBucketTargets?.[categoryKey]?.[bucket] ?? null;
+              const targetWindow = bucketTargetWindows?.[categoryKey]?.[bucket] ?? null;
               const actual = sales[categoryKey];
               const projectedActual = elapsedDays > 0 ? (actual.monthTag / elapsedDays) * daysInMonth : null;
               const actualDiscountRate = actual.monthTag > 0 ? 1 - actual.monthAct / actual.monthTag : null;
               const targetDiscountRate = target?.target_discount_rate ?? null;
+              const yearEndStock = bucketYearEndStockMap.get(bucket)?.[categoryKey] ?? 0;
+              const ytdActualSales = bucketYtdActualSalesMap.get(bucket)?.[categoryKey] ?? 0;
+              const yearEndTargetStock =
+                targetWindow !== null ? yearEndStock - (targetWindow.annual_target_sold_gross ?? 0) : null;
+              const rollingYearEndStock =
+                targetWindow !== null ? yearEndStock - (ytdActualSales + (targetWindow.remaining_target_sold_gross ?? 0)) : null;
               return {
                 category_key: categoryKey,
                 label,
@@ -1548,6 +1675,12 @@ ORDER BY
                 discount_delta_pct:
                   actualDiscountRate !== null && targetDiscountRate !== null
                     ? (actualDiscountRate - targetDiscountRate) * 100
+                    : null,
+                year_end_target_stock: yearEndTargetStock,
+                rolling_year_end_stock: rollingYearEndStock,
+                rolling_year_end_gap:
+                  yearEndTargetStock !== null && rollingYearEndStock !== null
+                    ? rollingYearEndStock - yearEndTargetStock
                     : null,
               };
             };

@@ -13,6 +13,13 @@ export interface Section3TargetLeaf {
   target_discount_rate: number | null;
 }
 
+export interface Section3YearBucketTargetWindow {
+  annual_target_sold_amt: number;
+  annual_target_sold_gross: number;
+  remaining_target_sold_amt: number;
+  remaining_target_sold_gross: number;
+}
+
 type Section3TargetPayload = Record<
   string,
   Partial<Record<Section3TargetMode, Partial<Record<Section3TargetCategory, Section3TargetLeaf>>>>
@@ -146,4 +153,72 @@ export function getSection3YearBucketTargets(
       },
     ])
   );
+}
+
+export function getSection3YearBucketTargetWindows(
+  date: string,
+  category: Section3TargetCategory
+): Record<string, Section3YearBucketTargetWindow> {
+  const rows = loadMonthlyDetailRows();
+  const parsed = new Date(`${date}T00:00:00`);
+  const currentMonthCode = getSection3MonthCode(date);
+  const currentYearCode = currentMonthCode.slice(0, 2);
+  const currentMonth = Number(currentMonthCode.slice(2, 4));
+  const currentDay = parsed.getDate();
+  const daysInCurrentMonth = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0).getDate();
+  const remainingDaysInCurrentMonth = Math.max(daysInCurrentMonth - currentDay, 0);
+  const { seasonType, currentYY } = parseSeasonContext(date);
+  const categoryTypes =
+    category === 'wear' ? ['WEAR'] : category === 'accessory' ? ['ACCESSORY'] : ['WEAR', 'ACCESSORY'];
+
+  const aggregates: Record<string, Section3YearBucketTargetWindow> = {
+    '1년차': {
+      annual_target_sold_amt: 0,
+      annual_target_sold_gross: 0,
+      remaining_target_sold_amt: 0,
+      remaining_target_sold_gross: 0,
+    },
+    '2년차': {
+      annual_target_sold_amt: 0,
+      annual_target_sold_gross: 0,
+      remaining_target_sold_amt: 0,
+      remaining_target_sold_gross: 0,
+    },
+    '3년차 이상': {
+      annual_target_sold_amt: 0,
+      annual_target_sold_gross: 0,
+      remaining_target_sold_amt: 0,
+      remaining_target_sold_gross: 0,
+    },
+  };
+
+  for (const row of rows) {
+    if (row.row_kind !== 'detail' || row.season_group !== 'SEASONAL') continue;
+    if (!categoryTypes.includes(row.type_name)) continue;
+    if (!String(row.month_code || '').startsWith(currentYearCode)) continue;
+
+    const season = parseSeasonName(row.season_name);
+    if (!season || season.type !== seasonType) continue;
+    const diff = currentYY - season.yy;
+    const bucket = toBucket(diff);
+    if (!bucket) continue;
+
+    const soldAmt = Number(row.sold_amt || 0);
+    const soldGross = Number(row.sold_gross || 0);
+    const month = Number(String(row.month_code || '').slice(2, 4));
+
+    aggregates[bucket].annual_target_sold_amt += soldAmt;
+    aggregates[bucket].annual_target_sold_gross += soldGross;
+
+    if (month > currentMonth) {
+      aggregates[bucket].remaining_target_sold_amt += soldAmt;
+      aggregates[bucket].remaining_target_sold_gross += soldGross;
+    } else if (month === currentMonth && remainingDaysInCurrentMonth > 0 && daysInCurrentMonth > 0) {
+      const remainingRatio = remainingDaysInCurrentMonth / daysInCurrentMonth;
+      aggregates[bucket].remaining_target_sold_amt += soldAmt * remainingRatio;
+      aggregates[bucket].remaining_target_sold_gross += soldGross * remainingRatio;
+    }
+  }
+
+  return aggregates;
 }

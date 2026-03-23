@@ -240,6 +240,46 @@ export default function DashboardPage() {
   }, [activeTab, date, brand, isYtdMode, categoryFilter, section3CategoryFilter, latestDate, availableDates, refreshKey]);
 
   useEffect(() => {
+    if (activeTab === 'summary' || !date || !brand || !region) return;
+
+    let isCancelled = false;
+    const controller = new AbortController();
+
+    const fetchDetailSection3Summary = async () => {
+      try {
+        setSection3Data(null);
+
+        const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
+        const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
+        const url = `/api/section3/old-season-inventory?region=${region}&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true&lightweight=true${forceRefreshParam}`;
+        const res = await fetch(
+          url,
+          shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal }
+        );
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch section3 summary data');
+        }
+
+        const json = await res.json();
+        if (isCancelled) return;
+
+        setSection3Data(json);
+      } catch (error: any) {
+        if (controller.signal.aborted || isCancelled) return;
+        console.error('Error fetching detail section3 summary data:', error);
+      }
+    };
+
+    fetchDetailSection3Summary();
+
+    return () => {
+      isCancelled = true;
+      controller.abort();
+    };
+  }, [activeTab, region, brand, date, section3CategoryFilter, latestDate, refreshKey]);
+
+  useEffect(() => {
     if (activeTab !== 'summary' || !date || !brand) return;
     if (
       dataLoadStatus.section1 !== 'success' ||
