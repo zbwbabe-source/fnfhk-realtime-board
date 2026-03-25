@@ -9,6 +9,7 @@ import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-ut
  */
 export interface TreemapPayload {
   asof_date: string;
+  cum_start_date: string;
   mode: string;
   region: string;
   brand: string;
@@ -45,8 +46,9 @@ export async function fetchSection2Treemap({
     const startDate = new Date(year, month, 1);
     startDateStr = formatDateYYYYMMDD(startDate);
   } else {
-    // 누적: 시즌 시작일 - 6개월 ~ asof_date
-    const startDate = getSection2StartDate(asofDate);
+    // 누적: 요약 카드와 동일하게 시즌 시작일 - 6개월 ~ asof_date
+    const startDate = new Date(getSection2StartDate(asofDate));
+    startDate.setMonth(startDate.getMonth() - 6);
     startDateStr = formatDateYYYYMMDD(startDate);
   }
 
@@ -63,7 +65,8 @@ export async function fetchSection2Treemap({
     const startDateLY = new Date(year, month, 1);
     startDateLYStr = formatDateYYYYMMDD(startDateLY);
   } else {
-    const startDateLY = getSection2StartDate(asofDateLY);
+    const startDateLY = new Date(getSection2StartDate(asofDateLY));
+    startDateLY.setMonth(startDateLY.getMonth() - 6);
     startDateLYStr = formatDateYYYYMMDD(startDateLY);
   }
 
@@ -84,6 +87,7 @@ export async function fetchSection2Treemap({
   if (salesStoreCodes.length === 0) {
     return {
       asof_date: date,
+      cum_start_date: startDateStr,
       mode,
       region,
       brand,
@@ -356,6 +360,7 @@ export async function fetchSection2Treemap({
 
   return {
     asof_date: date,
+    cum_start_date: startDateStr,
     mode,
     region,
     brand,

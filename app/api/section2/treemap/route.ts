@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSnapshot, setSnapshot, FALLBACK_TTL_SECONDS } from '@/lib/snapshotCache';
 import { fetchSection2Treemap } from '@/lib/section2/treemap';
+import { formatDateYYYYMMDD, getSection2StartDate } from '@/lib/date-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,16 @@ export async function GET(request: NextRequest) {
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
     const mode = searchParams.get('mode') || 'monthly';
+    const expectedCumStartDate = (() => {
+      const asofDate = new Date(date);
+      if (Number.isNaN(asofDate.getTime())) return '';
+      if (mode === 'monthly') {
+        return formatDateYYYYMMDD(new Date(asofDate.getFullYear(), asofDate.getMonth(), 1));
+      }
+      const startDate = new Date(getSection2StartDate(asofDate));
+      startDate.setMonth(startDate.getMonth() - 6);
+      return formatDateYYYYMMDD(startDate);
+    })();
 
     // 요청 시작 로그
     console.log('[section2] 📥 Request START', {
@@ -60,7 +71,11 @@ export async function GET(request: NextRequest) {
     // 다른 mode 요청은 항상 MISS가 되어 fallback 처리
     const snapshot = await getSnapshot<any>('SECTION2', 'treemap', region, brand, date);
 
-    if (snapshot && snapshot.payload.mode === mode) {
+    if (
+      snapshot &&
+      snapshot.payload.mode === mode &&
+      snapshot.payload.cum_start_date === expectedCumStartDate
+    ) {
       // Redis HIT: 즉시 반환
       cacheHit = true;
       const durationMs = Date.now() - startTime;

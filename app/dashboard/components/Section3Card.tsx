@@ -93,7 +93,7 @@ export default function Section3Card({
 
   const getSection3SeasonType = () => {
     if (!section3Data?.season_type) return '';
-    return `${section3Data.season_type} ${t(language, 'oldSeason')}`;
+    return section3Data.season_type;
   };
 
   const getPeriodStartInfo = () => {
@@ -434,7 +434,6 @@ export default function Section3Card({
             {t(language, 'section3Title')}
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
-          <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section3Subtitle')}</p>
         </div>
 
         <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">

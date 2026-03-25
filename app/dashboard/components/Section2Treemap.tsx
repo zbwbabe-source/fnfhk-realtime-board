@@ -60,6 +60,7 @@ interface LargeCategory {
 
 interface TreemapData {
   asof_date: string;
+  cum_start_date?: string;
   mode: string;
   region: string;
   brand: string;
@@ -70,6 +71,12 @@ interface TreemapData {
 }
 
 type TreemapMode = 'compact' | 'detail';
+const getPeriodButtonLabel = (language: Language, mode: 'monthly' | 'ytd') => {
+  if (mode === 'monthly') {
+    return language === 'ko' ? '당월' : 'MTD';
+  }
+  return language === 'ko' ? '누적' : 'Cur';
+};
 
 export default function Section2Treemap({
   region,
@@ -228,6 +235,19 @@ export default function Section2Treemap({
     }
     return converted.toFixed(0);
   };
+
+  const currentRangeLabel = useMemo(() => {
+    if (!data) return '';
+    const asof = String(data.asof_date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(asof)) return '';
+    const asofLabel = `${asof.slice(0, 4)}/${asof.slice(5, 7)}/${asof.slice(8, 10)}`;
+    if (mode === 'monthly') {
+      return `${asof.slice(0, 4)}/${asof.slice(5, 7)}/01~${asofLabel}`;
+    }
+    const cumStart = String(data.cum_start_date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cumStart)) return asofLabel;
+    return `${cumStart.slice(0, 4)}/${cumStart.slice(5, 7)}/${cumStart.slice(8, 10)}~${asofLabel}`;
+  }, [data, mode]);
 
   /**
    * 커스텀 Treemap 셀 렌더링
@@ -810,9 +830,10 @@ export default function Section2Treemap({
                 {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
                 {mode === 'ytd' && (
                   <span className="ml-1 text-orange-600 font-medium">
-                    * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                    * {language === 'ko' ? '누적' : 'Current'}
                   </span>
                 )}
+                {currentRangeLabel ? <span className="ml-1 text-gray-500">{currentRangeLabel}</span> : null}
               </div>
             )}
           </div>
@@ -843,13 +864,13 @@ export default function Section2Treemap({
               onClick={() => setMode('monthly')}
               className={compactButtonClass(mode === 'monthly')}
             >
-              {language === 'ko' ? '당월' : 'MTD'}
+              {getPeriodButtonLabel(language, 'monthly')}
             </button>
             <button
               onClick={() => setMode('ytd')}
               className={compactButtonClass(mode === 'ytd')}
             >
-              {language === 'ko' ? '누적' : 'YTD'}
+              {getPeriodButtonLabel(language, 'ytd')}
             </button>
           </div>
 
@@ -915,9 +936,10 @@ export default function Section2Treemap({
                     {language === 'ko' ? '기준일' : 'As of'}: {data.asof_date} ({data.sesn})
                     {mode === 'ytd' && (
                       <span className="ml-2 text-orange-600 font-medium">
-                        * {language === 'ko' ? '시즌최초~누적' : 'Season-to-Date'}
+                        * {language === 'ko' ? '누적' : 'Current'}
                       </span>
                     )}
+                    {currentRangeLabel ? <span className="ml-2 text-gray-500">{currentRangeLabel}</span> : null}
                   </div>
                 )}
               </div>
@@ -926,13 +948,13 @@ export default function Section2Treemap({
                 <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
                   <button
                     onClick={() => setMode('monthly')}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md ${
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md ${
                       mode === 'monthly'
                         ? 'bg-white text-blue-600 shadow-sm'
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    {language === 'ko' ? '당월' : 'Monthly'}
+                    {getPeriodButtonLabel(language, 'monthly')}
                   </button>
                   <button
                     onClick={() => setMode('ytd')}
@@ -942,7 +964,7 @@ export default function Section2Treemap({
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    {language === 'ko' ? '누적' : 'YTD'}
+                    {getPeriodButtonLabel(language, 'ytd')}
                   </button>
                 </div>
                 {/* 닫기 버튼 */}
