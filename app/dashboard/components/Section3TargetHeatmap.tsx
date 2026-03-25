@@ -240,7 +240,7 @@ export default function Section3TargetHeatmap({
           <p className="mt-0.5 text-xs text-gray-500">
             {language === 'ko'
               ? '목표대비 소진금액 기준 | 행: 의류·악세·전체 / 열: 연차'
-              : 'Depletion vs tgt | Rows: wear, acc, total / Cols: age'}
+              : 'Dep. vs tgt | Wear/Acc/Total by age'}
           </p>
         </div>
         <button
@@ -301,12 +301,12 @@ export default function Section3TargetHeatmap({
                           ? formatPercent(cell?.progress_pct, 0)
                           : 'N/A'}
                     </p>
-                    <p className="mt-1 text-[11px] font-medium">
+                    <p className="mt-1 whitespace-nowrap text-[11px] font-medium">
                       {isCompleted
                         ? language === 'ko'
                           ? '소진완료'
                           : 'Cleared'
-                        : `${language === 'ko' ? '월말' : 'Month-end'} ${formatPercent(
+                        : `${language === 'ko' ? '월말' : 'M-end'} ${formatPercent(
                             cell?.projected_progress_pct,
                             0
                           )}`}
