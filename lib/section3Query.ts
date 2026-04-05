@@ -200,6 +200,7 @@ export async function executeSection3Query(
   date: string,
   options?: { includeYoY?: boolean; categoryFilter?: 'clothes' | 'all'; lightweight?: boolean }
 ): Promise<Section3Response> {
+  const parseDateAtLocalMidnight = (value: string) => new Date(`${value}T00:00:00`);
   const includeYoY = options?.includeYoY !== false;
   const categoryFilter = options?.categoryFilter === 'clothes' ? 'clothes' : 'all';
   const lightweight = options?.lightweight === true;
@@ -1363,7 +1364,7 @@ ORDER BY
   });
 
   // ?좎쭨 怨꾩궛 (?꾨줎???쒖떆??
-  const asofDate = new Date(date);
+  const asofDate = parseDateAtLocalMidnight(date);
   const month = asofDate.getMonth() + 1;
   const year = asofDate.getFullYear();
   
@@ -1430,7 +1431,7 @@ ORDER BY
   const targetCategoryKey: Section3TargetCategory = categoryFilter === 'clothes' ? 'wear' : 'all';
   const monthlyTarget = region === 'HKMC' ? getSection3Target(monthCode, 'monthly', targetCategoryKey) : null;
   const cumulativeTarget = region === 'HKMC' ? getSection3Target(monthCode, 'cumulative', targetCategoryKey) : null;
-  const currentDateObj = new Date(`${date}T00:00:00`);
+  const currentDateObj = parseDateAtLocalMidnight(date);
   const elapsedDays = currentDateObj.getDate();
   const daysInMonth = new Date(currentDateObj.getFullYear(), currentDateObj.getMonth() + 1, 0).getDate();
   const projectedMonthlySoldAmt =

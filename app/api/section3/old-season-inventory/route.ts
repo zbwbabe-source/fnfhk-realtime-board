@@ -100,6 +100,21 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'period_act_sales');
+        const hasCurrentMonthDepleted =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'current_month_depleted');
+        const hasCurrentMonthDepletedAct =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'current_month_depleted_act');
+        const hasTargetInfo =
+          region !== 'HKMC' ||
+          (
+            payload &&
+            payload.header &&
+            Object.prototype.hasOwnProperty.call(payload.header, 'target_info')
+          );
         const hasPeriodTagSalesLy =
           payload &&
           payload.header &&
@@ -116,7 +131,14 @@ export async function GET(request: NextRequest) {
             hasPeriodActSalesLy
           : hasCurrentStockYoY;
 
-        if (isYoYCacheUsable && hasPeriodTagSales && hasPeriodActSales) {
+        if (
+          isYoYCacheUsable &&
+          hasPeriodTagSales &&
+          hasPeriodActSales &&
+          hasCurrentMonthDepleted &&
+          hasCurrentMonthDepletedAct &&
+          hasTargetInfo
+        ) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
           const durationMs = Date.now() - startTime;
 
