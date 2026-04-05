@@ -265,6 +265,8 @@ export async function fetchSection2Treemap({
       sales_act: middle.sales_act,
       sales_act_ly: middle.sales_act_ly,
       sales_pct: 0, // Will be calculated later
+      sales_pct_ly: 0,
+      sales_pct_diff: 0,
       discount_rate,
       discount_rate_ly,
       discount_rate_diff: discount_rate - discount_rate_ly,
@@ -274,6 +276,10 @@ export async function fetchSection2Treemap({
         sales_tag: small.sales_tag,
         sales_act: small.sales_act,
         sales_pct: middle.sales_act > 0 ? (small.sales_act / middle.sales_act) * 100 : 0,
+        sales_pct_ly: middle.sales_act_ly > 0 ? (small.sales_act_ly / middle.sales_act_ly) * 100 : 0,
+        sales_pct_diff:
+          (middle.sales_act > 0 ? (small.sales_act / middle.sales_act) * 100 : 0) -
+          (middle.sales_act_ly > 0 ? (small.sales_act_ly / middle.sales_act_ly) * 100 : 0),
         discount_rate: small.discount_rate,
         discount_rate_ly: small.discount_rate_ly,
         discount_rate_diff: small.discount_rate_diff,
@@ -320,6 +326,10 @@ export async function fetchSection2Treemap({
     (sum, large) => sum + large.sales_act,
     0
   );
+  const totalSalesActLY = Array.from(largeMap.values()).reduce(
+    (sum, large) => sum + large.sales_act_ly,
+    0
+  );
 
   // 대분류 비율 계산 및 정렬
   const largeCategories = Array.from(largeMap.values())
@@ -334,6 +344,10 @@ export async function fetchSection2Treemap({
       const middleWithPct = large.middle_categories.map((middle: any) => ({
         ...middle,
         sales_pct: large.sales_act > 0 ? (middle.sales_act / large.sales_act) * 100 : 0,
+        sales_pct_ly: large.sales_act_ly > 0 ? (middle.sales_act_ly / large.sales_act_ly) * 100 : 0,
+        sales_pct_diff:
+          (large.sales_act > 0 ? (middle.sales_act / large.sales_act) * 100 : 0) -
+          (large.sales_act_ly > 0 ? (middle.sales_act_ly / large.sales_act_ly) * 100 : 0),
       }));
 
       return {
@@ -341,6 +355,10 @@ export async function fetchSection2Treemap({
         sales_tag: large.sales_tag,
         sales_act: large.sales_act,
         sales_pct: totalSalesAct > 0 ? (large.sales_act / totalSalesAct) * 100 : 0,
+        sales_pct_ly: totalSalesActLY > 0 ? (large.sales_act_ly / totalSalesActLY) * 100 : 0,
+        sales_pct_diff:
+          (totalSalesAct > 0 ? (large.sales_act / totalSalesAct) * 100 : 0) -
+          (totalSalesActLY > 0 ? (large.sales_act_ly / totalSalesActLY) * 100 : 0),
         discount_rate,
         discount_rate_ly,
         discount_rate_diff: discount_rate - discount_rate_ly,

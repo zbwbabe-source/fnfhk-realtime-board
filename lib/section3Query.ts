@@ -3,6 +3,7 @@ import { normalizeBrand, getAllStoresByRegionBrand, getStoresByRegionBrandChanne
 import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import { formatDateYYYYMMDD } from '@/lib/date-utils';
 import { getApparelCategories } from '@/lib/category-utils.server';
+import { getCategoryMapping } from '@/lib/category-utils';
 import {
   getSection3MonthCode,
   getSection3Target,
@@ -168,6 +169,21 @@ export interface Section3Response {
       }>;
     }>;
   } | null;
+  inventory_segment_cards?: Array<{
+    key:
+      | 'current_s'
+      | 'current_f'
+      | 'past_s'
+      | 'past_f'
+      | 'hat'
+      | 'shoes'
+      | 'bag'
+      | 'acc';
+    label: string;
+    curr_stock_amt: number;
+    ly_curr_stock_amt: number | null;
+    yoy_pct: number | null;
+  }>;
 }
 
 /**
@@ -1812,6 +1828,212 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
       maxSeasonYY,
     ]);
     return parseFloat(legacyRows?.[0]?.CURR_STOCK_AMT || 0);
+  }
+
+  type InventorySegmentKey =
+    | 'current_s'
+    | 'current_f'
+    | 'past_s'
+    | 'past_f'
+    | 'hat'
+    | 'shoes'
+    | 'bag'
+    | 'acc';
+
+  const inventorySegmentOrder: InventorySegmentKey[] = [
+    'current_s',
+    'current_f',
+    'past_s',
+    'past_f',
+    'hat',
+    'shoes',
+    'bag',
+    'acc',
+  ];
+
+  const inventorySegmentLabels: Record<InventorySegmentKey, string> = {
+    current_s: '당시즌S',
+    current_f: '당시즌F',
+    past_s: '과시즌S',
+    past_f: '과시즌F',
+    hat: '모자',
+    shoes: '신발',
+    bag: '가방',
+    acc: '기타악세',
+  };
+
+  const buildInventorySegmentCards = async (currentDate: string, previousDate: string) => {
+    const [currentRows, previousRows] = await Promise.all([
+      fetchInventorySegmentRows(currentDate),
+      fetchInventorySegmentRows(previousDate),
+    ]);
+
+    const currentAmounts = aggregateInventorySegmentAmounts(currentRows, currentDate);
+    const previousAmounts = aggregateInventorySegmentAmounts(previousRows, previousDate);
+    const currentOldSeasonApparelAmt = skuRows
+      .filter((row: any) => {
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        const mapping = getCategoryMapping(cat2);
+        return ['OUTER', 'INNER', 'BOTTOM', 'Wear_etc'].includes(mapping.middle);
+      })
+      .reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0), 0);
+    let previousOldSeasonApparelAmt = await fetchPreviousYearCurrentStock(previousDate, 'clothes');
+    if (region === 'TW') {
+      previousOldSeasonApparelAmt = convertTwdToHkd(previousOldSeasonApparelAmt, getPeriodFromDateString(previousDate)) || 0;
+    }
+    const pastSeasonKey: InventorySegmentKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    currentAmounts[pastSeasonKey] = currentOldSeasonApparelAmt;
+    previousAmounts[pastSeasonKey] = previousOldSeasonApparelAmt;
+
+    return inventorySegmentOrder.map((key) => {
+      const curr = currentAmounts[key] || 0;
+      const ly = previousAmounts[key] || 0;
+      return {
+        key,
+        label: inventorySegmentLabels[key],
+        curr_stock_amt: curr,
+        ly_curr_stock_amt: ly > 0 ? ly : null,
+        yoy_pct: ly > 0 ? Math.round((curr / ly) * 10000) / 100 : null,
+      };
+    });
+  };
+
+  const getSeasonThresholds = (targetDate: string) => {
+    const d = new Date(`${targetDate}T00:00:00`);
+    const month = d.getMonth() + 1;
+    const year = d.getFullYear();
+    const currentSYear = month >= 9 ? (year + 1) % 100 : year % 100;
+    const currentFYear = month <= 2 ? (year - 1) % 100 : year % 100;
+    return { currentSYear, currentFYear };
+  };
+
+  const emptyInventorySegments = (): Record<InventorySegmentKey, number> => ({
+    current_s: 0,
+    current_f: 0,
+    past_s: 0,
+    past_f: 0,
+    hat: 0,
+    shoes: 0,
+    bag: 0,
+    acc: 0,
+  });
+
+  const aggregateInventorySegmentAmounts = (rows: any[], targetDate: string) => {
+    const totals = emptyInventorySegments();
+    const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
+    const apparelMiddles = new Set(['OUTER', 'INNER', 'BOTTOM', 'Wear_etc']);
+    const applyRateForDate = (amount: number) => {
+      if (region !== 'TW') return amount;
+      return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+    };
+
+    for (const row of rows) {
+      const sesn = String(row.SESN || '').trim().toUpperCase();
+      const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+      const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+      if (!amount) continue;
+
+      const mapping = getCategoryMapping(cat2);
+      if (mapping.middle === 'Headwear') {
+        totals.hat += amount;
+        continue;
+      }
+      if (mapping.middle === 'Shoes') {
+        totals.shoes += amount;
+        continue;
+      }
+      if (mapping.middle === 'BAG') {
+        totals.bag += amount;
+        continue;
+      }
+      if (mapping.large === '기타ACC') {
+        totals.acc += amount;
+        continue;
+      }
+      if (!apparelMiddles.has(mapping.middle)) {
+        continue;
+      }
+
+      const match = sesn.match(/^(\d{2})([FS])$/);
+      if (!match) continue;
+      const seasonYY = Number(match[1]);
+      const seasonType = match[2] as 'S' | 'F';
+
+      if (seasonType === 'S') {
+        if (seasonYY >= currentSYear) totals.current_s += amount;
+        else totals.past_s += amount;
+      } else {
+        if (seasonYY >= currentFYear) totals.current_f += amount;
+        else totals.past_f += amount;
+      }
+    }
+
+    return totals;
+  };
+
+  const fetchInventorySegmentRows = async (targetDate: string): Promise<any[]> => {
+    if (targetDate < '2025-09-22') {
+      return fetchLegacyInventorySegmentRows(targetDate);
+    }
+
+    const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const currentQuery = `
+WITH latest_stock_date AS (
+  SELECT MAX(STOCK_DT) AS stock_dt
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+  WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+    AND LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+)
+SELECT
+  s.SESN,
+  SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
+  COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+CROSS JOIN latest_stock_date l
+WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+  AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
+  AND s.STOCK_DT = l.stock_dt
+GROUP BY s.SESN, SUBSTR(s.PRDT_CD, 7, 2)
+`;
+
+    return executeSnowflakeQuery(currentQuery, [normalizedBrand, targetDate, normalizedBrand]);
+  };
+
+  const fetchLegacyInventorySegmentRows = async (targetDate: string): Promise<any[]> => {
+    const yyyymm = targetDate.slice(0, 7).replace('-', '');
+    const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const legacyQuery = `
+WITH latest_month AS (
+  SELECT MAX(YYYYMM) AS yyyymm
+  FROM SAP_FNF.PREP_HMD_STOCK
+  WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+    AND LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND TO_NUMBER(YYYYMM) <= TO_NUMBER(?)
+)
+SELECT
+  s.SESN,
+  s.SUB_CTGR AS CAT2,
+  COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+FROM SAP_FNF.PREP_HMD_STOCK s
+CROSS JOIN latest_month m
+WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+  AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
+  AND s.YYYYMM = m.yyyymm
+GROUP BY s.SESN, s.SUB_CTGR
+`;
+
+    return executeSnowflakeQuery(legacyQuery, [normalizedBrand, yyyymm, normalizedBrand]);
+  };
+
+  try {
+    const lyDateObj = new Date(`${date}T00:00:00`);
+    lyDateObj.setFullYear(lyDateObj.getFullYear() - 1);
+    const lyDate = formatDateYYYYMMDD(lyDateObj);
+    response.inventory_segment_cards = await buildInventorySegmentCards(date, lyDate);
+  } catch (error: any) {
+    console.error('[section3] failed to build inventory segment cards:', error.message);
+    response.inventory_segment_cards = [];
   }
 
   return response;

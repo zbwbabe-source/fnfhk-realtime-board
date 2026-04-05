@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import { t, type Language } from '@/lib/translations';
-import { getColorByLargeCategory } from '@/lib/category-utils';
 import { 
   CardShell, 
   CardHeader,
@@ -28,6 +27,8 @@ interface SmallCategory {
   sales_tag: number;
   sales_act: number;
   sales_pct: number;
+  sales_pct_ly?: number;
+  sales_pct_diff?: number;
   discount_rate: number;
   discount_rate_ly: number;
   discount_rate_diff: number;
@@ -39,6 +40,8 @@ interface MiddleCategory {
   sales_tag: number;
   sales_act: number;
   sales_pct: number;
+  sales_pct_ly?: number;
+  sales_pct_diff?: number;
   discount_rate: number;
   discount_rate_ly: number;
   discount_rate_diff: number;
@@ -51,6 +54,8 @@ interface LargeCategory {
   sales_tag: number;
   sales_act: number;
   sales_pct: number;
+  sales_pct_ly?: number;
+  sales_pct_diff?: number;
   discount_rate: number;
   discount_rate_ly: number;
   discount_rate_diff: number;
@@ -180,6 +185,7 @@ export default function Section2Treemap({
         sales_tag: large.sales_tag,
         sales_act: large.sales_act,
         sales_pct: large.sales_pct,
+        sales_pct_diff: large.sales_pct_diff,
         discount_rate: large.discount_rate,
         discount_rate_diff: large.discount_rate_diff,
         yoy: large.yoy,
@@ -199,6 +205,7 @@ export default function Section2Treemap({
             sales_tag: small.sales_tag,
             sales_act: small.sales_act,
             sales_pct: small.sales_pct,
+            sales_pct_diff: small.sales_pct_diff,
             discount_rate: small.discount_rate,
             discount_rate_diff: small.discount_rate_diff,
             yoy: small.yoy,
@@ -249,25 +256,37 @@ export default function Section2Treemap({
     return `${cumStart.slice(0, 4)}/${cumStart.slice(5, 7)}/${cumStart.slice(8, 10)}~${asofLabel}`;
   }, [data, mode]);
 
+  const formatPercentPoint = (value: number | null | undefined) => {
+    if (value === null || value === undefined || !Number.isFinite(value)) return '-';
+    if (value > 0) return `+${value.toFixed(1)}%p`;
+    if (value < 0) return `${value.toFixed(1)}%p`;
+    return '0.0%p';
+  };
+
+  const getDiffColor = (value: number | null | undefined) => {
+    if (value === null || value === undefined || !Number.isFinite(value) || value === 0) return '#4B5563';
+    return value > 0 ? '#DC2626' : '#2563EB';
+  };
+
+  const getYoyFillColor = (yoy: number | null | undefined) => {
+    if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return '#D1D5DB';
+    if (yoy > 100) return '#BBF7D0';
+    if (yoy < 100) return '#FECACA';
+    return '#E5E7EB';
+  };
+
   /**
    * 커스텀 Treemap 셀 렌더링
    * @param treemapMode - 'compact': 카테고리명+비중만 표시 / 'detail': 모든 지표 표시
    */
   const createCustomizedContent = useCallback((treemapMode: TreemapMode) => {
     return (props: any): JSX.Element => {
-      const { x, y, width, height, name, value, sales_tag, sales_act, sales_pct, discount_rate, discount_rate_diff, yoy } = props;
+      const { x, y, width, height, name, sales_pct, sales_pct_diff, discount_rate, discount_rate_diff, yoy } = props;
 
       if (!name) return <g />;
 
       // 색상 결정
-      let fillColor = '#D1D5DB';
-      if (currentPath.length === 0) {
-        fillColor = getColorByLargeCategory(name);
-      } else if (currentPath.length === 1) {
-        fillColor = getColorByLargeCategory(currentPath[0]);
-      } else {
-        fillColor = getColorByLargeCategory(currentPath[0]);
-      }
+      const fillColor = getYoyFillColor(yoy);
 
       // ========== COMPACT 모드: 카테고리명 + 비중만 ==========
       if (treemapMode === 'compact') {
@@ -329,7 +348,7 @@ export default function Section2Treemap({
                 {translateCategory(name)}
               </tspan>
               <tspan x={x + width / 2} dy="1.5em" fontSize="13" textAnchor="middle">
-                {yoy ? `YoY ${yoy.toFixed(0)}%` : `${language === 'ko' ? '할인' : 'Discount'} ${discount_rate.toFixed(1)}%`}
+                {yoy !== null ? `YoY ${yoy.toFixed(0)}%` : `${language === 'ko' ? '할인' : 'Discount'} ${discount_rate.toFixed(1)}%`}
               </tspan>
             </text>
           </g>
@@ -337,8 +356,8 @@ export default function Section2Treemap({
       }
 
       // ========== DETAIL 모드: 모든 지표 표시 ==========
-      const discountColor = discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
-      const discountSymbol = discount_rate_diff > 0 ? '+' : '△';
+      const discountColor = getDiffColor(discount_rate_diff);
+      const shareColor = getDiffColor(sales_pct_diff);
       
       const cx = x + width / 2;
       const cy = y + height / 2;
@@ -410,28 +429,11 @@ export default function Section2Treemap({
                   filter: 'none'
                 }}
               >
-                {language === 'ko' ? '택매출' : 'Tag'}: {formatSales(sales_tag || 0)}
+                {yoy !== null ? `YoY: ${yoy.toFixed(0)}%` : 'YoY: N/A'}
               </text>
               <text
                 x={cx}
-                y={cy - 7}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#111"
-                stroke="none"
-                strokeWidth={0}
-                fontSize="15"
-                style={{ 
-                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  textShadow: 'none',
-                  filter: 'none'
-                }}
-              >
-                {language === 'ko' ? '실판매출' : 'Actual'}: {formatSales(sales_act || 0)}
-              </text>
-              <text
-                x={cx}
-                y={cy + 11}
+                y={cy - 4}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#111"
@@ -444,47 +446,28 @@ export default function Section2Treemap({
                   filter: 'none'
                 }}
               >
-                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `${language === 'ko' ? '할인율' : 'Discount'}: ${discount_rate?.toFixed(1)}%`}
+                {language === 'ko' ? '할인율' : 'Discount'}: {discount_rate?.toFixed(1)}%
               </text>
               <text
                 x={cx}
-                y={cy + 27}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#111"
-                stroke="none"
-                strokeWidth={0}
-                fontSize="14"
-                style={{ 
-                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  textShadow: 'none',
-                  filter: 'none'
-                }}
-              >
-                {yoy
-                  ? `${language === 'ko' ? '할인율' : 'Discount'}: ${discount_rate?.toFixed(1)}%`
-                  : `${language === 'ko' ? '비중' : 'Share'}: ${sales_pct?.toFixed(1)}%`}
-              </text>
-              <text
-                x={cx}
-                y={cy + 42}
+                y={cy + 13}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill={discountColor}
                 stroke="none"
                 strokeWidth={0}
-                fontSize="13"
+                fontSize="14"
                 style={{ 
                   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                   textShadow: 'none',
                   filter: 'none'
                 }}
               >
-                ({discountSymbol}{Math.abs(discount_rate_diff || 0).toFixed(1)}%p)
+                ({formatPercentPoint(discount_rate_diff)})
               </text>
               <text
                 x={cx}
-                y={cy + 57}
+                y={cy + 31}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#111"
@@ -498,6 +481,23 @@ export default function Section2Treemap({
                 }}
               >
                 {language === 'ko' ? '비중' : 'Share'}: {sales_pct?.toFixed(1)}%
+              </text>
+              <text
+                x={cx}
+                y={cy + 48}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={shareColor}
+                stroke="none"
+                strokeWidth={0}
+                fontSize="13"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                ({formatPercentPoint(sales_pct_diff)})
               </text>
             </g>
           </g>
@@ -549,7 +549,7 @@ export default function Section2Treemap({
               </text>
               <text
                 x={cx}
-                y={cy - 11}
+                y={cy - 12}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#111"
@@ -562,28 +562,11 @@ export default function Section2Treemap({
                   filter: 'none'
                 }}
               >
-                {language === 'ko' ? '택' : 'Tag'}: {formatSales(sales_tag || 0)}
+                {yoy !== null ? `YoY: ${yoy.toFixed(0)}%` : 'YoY: N/A'}
               </text>
               <text
                 x={cx}
                 y={cy + 6}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#111"
-                stroke="none"
-                strokeWidth={0}
-                fontSize="13"
-                style={{ 
-                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                  textShadow: 'none',
-                  filter: 'none'
-                }}
-              >
-                {language === 'ko' ? '실판' : 'Act'}: {formatSales(sales_act || 0)}
-              </text>
-              <text
-                x={cx}
-                y={cy + 23}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#111"
@@ -596,7 +579,24 @@ export default function Section2Treemap({
                   filter: 'none'
                 }}
               >
-                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `${language === 'ko' ? '할인' : 'Discount'} ${discount_rate?.toFixed(1)}%`}
+                {language === 'ko' ? '할인' : 'Discount'} {discount_rate?.toFixed(1)}% ({formatPercentPoint(discount_rate_diff)})
+              </text>
+              <text
+                x={cx}
+                y={cy + 24}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="#111"
+                stroke="none"
+                strokeWidth={0}
+                fontSize="12"
+                style={{ 
+                  fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  textShadow: 'none',
+                  filter: 'none'
+                }}
+              >
+                {language === 'ko' ? '비중' : 'Share'} {sales_pct?.toFixed(1)}% ({formatPercentPoint(sales_pct_diff)})
               </text>
             </g>
           </g>
@@ -661,7 +661,7 @@ export default function Section2Treemap({
                   filter: 'none'
                 }}
               >
-                {yoy ? `YoY: ${yoy.toFixed(0)}%` : `${language === 'ko' ? '할인' : 'Discount'} ${discount_rate?.toFixed(1)}%`}
+                {yoy !== null ? `YoY: ${yoy.toFixed(0)}%` : 'YoY: N/A'}
               </text>
             </g>
           </g>
@@ -743,8 +743,8 @@ export default function Section2Treemap({
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;
-    const discountColor = data.discount_rate_diff > 0 ? '#DC2626' : '#2563EB';
-    const discountSymbol = data.discount_rate_diff > 0 ? '+' : '△';
+    const discountColor = getDiffColor(data.discount_rate_diff);
+    const shareColor = getDiffColor(data.sales_pct_diff);
 
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-300 text-sm">
@@ -760,7 +760,7 @@ export default function Section2Treemap({
           </div>
           <div>
             <span className="font-semibold">YoY:</span>{' '}
-            {data.yoy
+            {data.yoy !== null && data.yoy !== undefined
               ? `${data.yoy.toFixed(0)}%`
               : language === 'ko'
                 ? `N/A (할인율 ${data.discount_rate?.toFixed(1)}%)`
@@ -770,12 +770,15 @@ export default function Section2Treemap({
             <span className="font-semibold">{language === 'ko' ? '할인율' : 'Discount'}:</span>{' '}
             {data.discount_rate?.toFixed(1)}%
             <span style={{ color: discountColor, fontWeight: 'bold', marginLeft: '6px' }}>
-              ({discountSymbol}{Math.abs(data.discount_rate_diff || 0).toFixed(1)}%p)
+              ({formatPercentPoint(data.discount_rate_diff)})
             </span>
           </div>
           <div>
             <span className="font-semibold">{language === 'ko' ? '비중' : 'Share'}:</span>{' '}
             {data.sales_pct?.toFixed(1)}%
+            <span style={{ color: shareColor, fontWeight: 'bold', marginLeft: '6px' }}>
+              ({formatPercentPoint(data.sales_pct_diff)})
+            </span>
           </div>
         </div>
       </div>

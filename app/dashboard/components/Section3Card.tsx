@@ -29,6 +29,14 @@ export default function Section3Card({
   simpleDetail = false,
   fixedHeight = false,
 }: Section3CardProps) {
+  type InventorySegmentCard = {
+    key: string;
+    label: string;
+    curr_stock_amt: number;
+    ly_curr_stock_amt: number | null;
+    yoy_pct: number | null;
+  };
+
   const getYearBucketRank = (raw: string | null | undefined) => {
     if (!raw) return null;
     if (raw.includes('3')) return 3;
@@ -425,6 +433,47 @@ export default function Section3Card({
   const getBottomCardValueClassName = (key: string) => {
     return key === 'stagnant' ? 'text-rose-950' : 'text-gray-900';
   };
+  const inventorySegmentCards: InventorySegmentCard[] = Array.isArray(section3Data?.inventory_segment_cards)
+    ? section3Data.inventory_segment_cards
+    : [];
+  const orderedInventorySegmentCards = (() => {
+    const isSsSeason = String(section3Data?.season_type || '').toUpperCase().includes('SS');
+    const seasonOrder = isSsSeason
+      ? ['current_s', 'current_f', 'past_s', 'past_f']
+      : ['current_f', 'current_s', 'past_f', 'past_s'];
+    const categoryOrder = ['hat', 'shoes', 'bag', 'acc'];
+    const order = [...seasonOrder, ...categoryOrder];
+    const orderMap = new Map(order.map((key, index) => [key, index]));
+    return [...inventorySegmentCards].sort(
+      (a, b) => (orderMap.get(a.key) ?? 999) - (orderMap.get(b.key) ?? 999)
+    );
+  })();
+  const getInventoryYoyTone = (yoy: number | null | undefined) => {
+    if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return 'text-gray-500';
+    if (yoy > 100) return 'text-emerald-600';
+    if (yoy < 100) return 'text-rose-600';
+    return 'text-gray-600';
+  };
+  const getInventoryCardTooltip = (key: string) =>
+    ['current_s', 'current_f', 'past_s', 'past_f'].includes(key)
+      ? language === 'ko'
+        ? '의류만'
+        : 'Apparel only'
+      : null;
+  const getInventoryCardLabel = (key: string, fallbackLabel: string) => {
+    if (language === 'ko') return fallbackLabel;
+    const labels: Record<string, string> = {
+      current_s: 'Current S',
+      current_f: 'Current F',
+      past_s: 'Old S',
+      past_f: 'Old F',
+      hat: 'Headwear',
+      shoes: 'Shoes',
+      bag: 'Bag',
+      acc: 'Others',
+    };
+    return labels[key] || fallbackLabel;
+  };
 
   return (
     <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
@@ -522,6 +571,39 @@ export default function Section3Card({
           </div>
         ))}
       </div>
+
+      {simpleDetail && orderedInventorySegmentCards.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="mb-2 text-[11px] text-gray-500">
+            {language === 'ko' ? '전체 재고 TAG 기준' : 'Based on total TAG stock'}
+          </p>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            {orderedInventorySegmentCards.map((card) => (
+              <div
+                key={card.key}
+                className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm"
+              >
+                <div className="group relative inline-flex max-w-full">
+                  <p className="text-xs font-semibold text-gray-700">{getInventoryCardLabel(card.key, card.label)}</p>
+                  {getInventoryCardTooltip(card.key) ? (
+                    <span className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden whitespace-nowrap rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 shadow-md group-hover:block">
+                      {getInventoryCardTooltip(card.key)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-lg font-bold leading-tight text-gray-900">
+                  {formatCurrency(card.curr_stock_amt || 0)}
+                </p>
+                <p className={`mt-1 text-[11px] font-medium ${getInventoryYoyTone(card.yoy_pct)}`}>
+                  {card.yoy_pct !== null && card.yoy_pct !== undefined
+                    ? `YoY ${card.yoy_pct.toFixed(0)}%`
+                    : 'YoY -'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!simpleDetail && periodStartInfo && periodInfoPlacement === 'footer' && (
         <div className="mt-1 text-[11px] text-gray-500">

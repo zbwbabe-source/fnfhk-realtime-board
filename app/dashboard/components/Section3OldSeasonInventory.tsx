@@ -66,6 +66,13 @@ interface Section3Data {
   years: YearRow[];
   categories: CategoryRow[];
   skus: SKURow[];
+  inventory_segment_cards?: Array<{
+    key: string;
+    label: string;
+    curr_stock_amt: number;
+    ly_curr_stock_amt: number | null;
+    yoy_pct: number | null;
+  }>;
 }
 
 type SortConfig = {
@@ -214,6 +221,52 @@ export default function Section3OldSeasonInventory({
     if (num == null) return '-';
     return (num * 100).toFixed(1) + '%';
   };
+
+  const formatCardCurrency = (num: number | null | undefined): string => {
+    if (num == null) return '-';
+    const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
+    if (converted >= 1_000_000) return `${(converted / 1_000_000).toFixed(1)}M`;
+    if (converted >= 1_000) return `${(converted / 1_000).toFixed(1)}K`;
+    return converted.toFixed(0);
+  };
+
+  const getYoyTone = (yoy: number | null | undefined) => {
+    if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return 'text-gray-500';
+    if (yoy > 100) return 'text-emerald-600';
+    if (yoy < 100) return 'text-rose-600';
+    return 'text-gray-600';
+  };
+  const getInventoryCardTooltip = (key: string) => {
+    if (['current_s', 'current_f', 'past_s', 'past_f'].includes(key)) {
+      return language === 'ko' ? '의류만' : 'Apparel only';
+    }
+    return '';
+  };
+  const getInventoryCardLabel = (key: string, fallbackLabel: string) => {
+    if (language === 'ko') return fallbackLabel;
+    const labels: Record<string, string> = {
+      current_s: 'Current S',
+      current_f: 'Current F',
+      past_s: 'Old S',
+      past_f: 'Old F',
+      hat: 'Headwear',
+      shoes: 'Shoes',
+      bag: 'Bag',
+      acc: 'Others',
+    };
+    return labels[key] || fallbackLabel;
+  };
+  const orderedInventorySegmentCards = (() => {
+    const cards = Array.isArray(data?.inventory_segment_cards) ? data.inventory_segment_cards : [];
+    const isSsSeason = String(data?.season_type || '').toUpperCase().includes('SS');
+    const seasonOrder = isSsSeason
+      ? ['current_s', 'current_f', 'past_s', 'past_f']
+      : ['current_f', 'current_s', 'past_f', 'past_s'];
+    const categoryOrder = ['hat', 'shoes', 'bag', 'acc'];
+    const order = [...seasonOrder, ...categoryOrder];
+    const orderMap = new Map(order.map((key, index) => [key, index]));
+    return [...cards].sort((a, b) => (orderMap.get(a.key) ?? 999) - (orderMap.get(b.key) ?? 999));
+  })();
 
   const normalizeYearBucket = (value: string): string => {
     const raw = (value || '').trim();
@@ -603,7 +656,7 @@ export default function Section3OldSeasonInventory({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {/* ?곗감蹂??됰뱾 */}
-              {sortedYears.map((year) => {
+      {sortedYears.map((year) => {
                 // ?뺤껜?ш퀬鍮꾩쨷 怨꾩궛
                 const stagnantRatio = year.curr_stock_amt > 0 
                   ? (year.stagnant_stock_amt / year.curr_stock_amt) * 100 
@@ -860,6 +913,39 @@ export default function Section3OldSeasonInventory({
           );
         })}
       </div>
+
+      {orderedInventorySegmentCards.length > 0 && (
+        <div className="border-t border-gray-200 pt-6">
+          <div className="mb-3">
+            <h3 className="inline-block rounded-lg bg-indigo-50 px-4 py-2 text-lg font-semibold text-indigo-900">
+              {language === 'ko' ? '전체 재고 TAG 구성' : 'Total TAG Stock Mix'}
+            </h3>
+            <p className="mt-2 text-sm text-gray-500">
+              {language === 'ko' ? '기준 재고 전체 금액과 전년 대비 YoY' : 'Total stock amount and YoY vs last year'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {orderedInventorySegmentCards.map((card) => (
+              <div
+                key={card.key}
+                className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm"
+                title={getInventoryCardTooltip(card.key)}
+              >
+                <p className="text-sm font-semibold text-gray-700">{getInventoryCardLabel(card.key, card.label)}</p>
+                <p className="mt-3 text-2xl font-bold tracking-tight text-gray-900">
+                  {formatCardCurrency(card.curr_stock_amt)}
+                </p>
+                <p className={`mt-2 text-sm font-medium ${getYoyTone(card.yoy_pct)}`}>
+                  {card.yoy_pct !== null && card.yoy_pct !== undefined
+                    ? `YoY ${card.yoy_pct.toFixed(0)}%`
+                    : 'YoY -'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
