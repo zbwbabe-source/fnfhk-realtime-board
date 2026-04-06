@@ -217,7 +217,13 @@ export default function Section2Treemap({
 
     // 비중 조정: 큰 값의 영향력을 줄여 작은 항목도 보이도록
     // 제곱근을 적용하여 차이를 완화 (sqrt normalization)
-    const adjustedData = rawData.map(item => ({
+    const adjustedData = [...rawData]
+      .sort((a, b) => {
+        const salesGap = (b.sales_act || 0) - (a.sales_act || 0);
+        if (salesGap !== 0) return salesGap;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      })
+      .map(item => ({
       ...item,
       value: Math.pow(item.value, 0.7), // 0.7 제곱으로 큰 값의 영향력 감소
     }));
@@ -436,12 +442,13 @@ export default function Section2Treemap({
                 y={cy - 4}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="#111"
+                fill="#2563EB"
                 stroke="none"
                 strokeWidth={0}
                 fontSize="14"
                 style={{ 
                   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  fontStyle: 'italic',
                   textShadow: 'none',
                   filter: 'none'
                 }}
@@ -569,12 +576,13 @@ export default function Section2Treemap({
                 y={cy + 6}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="#111"
+                fill="#2563EB"
                 stroke="none"
                 strokeWidth={0}
                 fontSize="12"
                 style={{ 
                   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  fontStyle: 'italic',
                   textShadow: 'none',
                   filter: 'none'
                 }}

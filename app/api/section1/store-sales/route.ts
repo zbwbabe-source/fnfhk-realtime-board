@@ -11,6 +11,9 @@ function isLegacySnapshotPayload(payload: any): boolean {
     !payload?.season_category_sales?.metrics ||
     !total ||
     !payload?.projection_meta ||
+    typeof payload?.base_month === 'undefined' ||
+    typeof payload?.forecast_source === 'undefined' ||
+    !Array.isArray(payload?.forecast_months) ||
     typeof total.same_store_yoy === 'undefined' ||
     typeof total.active_store_count_mtd === 'undefined' ||
     typeof total.active_store_count_mtd_py === 'undefined' ||
@@ -21,7 +24,11 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof total.projected_progress === 'undefined' ||
     typeof total.projected_progress_ytd === 'undefined' ||
     typeof total.ytdMonthEndProjection === 'undefined' ||
-    typeof total.ytdProjectedYoY === 'undefined'
+    typeof total.ytdProjectedYoY === 'undefined' ||
+    typeof total.ytd_projection_basis === 'undefined' ||
+    total.ytd_projection_basis !== 'current_month_end' ||
+    typeof total.forecast_source === 'undefined' ||
+    !Array.isArray(total.forecast_months)
   );
 }
 
@@ -48,6 +55,7 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region') || 'HKMC';
     const brand = searchParams.get('brand') || 'M';
     const date = searchParams.get('date') || '';
+    const baseMonth = searchParams.get('base_month') || '';
     const forceRefresh = searchParams.get('forceRefresh') === 'true';
 
     // 요청 시작 로그
@@ -56,21 +64,28 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       date,
+      base_month: baseMonth || undefined,
       force_refresh: forceRefresh,
       timestamp: new Date().toISOString(),
     });
 
-    if (!date) {
+    if (!date && !baseMonth) {
       return NextResponse.json(
-        { error: 'Missing required parameter: date' },
+        { error: 'Missing required parameter: date or base_month' },
         { status: 400 }
       );
     }
 
-    // Validate date format
-    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    if (date && !date.match(/^\d{4}-\d{2}(-\d{2})?$/)) {
       return NextResponse.json(
-        { error: 'Invalid date format. Expected YYYY-MM-DD' },
+        { error: 'Invalid date format. Expected YYYY-MM-DD or YYYY-MM' },
+        { status: 400 }
+      );
+    }
+
+    if (baseMonth && !baseMonth.match(/^\d{4}-\d{2}$/)) {
+      return NextResponse.json(
+        { error: 'Invalid base_month format. Expected YYYY-MM' },
         { status: 400 }
       );
     }
@@ -78,7 +93,7 @@ export async function GET(request: NextRequest) {
     // Redis 스냅샷 조회 (forceRefresh면 skip)
     const snapshot = forceRefresh
       ? null
-      : await getSnapshot<any>('SECTION1', 'store-sales', region, brand, date);
+      : await getSnapshot<any>('SECTION1', 'store-sales', region, brand, baseMonth || date);
 
     if (snapshot && !isLegacySnapshotPayload(snapshot.payload)) {
       // Redis HIT: 즉시 반환
@@ -100,19 +115,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (snapshot && isLegacySnapshotPayload(snapshot.payload)) {
-      console.log('[section1] Legacy snapshot detected, regenerating', { region, brand, date });
+      console.log('[section1] Legacy snapshot detected, regenerating', { region, brand, date, baseMonth });
     }
 
     console.log('[section1] ⏳ Cache MISS, executing Snowflake query...');
 
     // Redis MISS: Snowflake 쿼리 실행
     const snowflakeStart = Date.now();
-    const payload = await fetchSection1StoreSales({ region, brand, date });
+    const payload = await fetchSection1StoreSales({ region, brand, date, baseMonth });
     snowflakeMs = Date.now() - snowflakeStart;
 
     // 결과를 Redis에 저장 (fallback TTL)
     try {
-      await setSnapshot('SECTION1', 'store-sales', region, brand, date, payload, FALLBACK_TTL_SECONDS);
+      await setSnapshot('SECTION1', 'store-sales', region, brand, baseMonth || payload.asof_date, payload, FALLBACK_TTL_SECONDS);
     } catch (redisError: any) {
       console.error('[section1] ⚠️  Redis save failed (non-fatal):', redisError.message);
     }
@@ -125,6 +140,7 @@ export async function GET(request: NextRequest) {
       region,
       brand,
       date,
+      base_month: baseMonth || undefined,
       cache_hit: false,
       duration_ms: durationMs,
       snowflake_ms: snowflakeMs,

@@ -80,6 +80,17 @@ const renderMatrixValue = (cell: Cell, type: 'yearEndTarget' | 'rollingYearEnd')
   return type === 'yearEndTarget' ? money(cell?.year_end_target_stock) : money(cell?.rolling_year_end_stock);
 };
 
+const formatStockDeltaCompact = (actual: number | null | undefined, target: number | null | undefined) => {
+  if (
+    actual === null || actual === undefined || target === null || target === undefined ||
+    !Number.isFinite(actual) || !Number.isFinite(target)
+  ) return '-';
+  const diff = actual - target;
+  if (diff > 0) return `△${(diff / 1_000_000).toFixed(1)}M`;
+  if (diff < 0) return `▽${(Math.abs(diff) / 1_000_000).toFixed(1)}M`;
+  return '0.0M';
+};
+
 const boxTone = (cell: Cell) => {
   if (cell?.completed) return 'bg-emerald-50 text-emerald-700 border-emerald-100';
   if (typeof cell?.projected_progress_pct === 'number' && cell.projected_progress_pct >= 100) return 'bg-emerald-50 text-emerald-700 border-emerald-100';
@@ -170,7 +181,7 @@ export default function Section3TargetHeatmap({ section3Data, region, language }
               {totalPct !== null ? <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${totalTone}`}>{totalPct.toFixed(0)}%</span> : null}
               {totalPct !== null ? <span className={`text-[10px] font-medium ${totalPct > 100 ? 'text-rose-600' : totalPct < 100 ? 'text-emerald-600' : 'text-gray-500'}`}>{language === 'ko' ? `${totalPct > 100 ? '목표대비 재고증가' : totalPct < 100 ? '목표대비 재고감소' : '목표대비 동일'} ${formatMillionSigned(totalDelta)}` : `${totalPct > 100 ? 'Higher stk' : totalPct < 100 ? 'Lower stk' : 'On tgt'} ${formatMillionSigned(totalDelta)}`}</span> : null}
             </div>
-            <p className="text-[9px] text-gray-400">{language === 'ko' ? '롤링 / 목표' : 'Roll / Tgt'}</p>
+            <p className="text-[9px] text-gray-400">{language === 'ko' ? '롤링 / 목표대비' : 'Rolling / vs target'}</p>
           </div>
           <div className="grid grid-cols-[64px_repeat(3,minmax(0,1fr))] gap-1.5">
             <div />
@@ -180,7 +191,15 @@ export default function Section3TargetHeatmap({ section3Data, region, language }
                 <div className="flex items-center justify-center rounded-md bg-white px-1.5 text-[10px] font-semibold text-gray-700 shadow-sm">{rowMeta.label}</div>
                 {colOrder.map((bucket) => {
                   const cell = getCell(rowMeta.key, bucket);
-                  return <div key={`detail-${rowMeta.key}-${bucket}`} className="rounded-md border border-gray-200 bg-white px-1.5 py-1.5 shadow-sm"><p className={`text-[10px] font-semibold leading-tight ${stockTone(cell)}`}>{renderMatrixValue(cell, 'rollingYearEnd')} / {renderMatrixValue(cell, 'yearEndTarget')}</p></div>;
+                  return (
+                    <div key={`detail-${rowMeta.key}-${bucket}`} className="rounded-md border border-gray-200 bg-white px-1.5 py-1.5 shadow-sm">
+                      <p className={`whitespace-nowrap text-center text-[10px] font-semibold leading-none ${stockTone(cell)}`}>
+                        {renderMatrixValue(cell, 'rollingYearEnd')}
+                        <span className="mx-1 text-gray-300">|</span>
+                        {formatStockDeltaCompact(cell?.rolling_year_end_stock, cell?.year_end_target_stock)}
+                      </p>
+                    </div>
+                  );
                 })}
               </div>
             ))}

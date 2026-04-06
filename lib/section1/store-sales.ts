@@ -1,7 +1,7 @@
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
 import { buildProjectionWeightData, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
-import { getPeriodFromDateString, convertTwdToHkd } from '@/lib/exchange-rate-utils';
+import { getPeriodFromDateString, getPeriodFromYearMonth, getExchangeRate, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import { getSeasonCode } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
 import targetData from '@/data/target.json';
@@ -29,6 +29,64 @@ function calculateYtdTargetForStore(
   }
 
   return ytdTarget;
+}
+
+function calculateYtdTargetForStoreWithMonthlyFx(
+  shopCd: string,
+  year: number,
+  currentMonth: number,
+  sourceData: any,
+  isTwRegion: boolean
+): number {
+  let ytdTarget = 0;
+
+  for (let m = 1; m <= currentMonth; m += 1) {
+    const periodKey = `${year}-${String(m).padStart(2, '0')}`;
+    const periodData = sourceData[periodKey] || {};
+    const storeTarget = periodData[shopCd];
+    const amount = Number(storeTarget?.target_mth || 0);
+    ytdTarget += getMonthlyRateAdjustedAmount(amount, year, m, isTwRegion);
+  }
+
+  return ytdTarget;
+}
+
+function calculateAnnualTargetForStore(
+  shopCd: string,
+  year: number,
+  sourceData: any
+): number {
+  let annualTarget = 0;
+
+  for (let m = 1; m <= 12; m += 1) {
+    const periodKey = `${year}-${String(m).padStart(2, '0')}`;
+    const periodData = sourceData[periodKey] || {};
+    const storeTarget = periodData[shopCd];
+    if (storeTarget) {
+      annualTarget += storeTarget.target_mth || 0;
+    }
+  }
+
+  return annualTarget;
+}
+
+function calculateAnnualTargetForStoreWithMonthlyFx(
+  shopCd: string,
+  year: number,
+  sourceData: any,
+  isTwRegion: boolean
+): number {
+  let annualTarget = 0;
+
+  for (let m = 1; m <= 12; m += 1) {
+    const periodKey = `${year}-${String(m).padStart(2, '0')}`;
+    const periodData = sourceData[periodKey] || {};
+    const storeTarget = periodData[shopCd];
+    const amount = Number(storeTarget?.target_mth || 0);
+    annualTarget += getMonthlyRateAdjustedAmount(amount, year, m, isTwRegion);
+  }
+
+  return annualTarget;
 }
 
 type SeasonPart = 'S' | 'F';
@@ -67,8 +125,11 @@ function getPrevYearSeasonCode(sesn: string): string {
 
 export interface StoreSalesPayload {
   asof_date: string;
+  base_month?: string;
   region: string;
   brand: string;
+  forecast_source?: 'excel' | null;
+  forecast_months?: Array<{ month: string; amount: number }>;
   hk_normal: any[];
   hk_normal_subtotal: any;
   hk_outlet: any[];
@@ -111,6 +172,79 @@ function getMonthEndDate(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
+function normalizeChannel(channel: string): string {
+  return channel === '정상' ? '리테일' : channel;
+}
+
+function parseBaseMonthToAsOfDate(baseMonth: string): string {
+  const [yearText, monthText] = baseMonth.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const lastDay = new Date(year, month, 0);
+  return formatDateToYmd(lastDay);
+}
+
+function resolveBaseMonth(inputDate?: string, inputBaseMonth?: string): { asofDate: string; baseMonth: string } {
+  if (inputBaseMonth && /^\d{4}-\d{2}$/.test(inputBaseMonth)) {
+    return {
+      asofDate: parseBaseMonthToAsOfDate(inputBaseMonth),
+      baseMonth: inputBaseMonth,
+    };
+  }
+
+  if (!inputDate) {
+    throw new Error('Either date or base_month is required');
+  }
+
+  if (/^\d{4}-\d{2}$/.test(inputDate)) {
+    return {
+      asofDate: parseBaseMonthToAsOfDate(inputDate),
+      baseMonth: inputDate,
+    };
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+    throw new Error('Invalid date format. Expected YYYY-MM-DD or YYYY-MM');
+  }
+
+  return {
+    asofDate: inputDate,
+    baseMonth: inputDate.slice(0, 7),
+  };
+}
+
+function getForecastMonthsForStore(
+  shopCd: string,
+  year: number,
+  currentMonth: number,
+  sourceData: any
+): Array<{ month: string; amount: number }> {
+  const months: Array<{ month: string; amount: number }> = [];
+
+  for (let m = currentMonth + 1; m <= 12; m += 1) {
+    const periodKey = `${year}-${String(m).padStart(2, '0')}`;
+    const periodData = sourceData[periodKey] || {};
+    const storeTarget = periodData[shopCd];
+    const amount = storeTarget?.target_mth || 0;
+
+    if (amount > 0) {
+      months.push({ month: periodKey, amount });
+    }
+  }
+
+  return months;
+}
+
+function getMonthlyRateAdjustedAmount(
+  amount: number,
+  year: number,
+  month: number,
+  isTwRegion: boolean
+): number {
+  if (!isTwRegion) return amount;
+  return amount * getExchangeRate(getPeriodFromYearMonth(year, month));
+}
+
 /**
  * Section1 Store Sales 데이터 조회
  */
@@ -118,11 +252,17 @@ export async function fetchSection1StoreSales({
   region,
   brand,
   date,
+  baseMonth,
 }: {
   region: string;
   brand: string;
-  date: string;
+  date?: string;
+  baseMonth?: string;
 }): Promise<StoreSalesPayload> {
+  const resolvedPeriod = resolveBaseMonth(date, baseMonth);
+  const resolvedDate = resolvedPeriod.asofDate;
+  const resolvedBaseMonth = resolvedPeriod.baseMonth;
+
   // Store master 로드
   const storeMaster = getStoreMaster();
   const countries = region === 'HKMC' ? ['HK', 'MC'] : ['TW'];
@@ -139,9 +279,12 @@ export async function fetchSection1StoreSales({
 
   if (targetStores.length === 0) {
     return {
-      asof_date: date,
+      asof_date: resolvedDate,
+      base_month: resolvedBaseMonth,
       region,
       brand,
+      forecast_source: 'excel',
+      forecast_months: [],
       hk_normal: [],
       hk_normal_subtotal: null,
       hk_outlet: [],
@@ -171,7 +314,7 @@ export async function fetchSection1StoreSales({
   const storeCodes = targetStores.map((s) => `'${s.store_code}'`).join(',');
 
   // 날짜 계산
-  const asofDate = new Date(date);
+  const asofDate = new Date(resolvedDate);
   const year = asofDate.getFullYear();
   const previousYearDate = new Date(asofDate);
   previousYearDate.setFullYear(asofDate.getFullYear() - 1);
@@ -194,7 +337,7 @@ export async function fetchSection1StoreSales({
   const projectionWeights = await buildProjectionWeightData({
     region,
     brand,
-    date,
+    date: resolvedDate,
     storeCodes: targetStores.map((store) => store.store_code),
   });
   const weightMap = projectionWeights.weightMap;
@@ -313,33 +456,34 @@ export async function fetchSection1StoreSales({
   `;
 
   const rows = await executeSnowflakeQuery(query, [
-    date,
-    date, // MTD ACT current
-    date,
-    date, // MTD ACT PY
-    date,
-    date, // MTD ACT PM (전월)
-    date,
-    date, // MTD TAG current
-    date,
-    date, // MTD TAG PY
-    date,
-    date, // YTD ACT current
-    date,
-    date, // YTD ACT PY
-    date,
-    date, // YTD TAG current
-    date,
-    date, // YTD TAG PY
+    resolvedDate,
+    resolvedDate, // MTD ACT current
+    resolvedDate,
+    resolvedDate, // MTD ACT PY
+    resolvedDate,
+    resolvedDate, // MTD ACT PM (전월)
+    resolvedDate,
+    resolvedDate, // MTD TAG current
+    resolvedDate,
+    resolvedDate, // MTD TAG PY
+    resolvedDate,
+    resolvedDate, // YTD ACT current
+    resolvedDate,
+    resolvedDate, // YTD ACT PY
+    resolvedDate,
+    resolvedDate, // YTD TAG current
+    resolvedDate,
+    resolvedDate, // YTD TAG PY
     brand, // brand filter
-    date,
-    date, // date range filter
+    resolvedDate,
+    resolvedDate, // date range filter
   ]);
 
   console.log('📊 Section1 Query Result:', {
     region,
     brand,
-    date,
+    date: resolvedDate,
+    baseMonth: resolvedBaseMonth,
     targetStoresCount: targetStores.length,
     rowsCount: rows.length,
   });
@@ -349,7 +493,8 @@ export async function fetchSection1StoreSales({
       LOCAL_SHOP_CD AS shop_cd,
       YEAR(SALE_DT) AS sale_year,
       MONTH(SALE_DT) AS sale_month,
-      SUM(ACT_SALE_AMT) AS sales_amt
+      SUM(ACT_SALE_AMT) AS sales_amt,
+      SUM(TAG_SALE_AMT) AS tag_sales_amt
     FROM SAP_FNF.DW_HMD_SALE_D
     WHERE
       (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
@@ -364,8 +509,8 @@ export async function fetchSection1StoreSales({
 
   const monthlyStoreSalesRows = await executeSnowflakeQuery(monthlyStoreSalesQuery, [
     brand,
-    date,
-    date,
+    resolvedDate,
+    resolvedDate,
     previousYearDateString,
     previousYearDateString,
   ]);
@@ -383,12 +528,12 @@ export async function fetchSection1StoreSales({
         AND SALE_DT BETWEEN DATE_TRUNC('MONTH', TO_DATE(?)) AND TO_DATE(?)
       GROUP BY LOCAL_SHOP_CD, TO_DATE(SALE_DT)
     `,
-    [brand, date, date]
+    [brand, resolvedDate, resolvedDate]
   );
 
   // TW 리전일 때 환율 적용
   const isTwRegion = region === 'TW';
-  const period = isTwRegion ? getPeriodFromDateString(date) : '';
+  const period = isTwRegion ? getPeriodFromDateString(resolvedDate) : '';
 
   // 환율 적용 헬퍼 함수
   const applyExchangeRate = (amount: number): number => {
@@ -413,8 +558,10 @@ export async function fetchSection1StoreSales({
   // SQL 결과를 Map으로 변환 (빠른 조회용)
   const rowMap = new Map(rows.map((row: any) => [row.SHOP_CD, row]));
   const monthlySalesMap = new Map<string, number>();
+  const monthlyTagSalesMap = new Map<string, number>();
   const positiveSalesDayCountMap = new Map<string, number>();
   const zeroSalesDayMap = new Map<string, number>();
+  const forecastMonthsByStore = new Map<string, Array<{ month: string; amount: number }>>();
 
   monthlyStoreSalesRows.forEach((row: any) => {
     const shopCd = String(row.SHOP_CD || '');
@@ -425,6 +572,7 @@ export async function fetchSection1StoreSales({
     const rawSales = parseFloat(row.SALES_AMT || 0);
     const key = `${shopCd}:${saleYear}:${saleMonth}`;
     monthlySalesMap.set(key, rawSales);
+    monthlyTagSalesMap.set(key, parseFloat(row.TAG_SALES_AMT || 0));
   });
 
   dailyStoreSalesRows.forEach((row: any) => {
@@ -444,6 +592,18 @@ export async function fetchSection1StoreSales({
   const getMonthlySales = (shopCd: string, targetYear: number, targetMonth: number): number => {
     const rawAmount = monthlySalesMap.get(`${shopCd}:${targetYear}:${targetMonth}`) || 0;
     return applyExchangeRate(rawAmount);
+  };
+
+  const getForecastMonths = (shopCd: string): Array<{ month: string; amount: number }> => {
+    if (!forecastMonthsByStore.has(shopCd)) {
+      const months = getForecastMonthsForStore(shopCd, year, month, targetData).map((item) => ({
+        month: item.month,
+        amount: applyExchangeRate(item.amount),
+      }));
+      forecastMonthsByStore.set(shopCd, months);
+    }
+
+    return forecastMonthsByStore.get(shopCd) || [];
   };
 
   // 모든 targetStores를 순회하며 데이터 생성 (데이터 없으면 0으로)
@@ -491,13 +651,19 @@ export async function fetchSection1StoreSales({
     );
     const ytd_target = applyExchangeRate(ytd_target_original);
     const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
+    const annual_target = applyExchangeRate(
+      calculateAnnualTargetForStore(storeInfo.store_code, year, targetData)
+    );
+
+    const futureForecastMonths = getForecastMonths(storeInfo.store_code);
+    const futureForecastTotal = futureForecastMonths.reduce((sum, item) => sum + item.amount, 0);
 
     // 월말환산 계산 (MTD 기준)
-    const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
+    const monthEndProjection = calculateMonthEndProjection(mtd_act, resolvedDate, weightMap);
     const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
     // 환산 YoY 계산 (MTD 기준)
-    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
+    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, resolvedDate, weightMap);
     const previousMonthActualYtd = ytd_act - mtd_act;
     const previousMonthActualYtdPy = ytd_act_py - mtd_act_py;
     const currentMonthFullPy = getMonthlySales(storeInfo.store_code, year - 1, month);
@@ -507,15 +673,18 @@ export async function fetchSection1StoreSales({
     const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
 
     const resolvedShopName = storeInfo.store_code === 'MC4' ? 'Senado Outlet' : (storeInfo.store_name || storeInfo.store_code);
+    const outputChannel = normalizeChannel(storeInfo.channel);
 
     const record = {
       shop_cd: storeInfo.store_code,
       shop_name: resolvedShopName,
       country: storeInfo.country,
-      channel: storeInfo.channel,
+      channel: outputChannel,
+      base_month: resolvedBaseMonth,
 
       // MTD 데이터
       target_mth,
+      actual_mtd: mtd_act,
       mtd_act,
       progress,
       mtd_act_py,
@@ -533,7 +702,9 @@ export async function fetchSection1StoreSales({
       mtd_zero_sales_days: zeroSalesDayMap.get(storeInfo.store_code) || 0,
 
       // YTD 데이터
+      annual_target,
       ytd_target,
+      actual_ytd: ytd_act,
       ytd_act,
       progress_ytd,
       ytd_act_py,
@@ -547,7 +718,10 @@ export async function fetchSection1StoreSales({
       ytd_tag,
       ytd_tag_py,
 
-      forecast: null,
+      forecast: futureForecastTotal,
+      forecast_source: 'excel',
+      forecast_months: futureForecastMonths,
+      ytd_projection_basis: 'current_month_end',
     };
 
     if (storeInfo.country === 'HK') {
@@ -686,6 +860,9 @@ export async function fetchSection1StoreSales({
     const ytd_act_py = stores.reduce((sum, s) => sum + s.ytd_act_py, 0);
     const ytd_tag = stores.reduce((sum, s) => sum + (s.ytd_tag || 0), 0);
     const ytd_tag_py = stores.reduce((sum, s) => sum + (s.ytd_tag_py || 0), 0);
+    const annual_target = stores.reduce((sum, s) => sum + (s.annual_target || 0), 0);
+    const forecast = stores.reduce((sum, s) => sum + (s.forecast || 0), 0);
+    const forecastMonthsMap = new Map<string, number>();
     const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
     const yoy_ytd = ytd_act_py > 0 ? (ytd_act / ytd_act_py) * 100 : 0;
     const discount_rate_ytd = ytd_tag > 0 ? (1 - ytd_act / ytd_tag) * 100 : 0;
@@ -694,30 +871,46 @@ export async function fetchSection1StoreSales({
       discount_rate_ytd_ly === null ? null : discount_rate_ytd - discount_rate_ytd_ly;
 
     // 합계의 월말환산 계산
-    const monthEndProjection = calculateMonthEndProjection(mtd_act, date, weightMap);
+    const monthEndProjection = calculateMonthEndProjection(mtd_act, resolvedDate, weightMap);
     const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
     // 합계의 환산 YoY 계산
-    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, date, weightMap);
-    const ytdMonthEndProjection = ytd_act - mtd_act + monthEndProjection;
+    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, resolvedDate, weightMap);
+    const previousMonthActualYtd = ytd_act - mtd_act;
+    const previousMonthActualYtdPy = ytd_act_py - mtd_act_py;
+    const ytdMonthEndProjection = previousMonthActualYtd + monthEndProjection;
     const monthEndDate = getMonthEndDate(asofDate);
     const previousYearMonthEndDate = new Date(monthEndDate);
     previousYearMonthEndDate.setFullYear(monthEndDate.getFullYear() - 1);
     const previousYearMonthEndString = formatDateToYmd(previousYearMonthEndDate);
     const fullMonthProgressivePy = calculateMonthEndProjection(mtd_act_py, previousYearMonthEndString, weightMap);
-    const ytdProjectedBasePy = ytd_act_py - mtd_act_py + fullMonthProgressivePy;
+    const ytdProjectedBasePy = previousMonthActualYtdPy + fullMonthProgressivePy;
     const projected_progress_ytd = ytd_target > 0 ? (ytdMonthEndProjection / ytd_target) * 100 : 0;
     const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
     const comparisonMetrics = calculateStoreComparisonMetrics(stores);
+    stores.forEach((store) => {
+      const months = Array.isArray(store.forecast_months) ? store.forecast_months : [];
+      months.forEach((item: any) => {
+        const monthKey = String(item?.month || '');
+        const amount = Number(item?.amount || 0);
+        if (!monthKey || !Number.isFinite(amount) || amount === 0) return;
+        forecastMonthsMap.set(monthKey, (forecastMonthsMap.get(monthKey) || 0) + amount);
+      });
+    });
+    const forecast_months = [...forecastMonthsMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([monthKey, amount]) => ({ month: monthKey, amount }));
 
     return {
       shop_cd: `${country}_${channel}_TOTAL`,
       shop_name: name,
       country,
       channel: '합계',
+      base_month: resolvedBaseMonth,
 
       // MTD
       target_mth,
+      actual_mtd: mtd_act,
       mtd_act,
       progress,
       mtd_act_py,
@@ -736,7 +929,9 @@ export async function fetchSection1StoreSales({
       discount_rate_mtd_diff,
 
       // YTD
+      annual_target,
       ytd_target,
+      actual_ytd: ytd_act,
       ytd_act,
       progress_ytd,
       ytd_act_py,
@@ -753,12 +948,15 @@ export async function fetchSection1StoreSales({
       discount_rate_ytd_ly,
       discount_rate_ytd_diff,
 
-      forecast: null,
+      forecast,
+      forecast_source: 'excel',
+      forecast_months,
+      ytd_projection_basis: 'current_month_end',
     };
   };
 
   // HK 채널별 합계
-  const hk_normal_subtotal = calculateSubtotal(hk_normal, 'HK 정상 합계', 'HK', '정상');
+  const hk_normal_subtotal = calculateSubtotal(hk_normal, 'HK 리테일 합계', 'HK', '리테일');
   const hk_outlet_subtotal = calculateSubtotal(hk_outlet, 'HK 아울렛 합계', 'HK', '아울렛');
   const hk_online_subtotal = calculateSubtotal(hk_online, 'HK 온라인 합계', 'HK', '온라인');
 
@@ -767,7 +965,7 @@ export async function fetchSection1StoreSales({
   const hk_subtotal = calculateSubtotal(hk_all_stores, 'HK 전체', 'HK', '전체');
 
   // MC 채널별 합계
-  const mc_normal_subtotal = calculateSubtotal(mc_normal, 'MC 정상 합계', 'MC', '정상');
+  const mc_normal_subtotal = calculateSubtotal(mc_normal, 'MC 리테일 합계', 'MC', '리테일');
   const mc_outlet_subtotal = calculateSubtotal(mc_outlet, 'MC 아울렛 합계', 'MC', '아울렛');
   const mc_online_subtotal = calculateSubtotal(mc_online, 'MC 온라인 합계', 'MC', '온라인');
 
@@ -776,7 +974,7 @@ export async function fetchSection1StoreSales({
   const mc_subtotal = calculateSubtotal(mc_all_stores, 'MC 전체', 'MC', '전체');
 
   // TW 채널별 합계
-  const tw_normal_subtotal = calculateSubtotal(tw_normal, 'TW 정상 합계', 'TW', '정상');
+  const tw_normal_subtotal = calculateSubtotal(tw_normal, 'TW 리테일 합계', 'TW', '리테일');
   const tw_outlet_subtotal = calculateSubtotal(tw_outlet, 'TW 아울렛 합계', 'TW', '아울렛');
   const tw_online_subtotal = calculateSubtotal(tw_online, 'TW 온라인 합계', 'TW', '온라인');
 
@@ -864,25 +1062,25 @@ export async function fetchSection1StoreSales({
   `;
 
   const seasonCategoryRows = await executeSnowflakeQuery(seasonCategoryQuery, [
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
-    date,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
+    resolvedDate,
     brand,
-    date,
-    date,
+    resolvedDate,
+    resolvedDate,
   ]);
 
   type SeasonCategoryAccumulator = {
@@ -1064,10 +1262,15 @@ export async function fetchSection1StoreSales({
     },
   };
 
+  const payloadForecastMonths = Array.isArray(total_subtotal?.forecast_months) ? total_subtotal.forecast_months : [];
+
   return {
-    asof_date: date,
+    asof_date: resolvedDate,
+    base_month: resolvedBaseMonth,
     region,
     brand,
+    forecast_source: 'excel',
+    forecast_months: payloadForecastMonths,
     hk_normal,
     hk_normal_subtotal,
     hk_outlet,

@@ -227,11 +227,11 @@ export default function Section1Card({
         projectedYoyRaw:
           typeof projectedYoy === 'number' && isFinite(projectedYoy) ? projectedYoy : null,
         projectedTooltip:
-          forecastSource === 'excel' && isYtdMode
+          isYtdMode
             ? (
               language === 'ko'
-                ? `기준월(${section1Data?.base_month || date.slice(0, 7)})까지는 실판매출, 이후 월은 엑셀 forecast를 반영합니다.${forecastMonthSummary ? ` 대상월: ${forecastMonthSummary}` : ''}`
-                : `Actual sales are used through the base month (${section1Data?.base_month || date.slice(0, 7)}), and later months use Excel forecast.${forecastMonthSummary ? ` Forecast months: ${forecastMonthSummary}` : ''}`
+                ? `누적 환산은 전월까지의 누적 실적에 당월 월말환산 매출을 더한 값입니다. 기준월: ${section1Data?.base_month || date.slice(0, 7)}`
+                : `YTD projection is calculated as actuals through the previous month plus the projected month-end sales for the current month. Base month: ${section1Data?.base_month || date.slice(0, 7)}`
             )
             : (
               language === 'ko'
@@ -270,11 +270,11 @@ export default function Section1Card({
         projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
         projectedValue: hasProjectedProgress ? `${projectedProgress.toFixed(1)}%` : '-',
         projectedTooltip:
-          forecastSource === 'excel' && isYtdMode
+          isYtdMode
             ? (
               language === 'ko'
-                ? `YTD 환산은 기준월 actual + 이후 월 forecast 합산입니다.${forecastMonthSummary ? ` 대상월: ${forecastMonthSummary}` : ''}`
-                : `YTD projection is calculated as base-month actual plus later-month forecast.${forecastMonthSummary ? ` Forecast months: ${forecastMonthSummary}` : ''}`
+                ? `누적 월말환산은 전월까지 actual + 당월 월말환산 기준입니다.`
+                : `YTD projected progress uses actuals through the previous month plus the current month's month-end projection.`
             )
             : (
               language === 'ko'
@@ -282,8 +282,8 @@ export default function Section1Card({
                 : `Month-end projection is based on same-month daily actual sales from the prior two years, adjusted for weekday, intra-month pattern, and Lunar New Year effects.${projectionYears ? ` Training years: ${projectionYears}` : ''}`
             ),
         projectedSummary:
-          forecastSource === 'excel' && isYtdMode
-            ? (language === 'ko' ? '기준월 actual + 이후월 forecast' : 'Base-month actual + later-month forecast')
+          isYtdMode
+            ? (language === 'ko' ? '전월 actual + 당월 월말환산' : 'Prev-month actual + current month-end projection')
             : (language === 'ko'
                 ? projectionMeta?.methodSummary || '과거 2개년 동일 월 패턴 + 요일 + 춘절 보정'
                 : 'Prior 2 years month pattern + weekday + Lunar New Year'),
