@@ -9,7 +9,9 @@ export interface Section1AllStoresTreemapItem {
   storeName: string;
   shortName: string;
   mtdSales: number;
+  mtdPrevSales: number;
   ytdSales: number;
+  ytdPrevSales: number;
   mtdYoy: number | null;
   ytdYoy: number | null;
   mtdTagSales: number;
@@ -65,6 +67,7 @@ export default function Section1AllStoresTreemapModal({
       .map((store) => ({
         ...store,
         sales: mode === 'ytd' ? store.ytdSales : store.mtdSales,
+        prevSales: mode === 'ytd' ? store.ytdPrevSales : store.mtdPrevSales,
         yoy: mode === 'ytd' ? store.ytdYoy : store.mtdYoy,
       }))
       .filter((store) => store.sales > 0)
@@ -78,6 +81,7 @@ export default function Section1AllStoresTreemapModal({
       fullName: store.storeName,
       value: store.sales,
       sales: store.sales,
+      prevSales: store.prevSales,
       tagSales: mode === 'ytd' ? store.ytdTagSales : store.mtdTagSales,
       share: totalSales > 0 ? (store.sales / totalSales) * 100 : 0,
       yoy: store.yoy,
@@ -174,12 +178,15 @@ function StoreTreemapCell({
   name,
   storeCode,
   fullName,
+  prevSales,
   yoy,
   discountRate,
   discountRateDiff,
 }: any) {
   if (!width || !height || width <= 0 || height <= 0) return null;
   const safeYoy = typeof yoy === 'number' && Number.isFinite(yoy) ? yoy : null;
+  const safePrevSales = typeof prevSales === 'number' && Number.isFinite(prevSales) ? prevSales : 0;
+  const isNewStore = safePrevSales <= 0 && safeYoy !== null && safeYoy === 0;
   const safeDiscountRate = typeof discountRate === 'number' && Number.isFinite(discountRate) ? discountRate : null;
   const safeDiscountRateDiff =
     typeof discountRateDiff === 'number' && Number.isFinite(discountRateDiff) ? discountRateDiff : null;
@@ -192,6 +199,10 @@ function StoreTreemapCell({
         : '#fecaca';
 
   const border = safeYoy !== null && safeYoy >= 100 ? '#86efac' : '#fca5a5';
+  const yoyPrefix = language === 'ko' ? '실판 YoY' : 'Actual YoY';
+  const yoyDisplayText = isNewStore
+    ? (language === 'ko' ? '실판 YoY 신규' : 'Actual YoY New')
+    : `${yoyPrefix} ${safeYoy !== null ? `${safeYoy.toFixed(0)}%` : '-'}`;
 
   const showTitle = width >= 36 && height >= 22;
   const showYoy = width >= 92 && height >= 72;
@@ -257,7 +268,7 @@ function StoreTreemapCell({
                 whiteSpace: 'nowrap',
               }}
             >
-              {`실판 YoY ${safeYoy !== null ? `${safeYoy.toFixed(0)}%` : '-'}`}
+              {yoyDisplayText}
             </div>
           ) : null}
           {showDiscount && (
@@ -307,6 +318,11 @@ function StoreTreemapTooltip({
 }) {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
+  const safePrevSales = typeof item.prevSales === 'number' && Number.isFinite(item.prevSales) ? item.prevSales : 0;
+  const isNewStore = safePrevSales <= 0 && typeof item.yoy === 'number' && Number.isFinite(item.yoy) && item.yoy === 0;
+  const yoyText = isNewStore
+    ? (language === 'ko' ? '신규' : 'New')
+    : (typeof item.yoy === 'number' && Number.isFinite(item.yoy) ? `${item.yoy.toFixed(0)}%` : '-');
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
@@ -321,7 +337,7 @@ function StoreTreemapTooltip({
         {language === 'ko' ? '매출 비중' : 'Sales Share'}: {typeof item.share === 'number' && Number.isFinite(item.share) ? item.share.toFixed(1) : '0.0'}%
       </p>
       <p className="text-xs text-gray-600">
-        {language === 'ko' ? '실판 YoY' : 'Actual YoY'}: {typeof item.yoy === 'number' && Number.isFinite(item.yoy) ? `${item.yoy.toFixed(0)}%` : '-'}
+        {language === 'ko' ? '실판 YoY' : 'Actual YoY'}: {yoyText}
       </p>
     </div>
   );

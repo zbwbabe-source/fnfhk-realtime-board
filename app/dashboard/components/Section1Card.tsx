@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 import { getStoreShortCode } from '@/lib/store-name-utils';
 import { getStoreArea } from '@/lib/store-area-utils';
@@ -22,6 +22,7 @@ interface Section1CardProps {
   hkdToTwdRate?: number;
   simpleDetail?: boolean;
   fixedHeight?: boolean;
+  openAllStoresRequestKey?: number;
 }
 
 type KpiBlock = {
@@ -78,10 +79,24 @@ export default function Section1Card({
   hkdToTwdRate = 1,
   simpleDetail = false,
   fixedHeight = false,
+  openAllStoresRequestKey,
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
   const [selectedStore, setSelectedStore] = useState<SelectedStore | null>(null);
   const [allStoresOpen, setAllStoresOpen] = useState(false);
+  const prevOpenAllStoresRequestKeyRef = useRef(openAllStoresRequestKey ?? 0);
+
+  useEffect(() => {
+    const prevKey = prevOpenAllStoresRequestKeyRef.current;
+    const nextKey = openAllStoresRequestKey ?? 0;
+
+    if (nextKey > prevKey) {
+      setAllStoresOpen(true);
+    }
+
+    prevOpenAllStoresRequestKeyRef.current = nextKey;
+  }, [openAllStoresRequestKey]);
+
   const activeDetailView = detailViewMode ?? detailView;
   const setActiveDetailView = (view: DetailView) => {
     if (onDetailViewModeChange) {
@@ -385,8 +400,7 @@ export default function Section1Card({
     const rawStores = Object.entries(section1Data)
       .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
       .flatMap(([, value]) => value as any[])
-      .filter((store) => store && typeof store === 'object')
-      .filter((store) => (store.channel || '') !== '온라인');
+      .filter((store) => store && typeof store === 'object');
 
     const dedupedByCode = new Map<string, any>();
     rawStores.forEach((store) => {
@@ -403,8 +417,10 @@ export default function Section1Card({
           shortName: getStoreShortCode(fullName) || fullName,
           mtdTagSales: Number(store.mtd_tag || 0),
           mtdSales: Number(store.mtd_act || 0),
+          mtdPrevSales: Number(store.mtd_act_py || 0),
           ytdTagSales: Number(store.ytd_tag || 0),
           ytdSales: Number(store.ytd_act || 0),
+          ytdPrevSales: Number(store.ytd_act_py || 0),
           mtdYoy: typeof store.yoy === 'number' && isFinite(store.yoy) ? store.yoy : null,
           ytdYoy: typeof store.yoy_ytd === 'number' && isFinite(store.yoy_ytd) ? store.yoy_ytd : null,
           mtdDiscountRate:

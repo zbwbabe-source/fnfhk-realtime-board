@@ -54,6 +54,8 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [hkmcTreemapRequestKey, setHkmcTreemapRequestKey] = useState(0);
+  const [twTreemapRequestKey, setTwTreemapRequestKey] = useState(0);
 
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
@@ -100,6 +102,14 @@ export default function DashboardPage() {
       section3: 'loading',
     });
   };
+
+  const handleOpenRegionTreemap = useCallback((targetRegion: 'HKMC' | 'TW') => {
+    if (targetRegion === 'HKMC') {
+      setHkmcTreemapRequestKey((prev) => prev + 1);
+      return;
+    }
+    setTwTreemapRequestKey((prev) => prev + 1);
+  }, []);
 
   const handleDownloadSummaryJson = useCallback(() => {
     if (!date || activeTab !== 'summary') return;
@@ -796,6 +806,9 @@ export default function DashboardPage() {
                 onSection3CategoryFilterChange={setSection3CategoryFilter}
                 section1DetailViewMode={section1DetailViewMode}
                 onSection1DetailViewModeChange={setSection1DetailViewMode}
+                onOpenRegionTreemap={handleOpenRegionTreemap}
+                hkmcTreemapRequestKey={hkmcTreemapRequestKey}
+                twTreemapRequestKey={twTreemapRequestKey}
               />
           </>
         ) : (
@@ -814,11 +827,11 @@ export default function DashboardPage() {
                   date={date}
                   onYtdModeToggle={() => setIsYtdMode(!isYtdMode)}
                   showSeasonCategory={false}
-                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
-                  hkdToTwdRate={twHkdToTwdRate}
-                  simpleDetail={true}
-                  fixedHeight={true}
-                />
+                currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                hkdToTwdRate={twHkdToTwdRate}
+                simpleDetail={true}
+                fixedHeight={true}
+              />
               </div>
 
               <div className="h-full">

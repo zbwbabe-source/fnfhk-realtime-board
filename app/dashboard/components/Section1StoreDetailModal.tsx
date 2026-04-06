@@ -272,7 +272,7 @@ export default function Section1StoreDetailModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-[18px] font-bold text-gray-900">{labels.title}</h2>
-              <p className="mt-1 text-[13px] font-semibold text-gray-800">{storeName}</p>
+              <p className="mt-1 text-lg font-bold tracking-tight text-gray-800 sm:text-xl">{storeName}</p>
               <p className="mt-1 text-xs text-gray-500">
                 {labels.asOf}:{' '}
                 {data?.period_start_date || (mode === 'ytd' ? `${date.slice(0, 4)}-01-01` : `${date.slice(0, 7)}-01`)}
