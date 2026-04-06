@@ -29,6 +29,7 @@ export default function Section3Card({
   simpleDetail = false,
   fixedHeight = false,
 }: Section3CardProps) {
+  const isCompactEnglish = fixedHeight && language === 'en';
   type InventorySegmentCard = {
     key: string;
     label: string;
@@ -123,11 +124,31 @@ export default function Section3Card({
   };
 
   const getTargetModeLabel = () => {
-    return language === 'ko' ? '월목표' : 'Monthly Target';
+    if (language === 'ko') return '월목표';
+    return isCompactEnglish ? 'Monthly' : 'Monthly Target';
   };
 
   const getProjectionLabel = () => {
-    return language === 'ko' ? '월말환산' : 'Projected';
+    if (language === 'ko') return '월말환산';
+    return isCompactEnglish ? 'Proj.' : 'Projected';
+  };
+  const getKpiLabel = (kind: 'currentStock' | 'depletedStock' | 'progress' | 'stagnantRatio') => {
+    if (language === 'ko') {
+      if (kind === 'currentStock') return t(language, 'currentStock');
+      if (kind === 'depletedStock') return t(language, 'depletedStock');
+      if (kind === 'progress') return '목표대비 진척률';
+      return t(language, 'stagnantRatio');
+    }
+    if (!isCompactEnglish) {
+      if (kind === 'currentStock') return t(language, 'currentStock');
+      if (kind === 'depletedStock') return t(language, 'depletedStock');
+      if (kind === 'progress') return 'Progress vs Target';
+      return t(language, 'stagnantRatio');
+    }
+    if (kind === 'currentStock') return 'Current Stock';
+    if (kind === 'depletedStock') return 'Depleted Stock';
+    if (kind === 'progress') return 'Progress vs Tgt';
+    return 'Stagnant Ratio';
   };
 
   const getProjectionTooltip = () => {
@@ -218,7 +239,7 @@ export default function Section3Card({
 
     return {
       k1: {
-        label: t(language, 'currentStock'),
+        label: getKpiLabel('currentStock'),
         value: formatCurrency(currentStock),
         badge:
           currentStockYoyPct !== null && currentStockYoyPct !== undefined
@@ -228,12 +249,12 @@ export default function Section3Card({
           currentStockYoyPct !== null && currentStockYoyPct !== undefined
             ? metricTone(currentStockYoyPct, 100)
             : 'text-gray-700 bg-gray-100',
-        extraBadge: `${language === 'ko' ? '정체비중' : 'Stagnant'} ${stagnantRatio.toFixed(1)}%`,
+        extraBadge: `${language === 'ko' ? '정체비중' : isCompactEnglish ? 'Stag.' : 'Stagnant'} ${stagnantRatio.toFixed(1)}%`,
         extraBadgeClass: 'text-red-700 bg-red-50',
         meta: [],
       },
       k2: {
-        label: t(language, 'depletedStock'),
+        label: getKpiLabel('depletedStock'),
         value: formatCurrency(cumulativeTagSales),
         badge:
           currentMonthTagSales > 0
@@ -268,7 +289,7 @@ export default function Section3Card({
       },
       k3: hasTargetInfo
         ? {
-            label: `${language === 'ko' ? '목표대비 진척률' : 'Progress vs Target'} (${getTargetModeLabel()})`,
+            label: `${getKpiLabel('progress')} (${getTargetModeLabel()})`,
             value: formatPercent(progressPct, 1),
             badge:
               projectedProgressPct !== null && projectedProgressPct !== undefined
@@ -290,7 +311,7 @@ export default function Section3Card({
             ],
           }
         : {
-            label: t(language, 'stagnantRatio'),
+            label: getKpiLabel('stagnantRatio'),
             value: `${stagnantRatio.toFixed(1)}%`,
             badge: stagnantRatioChange !== 0 ? formatSignedPercentPoint(stagnantRatioChange) : null,
             badgeClass: metricTone(stagnantRatioChange, 0),
@@ -467,7 +488,7 @@ export default function Section3Card({
       current_f: 'Current F',
       past_s: 'Old S',
       past_f: 'Old F',
-      hat: 'Headwear',
+      hat: isCompactEnglish ? 'Hat' : 'Headwear',
       shoes: 'Shoes',
       bag: 'Bag',
       acc: 'Others',
@@ -479,7 +500,7 @@ export default function Section3Card({
     <article className={`${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
-          <h3 className="text-base font-semibold leading-tight text-gray-900">
+          <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
             {t(language, 'section3Title')}
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
@@ -523,7 +544,7 @@ export default function Section3Card({
             } ${simpleDetail ? 'sm:min-h-[116px]' : 'space-y-1.5'}`}
           >
             <div className={`flex items-start gap-2 ${simpleDetail ? 'min-h-[20px]' : 'min-h-[32px]'}`}>
-              <p className="text-xs text-gray-600">{item.label}</p>
+              <p className={`${isCompactEnglish ? 'text-[11px]' : 'text-xs'} text-gray-600`}>{item.label}</p>
             </div>
             <div className={`${simpleDetail ? 'min-h-[20px]' : 'min-h-[16px]'} text-[11px] leading-tight`}>
               {index === 1 && periodStartInfo
@@ -572,7 +593,7 @@ export default function Section3Card({
       {simpleDetail && orderedInventorySegmentCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <p className="mb-2 text-[11px] text-gray-500">
-            {language === 'ko' ? '전체 재고 TAG 기준' : 'Based on total TAG stock'}
+            {language === 'ko' ? '전체 재고 TAG 기준' : isCompactEnglish ? 'Total TAG basis' : 'Based on total TAG stock'}
           </p>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             {orderedInventorySegmentCards.map((card) => (

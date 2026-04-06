@@ -28,6 +28,7 @@ export default function Section2Card({
   showCategoryRanking = false,
   fixedHeight = false,
 }: Section2CardProps) {
+  const isCompactEnglish = fixedHeight && language === 'en';
   type CategoryRankingCard = {
     key: string;
     category: string;
@@ -82,6 +83,22 @@ export default function Section2Card({
   const formatYoy = (v: number | null | undefined) => {
     if (v === null || v === undefined) return 'YoY N/A';
     return `YoY ${v.toFixed(0)}%`;
+  };
+  const getHeaderTitle = () => {
+    if (!isCompactEnglish) {
+      return categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll');
+    }
+    return categoryFilter === 'clothes' ? 'In-season ST' : 'Sell-through';
+  };
+  const getMetricLabel = (kind: 'sellthrough' | 'sales' | 'inbound') => {
+    if (!isCompactEnglish) {
+      if (kind === 'sellthrough') return t(language, 'sellRate');
+      if (kind === 'sales') return t(language, 'cumulativeSales');
+      return t(language, 'cumulativeInbound');
+    }
+    if (kind === 'sellthrough') return 'STR';
+    if (kind === 'sales') return 'Cum Sales';
+    return 'Cum Inbound';
   };
 
   const metricTone = (v: number | null | undefined, pivot = 0) => {
@@ -164,11 +181,11 @@ export default function Section2Card({
     <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
-          <h3 className="text-base font-semibold text-gray-900 leading-tight">
-            {categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll')}
+          <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
+            {getHeaderTitle()}
             {season && <span className="ml-2 text-xs font-medium text-gray-500">({season})</span>}
           </h3>
-          <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section2Subtitle')}</p>
+          {!isCompactEnglish && <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section2Subtitle')}</p>}
         </div>
 
         <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
@@ -195,7 +212,7 @@ export default function Section2Card({
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="min-w-0 space-y-2 rounded-xl border border-green-100 bg-gradient-to-br from-green-50 to-emerald-50 p-2.5 sm:p-3">
-          <p className="text-xs font-medium text-gray-600">{t(language, 'sellRate')}</p>
+          <p className="text-xs font-medium text-gray-600">{getMetricLabel('sellthrough')}</p>
           <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-4xl'} font-bold leading-tight tabular-nums text-gray-900`}>{sellthrough.toFixed(1)}%</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(sellthroughYoyPp, 0)}`}>
             {formatPp(sellthroughYoyPp)}
@@ -203,7 +220,7 @@ export default function Section2Card({
         </div>
 
         <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
-          <p className="text-xs text-gray-500">{t(language, 'cumulativeSales')}</p>
+          <p className="text-xs text-gray-500">{getMetricLabel('sales')}</p>
           <p className="text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{formatCurrency(totalSales)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(salesYoyPct, 100)}`}>
             {formatYoy(salesYoyPct)}
@@ -211,7 +228,7 @@ export default function Section2Card({
         </div>
 
         <div className="min-w-0 space-y-2 rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:p-3">
-          <p className="text-xs text-gray-500">{t(language, 'cumulativeInbound')}</p>
+          <p className="text-xs text-gray-500">{getMetricLabel('inbound')}</p>
           <p className="text-lg font-bold tabular-nums text-gray-900 sm:text-xl">{formatCurrency(totalInbound)}</p>
           <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium ${metricTone(inboundYoyPct, 100)}`}>
             {formatYoy(inboundYoyPct)}
@@ -239,7 +256,7 @@ export default function Section2Card({
                   <p className="mt-1 text-[13px] font-bold leading-tight text-gray-800">{item.category}</p>
                   <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">{item.sellthroughPct.toFixed(1)}%</p>
                   <p className="mt-1 text-[11px] font-medium text-gray-500">
-                    {language === 'ko' ? '판매율' : 'Sell-through'}
+                    {language === 'ko' ? '판매율' : isCompactEnglish ? 'STR' : 'Sell-through'}
                   </p>
                 </div>
               );
