@@ -129,6 +129,24 @@ export default function Section2Card({
     return rankingView === 'top5' ? top5 : worst5;
   }, [section2Data, rankingView, periodView]);
 
+  const simpleDetailCategoryCards = useMemo(() => {
+    const categories = Array.isArray(section2Data?.categories) ? section2Data.categories : [];
+    const normalized = categories
+      .map((item: any, idx: number) => ({
+        key: `${String(item?.category ?? 'UNK')}-${idx}`,
+        category: String(item?.category ?? 'UNK').slice(0, 2),
+        sellthroughPct: Number(item?.sellthrough ?? 0),
+      }))
+      .filter((item: any) => Number.isFinite(item.sellthroughPct) && item.sellthroughPct > 0);
+
+    if (normalized.length === 0) return [];
+
+    const sorted = [...normalized].sort((a, b) => b.sellthroughPct - a.sellthroughPct);
+    const top4 = sorted.slice(0, 4);
+    const bottom4 = [...sorted].slice(-4).sort((a, b) => a.sellthroughPct - b.sellthroughPct);
+    return [...top4, ...bottom4];
+  }, [section2Data]);
+
   const periodLabel = useMemo(() => {
     const asof = String(section2Data?.asof_date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(asof)) return '';
@@ -143,7 +161,7 @@ export default function Section2Card({
   }, [section2Data, periodView]);
 
   return (
-    <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold text-gray-900 leading-tight">
@@ -153,8 +171,7 @@ export default function Section2Card({
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section2Subtitle')}</p>
         </div>
 
-        <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">
-          <p className="text-xs text-gray-500 sm:text-right">{t(language, 'filterCategory')}</p>
+        <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
           <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
             <button
               onClick={() => onCategoryFilterChange('clothes')}
@@ -201,6 +218,35 @@ export default function Section2Card({
           </span>
         </div>
       </div>
+
+      {!showCategoryRanking && simpleDetailCategoryCards.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {simpleDetailCategoryCards.map((item, index) => {
+              const isTopRow = index < 4;
+              const groupLabel =
+                isTopRow
+                  ? language === 'ko'
+                    ? `상위 ${index + 1}`
+                    : `Top ${index + 1}`
+                  : language === 'ko'
+                    ? `하위 ${index - 3}`
+                    : `Bottom ${index - 3}`;
+
+              return (
+                <div key={`${groupLabel}-${item.key}`} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 shadow-sm">
+                  <p className="text-[10px] font-semibold tracking-[0.08em] text-gray-400">{groupLabel}</p>
+                  <p className="mt-1 text-[13px] font-bold leading-tight text-gray-800">{item.category}</p>
+                  <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">{item.sellthroughPct.toFixed(1)}%</p>
+                  <p className="mt-1 text-[11px] font-medium text-gray-500">
+                    {language === 'ko' ? '판매율' : 'Sell-through'}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {showCategoryRanking && categoryRankingCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
@@ -306,9 +352,11 @@ export default function Section2Card({
         </div>
       )}
 
-      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
-        {currencyUnit} | {t(language, 'tagBasis')}
-      </div>
+      {!fixedHeight && (
+        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+          {currencyUnit} | {t(language, 'tagBasis')}
+        </div>
+      )}
     </article>
   );
 }

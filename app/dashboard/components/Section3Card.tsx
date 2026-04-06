@@ -476,7 +476,7 @@ export default function Section3Card({
   };
 
   return (
-    <article className={`${fixedHeight ? 'min-h-[292px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold leading-tight text-gray-900">
@@ -485,27 +485,24 @@ export default function Section3Card({
           </h3>
         </div>
 
-        <div className="w-full shrink-0 space-y-1.5 text-left sm:w-auto sm:text-right">
-          <p className="text-xs text-gray-500 sm:text-right">{t(language, 'filterCategory')}</p>
-          <div className="space-y-1.5">
-            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <button
-                onClick={() => onCategoryFilterChange('clothes')}
-                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {t(language, 'clothesOnly')}
-              </button>
-              <button
-                onClick={() => onCategoryFilterChange('all')}
-                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {t(language, 'allCategory')}
-              </button>
-            </div>
+        <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
+          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <button
+              onClick={() => onCategoryFilterChange('clothes')}
+              className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {t(language, 'clothesOnly')}
+            </button>
+            <button
+              onClick={() => onCategoryFilterChange('all')}
+              className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {t(language, 'allCategory')}
+            </button>
           </div>
         </div>
       </div>
@@ -722,9 +719,11 @@ export default function Section3Card({
         </div>
       )}
 
-      <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
-        {currencyUnit} | {t(language, 'tagBasis')}
-      </div>
+      {!simpleDetail && (
+        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+          {currencyUnit} | {t(language, 'tagBasis')}
+        </div>
+      )}
     </article>
   );
 }

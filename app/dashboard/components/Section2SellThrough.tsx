@@ -116,10 +116,16 @@ export default function Section2SellThrough({
         : 'Unit: 1k HKD';
 
   const formatQty = (num: number) => {
-    // 수량은 그대로 표시
-    return new Intl.NumberFormat('en-US', { 
+    return `${new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0, 
       maximumFractionDigits: 0 
+    }).format(num)} pcs`;
+  };
+
+  const formatCount = (num: number) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(num);
   };
 
@@ -306,7 +312,7 @@ export default function Section2SellThrough({
         {formatPercent(row.sellthrough)}
       </td>
       <td className="px-4 py-2 border-b border-gray-200 text-right text-gray-600">
-        {formatQty(row.product_count)}
+        {formatCount(row.product_count)}
       </td>
     </tr>
   );
@@ -545,7 +551,7 @@ export default function Section2SellThrough({
                               {formatPercent(data.category_total.sellthrough)}
                             </td>
                             <td className="px-4 py-2 border-t-2 border-gray-300 text-right">
-                              {formatQty(data.category_total.product_count)}
+                              {formatCount(data.category_total.product_count)}
                             </td>
                           </tr>
                         )}

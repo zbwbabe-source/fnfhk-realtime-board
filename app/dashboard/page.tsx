@@ -735,8 +735,11 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-6">
+            <div className="mb-2 px-1 text-[11px] text-gray-500">
+              {region === 'TW' ? `단위: ${twCurrency}` : '단위: HKD'} | Section2·3 {t(language, 'tagBasis')}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+              <div className="h-full">
                 <Section1Card
                   isYtdMode={isYtdMode}
                   section1Data={section1Data}
@@ -751,20 +754,9 @@ export default function DashboardPage() {
                   simpleDetail={true}
                   fixedHeight={true}
                 />
-                <Section1StoreBarChart
-                  region={region}
-                  brand={brand}
-                  date={date}
-                  latestDate={availableDates[0] || ''}
-                  section1Data={section1Data}
-                  disableFetch={true}
-                  language={language}
-                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
-                  hkdToTwdRate={twHkdToTwdRate}
-                />
               </div>
 
-              <div className="space-y-6">
+              <div className="h-full">
                 <Section2Card
                   section2Data={section2Data}
                   language={language}
@@ -776,17 +768,9 @@ export default function DashboardPage() {
                   hkdToTwdRate={twHkdToTwdRate}
                   fixedHeight={true}
                 />
-                <Section2Treemap
-                  region={region}
-                  brand={brand}
-                  date={date}
-                  language={language}
-                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
-                  hkdToTwdRate={twHkdToTwdRate}
-                />
               </div>
 
-              <div className="space-y-6">
+              <div className="h-full">
                 <Section3Card
                   section3Data={section3Data}
                   language={language}
@@ -800,6 +784,36 @@ export default function DashboardPage() {
                   simpleDetail={true}
                   fixedHeight={true}
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+              <div>
+                <Section1StoreBarChart
+                  region={region}
+                  brand={brand}
+                  date={date}
+                  latestDate={availableDates[0] || ''}
+                  section1Data={section1Data}
+                  disableFetch={true}
+                  language={language}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
+                />
+              </div>
+
+              <div>
+                <Section2Treemap
+                  region={region}
+                  brand={brand}
+                  date={date}
+                  language={language}
+                  currencyCode={region === 'TW' ? twCurrency : 'HKD'}
+                  hkdToTwdRate={twHkdToTwdRate}
+                />
+              </div>
+
+              <div>
                 {region === 'HKMC' ? (
                   <Section3TargetHeatmap
                     section3Data={section3Data}
