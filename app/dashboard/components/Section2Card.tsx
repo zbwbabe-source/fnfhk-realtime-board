@@ -316,22 +316,22 @@ export default function Section2Card({
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {categoryRankingCards.map((item, idx) => (
-              <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
-                <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{`${idx + 1}. ${item.category}`}</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">
+              <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 shadow-sm">
+                <p className="min-h-[30px] break-keep text-sm font-bold leading-snug text-gray-800">{`${idx + 1}. ${item.category}`}</p>
+                <p className="mt-0.5 text-lg font-bold tabular-nums text-gray-900">
                   {formatCurrency(periodView === 'cum' ? item.salesTag : item.mtdSalesTag)}
                 </p>
-                <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                <p className="mt-0 text-xs font-semibold tabular-nums text-gray-700">
                   {language === 'ko' ? '판매율' : 'Sell-through'} {item.sellthroughPct.toFixed(1)}%
                 </p>
-                <p className="mt-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                <p className="mt-0 text-xs font-semibold tabular-nums text-gray-700">
                   {language === 'ko' ? (periodView === 'mtd' ? '당월YOY ' : '누적YOY ') : 'YoY '}
                   {(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct) !== null &&
                   Number.isFinite(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct)
                     ? `${(periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct)!.toFixed(0)}%`
                     : '-'}
                 </p>
-                <div className="mt-0.5 min-h-[46px] text-xs tabular-nums">
+                <div className="mt-0 min-h-[42px] text-xs tabular-nums">
                   <p className="text-gray-600">{language === "ko" ? "할인율" : "Discount"}</p>
                   <p className="discount-rate-emphasis">
                     {(periodView === "cum" ? item.discountRate : item.mtdDiscountRate) !== null &&

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 import { getStoreShortCode } from '@/lib/store-name-utils';
 import { getStoreArea } from '@/lib/store-area-utils';
+import Section1StoreDetailModal from './Section1StoreDetailModal';
 
 interface Section1CardProps {
   isYtdMode: boolean;
@@ -56,6 +57,11 @@ type StoreMetricCard = {
   discountDiff: number | null;
 };
 
+type SelectedStore = {
+  shopCd: string;
+  storeName: string;
+};
+
 export default function Section1Card({
   isYtdMode,
   section1Data,
@@ -73,6 +79,7 @@ export default function Section1Card({
   fixedHeight = false,
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
+  const [selectedStore, setSelectedStore] = useState<SelectedStore | null>(null);
   const activeDetailView = detailViewMode ?? detailView;
   const setActiveDetailView = (view: DetailView) => {
     if (onDetailViewModeChange) {
@@ -384,6 +391,10 @@ export default function Section1Card({
     .slice(-4)
     .sort((a, b) => a.sales - b.sales);
   const detailStoreCards = [...detailTopStoreCards, ...detailBottomStoreCards];
+  const openStoreDetail = (storeCode: string, storeName: string) => {
+    if (!storeCode) return;
+    setSelectedStore({ shopCd: storeCode, storeName });
+  };
 
   const hasNextSeasonSales =
     showSeasonCategory && seasonCategorySales?.metrics
@@ -701,7 +712,12 @@ export default function Section1Card({
                     : `Bottom ${index - detailTopStoreCards.length + 1}`;
 
               return (
-                <div key={`${groupLabel}-${item.key}`} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 shadow-sm">
+                <button
+                  type="button"
+                  key={`${groupLabel}-${item.key}`}
+                  onClick={() => openStoreDetail(item.storeCode, storeFullName)}
+                  className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                >
                   <p className="text-[10px] font-semibold tracking-[0.08em] text-gray-400">{groupLabel}</p>
                   <p className="mt-1 truncate text-[13px] font-bold leading-tight text-gray-800" title={storeFullName}>
                     {shortCode}
@@ -710,10 +726,13 @@ export default function Section1Card({
                   <p className={`mt-1 text-[11px] font-medium tabular-nums ${yoyColor}`}>
                     {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : 'YoY -'}
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>
+          <p className="mt-2 text-[10px] leading-tight text-gray-400">
+            {language === 'ko' ? '매장 카드를 클릭하면 판매 구성 상세가 열립니다.' : 'Click a store card to open the sales mix detail.'}
+          </p>
         </div>
       )}
 
@@ -754,15 +773,19 @@ export default function Section1Card({
                       </div>
                     </div>
                   ) : isStoreCard ? (
-                    <div className="group relative block min-h-[36px]">
-                      <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
+                    <button
+                      type="button"
+                      onClick={() => openStoreDetail((item as any).storeCode || '', storeFullName || item.title)}
+                      className="group relative block min-h-[36px] text-left"
+                    >
+                      <p className="cursor-pointer break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
                       <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
                         <p className="font-semibold">{storeFullName || item.title}</p>
                         <p className="mt-1 text-gray-300">
                           {storeArea !== null ? `${storeArea}평` : language === 'ko' ? '면적 정보 없음' : 'No area data'}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ) : (
                     <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                   )}
@@ -787,6 +810,20 @@ export default function Section1Card({
       {!simpleDetail && (
         <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{currencyUnit}</div>
       )}
+
+      <Section1StoreDetailModal
+        open={!!selectedStore}
+        onClose={() => setSelectedStore(null)}
+        language={language}
+        region={region}
+        brand={brand}
+        date={date}
+        shopCd={selectedStore?.shopCd || ''}
+        storeName={selectedStore?.storeName || ''}
+        isYtdMode={isYtdMode}
+        currencyCode={currencyCode}
+        hkdToTwdRate={hkdToTwdRate}
+      />
     </article>
   );
 }
