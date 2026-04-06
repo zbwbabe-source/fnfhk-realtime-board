@@ -7,6 +7,7 @@ import { t, type Language } from '@/lib/translations';
 interface Section1StoreDetailModalProps {
   open: boolean;
   onClose: () => void;
+  onOpenAllStores?: () => void;
   language: Language;
   region: string;
   brand: string;
@@ -65,6 +66,7 @@ interface StoreDetailPayload {
     shop_name: string;
     sales_tag: number;
     sales_act: number;
+    sales_tag_yoy_pct: number | null;
     sales_yoy_pct: number | null;
     discount_rate: number | null;
     discount_rate_diff: number | null;
@@ -76,6 +78,7 @@ interface StoreDetailPayload {
 export default function Section1StoreDetailModal({
   open,
   onClose,
+  onOpenAllStores,
   language,
   region,
   brand,
@@ -92,6 +95,12 @@ export default function Section1StoreDetailModal({
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
   const [expandedSmallCategories, setExpandedSmallCategories] = useState<string[]>([]);
   const [showAllCategories, setShowAllCategories] = useState(false);
+  const [mode, setMode] = useState<'mtd' | 'ytd'>(isYtdMode ? 'ytd' : 'mtd');
+
+  useEffect(() => {
+    if (!open) return;
+    setMode(isYtdMode ? 'ytd' : 'mtd');
+  }, [open, isYtdMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +118,7 @@ export default function Section1StoreDetailModal({
           brand,
           date,
           shop_cd: shopCd,
-          mode: isYtdMode ? 'ytd' : 'mtd',
+          mode,
         });
 
         const response = await fetch(`/api/section1/store-detail?${params.toString()}`, {
@@ -141,7 +150,7 @@ export default function Section1StoreDetailModal({
       active = false;
       controller.abort();
     };
-  }, [open, region, brand, date, shopCd, isYtdMode]);
+  }, [open, region, brand, date, shopCd, mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -266,17 +275,48 @@ export default function Section1StoreDetailModal({
               <p className="mt-1 text-[13px] font-semibold text-gray-800">{storeName}</p>
               <p className="mt-1 text-xs text-gray-500">
                 {labels.asOf}:{' '}
-                {data?.period_start_date || (isYtdMode ? `${date.slice(0, 4)}-01-01` : `${date.slice(0, 7)}-01`)}
+                {data?.period_start_date || (mode === 'ytd' ? `${date.slice(0, 4)}-01-01` : `${date.slice(0, 7)}-01`)}
                 ~{data?.asof_date || date}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              {labels.close}
-            </button>
+            <div className="flex items-center gap-3">
+              {onOpenAllStores && (
+                <button
+                  type="button"
+                  onClick={onOpenAllStores}
+                  className="rounded-xl border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                >
+                  {language === 'ko' ? '매장 전체 보기' : 'All Stores'}
+                </button>
+              )}
+              <div className="inline-flex overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setMode('mtd')}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    mode === 'mtd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  MTD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('ytd')}
+                  className={`border-l border-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
+                    mode === 'ytd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  YTD
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                {labels.close}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -314,7 +354,7 @@ export default function Section1StoreDetailModal({
                   </p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
-                  <p className="text-xs text-gray-500">YoY</p>
+                  <p className="text-xs text-gray-500">{language === 'ko' ? '실판 YoY' : 'Actual YoY'}</p>
                   <p className={`mt-2 text-[20px] font-bold tabular-nums ${yoyClass(data.header.sales_yoy_pct)}`}>
                     {formatYoy(data.header.sales_yoy_pct)}
                   </p>
@@ -482,6 +522,19 @@ export default function Section1StoreDetailModal({
                           />
                         );
                       })}
+                      <tr className="bg-gray-50/80">
+                        <td className="px-4 py-4 font-bold text-gray-900">{language === 'ko' ? '전체' : 'Total'}</td>
+                        <td className="px-4 py-4 text-right font-bold tabular-nums text-gray-900">{formatCurrency(data.header.sales_tag)}</td>
+                        <td className="px-4 py-4 text-right font-bold tabular-nums text-gray-900">{formatCurrency(data.header.sales_act)}</td>
+                        <td className="px-4 py-4 text-right font-bold tabular-nums text-gray-700">100.0%</td>
+                        <td className={`px-4 py-4 text-right font-bold tabular-nums ${yoyClass(data.header.sales_tag_yoy_pct)}`}>{formatYoy(data.header.sales_tag_yoy_pct)}</td>
+                        <td className={`px-4 py-4 text-right font-bold tabular-nums ${yoyClass(data.header.sales_yoy_pct)}`}>{formatYoy(data.header.sales_yoy_pct)}</td>
+                        <td className="px-4 py-4 text-right font-bold tabular-nums text-sky-700">{formatPercent(data.header.discount_rate)}</td>
+                        <td className={`px-4 py-4 text-right font-bold tabular-nums ${diffClass(data.header.discount_rate_diff)}`}>{formatDiff(data.header.discount_rate_diff)}</td>
+                        <td className="px-4 py-4 text-right font-bold tabular-nums text-gray-700">
+                          {data.categories.reduce((sum, category) => sum + category.product_count, 0)}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>

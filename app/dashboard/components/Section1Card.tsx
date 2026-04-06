@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 import { getStoreShortCode } from '@/lib/store-name-utils';
 import { getStoreArea } from '@/lib/store-area-utils';
+import Section1AllStoresTreemapModal, { type Section1AllStoresTreemapItem } from './Section1AllStoresTreemapModal';
 import Section1StoreDetailModal from './Section1StoreDetailModal';
 
 interface Section1CardProps {
@@ -80,6 +81,7 @@ export default function Section1Card({
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
   const [selectedStore, setSelectedStore] = useState<SelectedStore | null>(null);
+  const [allStoresOpen, setAllStoresOpen] = useState(false);
   const activeDetailView = detailViewMode ?? detailView;
   const setActiveDetailView = (view: DetailView) => {
     if (onDetailViewModeChange) {
@@ -375,6 +377,65 @@ export default function Section1Card({
 
     cards.sort((a, b) => b.sales - a.sales);
     return cards;
+  }, [section1Data, isYtdMode]);
+
+  const allStoreTreemapItems = useMemo<Section1AllStoresTreemapItem[]>(() => {
+    if (!section1Data || typeof section1Data !== 'object') return [];
+
+    const rawStores = Object.entries(section1Data)
+      .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
+      .flatMap(([, value]) => value as any[])
+      .filter((store) => store && typeof store === 'object')
+      .filter((store) => (store.channel || '') !== '온라인');
+
+    const dedupedByCode = new Map<string, any>();
+    rawStores.forEach((store) => {
+      const code = String(store.shop_cd || store.shop_name || '');
+      if (!code) return;
+      if (!dedupedByCode.has(code)) dedupedByCode.set(code, store);
+    });
+
+    const mappedItems = [...dedupedByCode.values()].map((store) => {
+        const fullName = String(store.shop_name || store.shop_cd || '-');
+        return {
+          storeCode: String(store.shop_cd || ''),
+          storeName: fullName,
+          shortName: getStoreShortCode(fullName) || fullName,
+          mtdTagSales: Number(store.mtd_tag || 0),
+          mtdSales: Number(store.mtd_act || 0),
+          ytdTagSales: Number(store.ytd_tag || 0),
+          ytdSales: Number(store.ytd_act || 0),
+          mtdYoy: typeof store.yoy === 'number' && isFinite(store.yoy) ? store.yoy : null,
+          ytdYoy: typeof store.yoy_ytd === 'number' && isFinite(store.yoy_ytd) ? store.yoy_ytd : null,
+          mtdDiscountRate:
+            typeof store.discount_rate_mtd === 'number' && isFinite(store.discount_rate_mtd) ? store.discount_rate_mtd : null,
+          ytdDiscountRate:
+            typeof store.discount_rate_ytd === 'number' && isFinite(store.discount_rate_ytd) ? store.discount_rate_ytd : null,
+          mtdDiscountRateDiff:
+            typeof store.discount_rate_mtd_diff === 'number' && isFinite(store.discount_rate_mtd_diff)
+              ? store.discount_rate_mtd_diff
+              : null,
+          ytdDiscountRateDiff:
+            typeof store.discount_rate_ytd_diff === 'number' && isFinite(store.discount_rate_ytd_diff)
+              ? store.discount_rate_ytd_diff
+              : null,
+        };
+      });
+
+    const shortNameCounts = mappedItems.reduce((acc, item) => {
+      acc.set(item.shortName, (acc.get(item.shortName) || 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+
+    return mappedItems
+      .map((item) => ({
+        ...item,
+        shortName:
+          (shortNameCounts.get(item.shortName) || 0) > 1
+            ? item.storeCode || item.shortName
+            : item.shortName,
+      }))
+      .sort((a, b) => (isYtdMode ? b.ytdSales - a.ytdSales : b.mtdSales - a.mtdSales));
   }, [section1Data, isYtdMode]);
 
   const top5StoreCards = storeMetricCards.slice(0, 5);
@@ -691,7 +752,7 @@ export default function Section1Card({
       </div>
 
       {simpleDetail && detailStoreCards.length > 0 && (
-        <div className="mt-4 border-t border-gray-100 pt-3">
+        <div className="mt-3 border-t border-gray-100 pt-2.5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {detailStoreCards.map((item, index) => {
               const yoyColor =
@@ -730,9 +791,11 @@ export default function Section1Card({
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] leading-tight text-gray-400">
-            {language === 'ko' ? '매장 카드를 클릭하면 판매 구성 상세가 열립니다.' : 'Click a store card to open the sales mix detail.'}
-          </p>
+          <div className="mt-1 flex justify-start">
+            <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[9px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+              {language === 'ko' ? '매장 카드를 클릭하면 판매 구성 상세가 열립니다.' : 'Click a store card to open the sales mix detail.'}
+            </p>
+          </div>
         </div>
       )}
 
@@ -814,6 +877,10 @@ export default function Section1Card({
       <Section1StoreDetailModal
         open={!!selectedStore}
         onClose={() => setSelectedStore(null)}
+        onOpenAllStores={() => {
+          setSelectedStore(null);
+          setAllStoresOpen(true);
+        }}
         language={language}
         region={region}
         brand={brand}
@@ -821,6 +888,22 @@ export default function Section1Card({
         shopCd={selectedStore?.shopCd || ''}
         storeName={selectedStore?.storeName || ''}
         isYtdMode={isYtdMode}
+        currencyCode={currencyCode}
+        hkdToTwdRate={hkdToTwdRate}
+      />
+
+      <Section1AllStoresTreemapModal
+        open={allStoresOpen}
+        onClose={() => setAllStoresOpen(false)}
+        onStoreSelect={(shopCd, storeName) => {
+          setAllStoresOpen(false);
+          setSelectedStore({ shopCd, storeName });
+        }}
+        language={language}
+        region={region}
+        date={date}
+        isYtdMode={isYtdMode}
+        stores={allStoreTreemapItems}
         currencyCode={currencyCode}
         hkdToTwdRate={hkdToTwdRate}
       />
