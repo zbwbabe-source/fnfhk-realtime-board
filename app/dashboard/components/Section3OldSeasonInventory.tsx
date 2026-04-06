@@ -962,38 +962,6 @@ export default function Section3OldSeasonInventory({
         })}
       </div>
 
-      {orderedInventorySegmentCards.length > 0 && (
-        <div className="border-t border-gray-200 pt-6">
-          <div className="mb-3">
-            <h3 className="inline-block rounded-lg bg-indigo-50 px-4 py-2 text-lg font-semibold text-indigo-900">
-              {language === 'ko' ? '전체 재고 TAG 구성' : 'Total TAG Stock Mix'}
-            </h3>
-            <p className="mt-2 text-sm text-gray-500">
-              {language === 'ko' ? '기준 재고 전체 금액과 전년 대비 YoY' : 'Total stock amount and YoY vs last year'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {orderedInventorySegmentCards.map((card) => (
-              <div
-                key={card.key}
-                className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm"
-                title={getInventoryCardTooltip(card.key)}
-              >
-                <p className="text-sm font-semibold text-gray-700">{getInventoryCardLabel(card.key, card.label)}</p>
-                <p className="mt-3 text-2xl font-bold tracking-tight text-gray-900">
-                  {formatCardCurrency(card.curr_stock_amt)}
-                </p>
-                <p className={`mt-2 text-sm font-medium ${getYoyTone(card.yoy_pct)}`}>
-                  {card.yoy_pct !== null && card.yoy_pct !== undefined
-                    ? `YoY ${card.yoy_pct.toFixed(0)}%`
-                    : 'YoY -'}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
