@@ -101,6 +101,62 @@ export default function DashboardPage() {
     });
   };
 
+  const handleDownloadSummaryJson = useCallback(() => {
+    if (!date || activeTab !== 'summary') return;
+
+    const payload = {
+      exported_at: new Date().toISOString(),
+      dashboard_date: date,
+      brand,
+      mode: isYtdMode ? 'ytd' : 'mtd',
+      language,
+      summary_filters: {
+        section2_category_filter: categoryFilter,
+        section3_category_filter: section3CategoryFilter,
+        section1_detail_view_mode: section1DetailViewMode,
+      },
+      data: {
+        hkmc: {
+          section1: hkmcSection1Data,
+          section2: hkmcSection2Data,
+          section3: hkmcSection3Data,
+        },
+        tw: {
+          section1: twSection1Data,
+          section2: twSection2Data,
+          section3: twSection3Data,
+        },
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `dashboard-summary-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }, [
+    activeTab,
+    brand,
+    categoryFilter,
+    date,
+    hkmcSection1Data,
+    hkmcSection2Data,
+    hkmcSection3Data,
+    isYtdMode,
+    language,
+    section1DetailViewMode,
+    section3CategoryFilter,
+    twSection1Data,
+    twSection2Data,
+    twSection3Data,
+  ]);
+
   const handleSection1Change = useCallback((data: any) => {
     setSection1Data(data);
     setDataLoadStatus((prev) => ({ ...prev, section1: data ? 'success' : 'error' }));
@@ -650,6 +706,15 @@ export default function DashboardPage() {
             )}
 
             <div className="ml-auto flex items-center gap-2">
+              {activeTab === 'summary' && (
+                <button
+                  onClick={handleDownloadSummaryJson}
+                  disabled={!allDataLoaded || anyDataLoading}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {language === 'ko' ? '현재 대시보드 JSON' : 'Download JSON'}
+                </button>
+              )}
               {anyDataLoading && (
                 <div className="flex items-center gap-1.5 text-blue-600 text-sm">
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">

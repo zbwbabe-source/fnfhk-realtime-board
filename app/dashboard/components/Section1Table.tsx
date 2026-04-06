@@ -46,13 +46,13 @@ interface StoreRow {
 }
 
 const channelLabelByKey: Record<string, { ko: string; en: string }> = {
-  tw_normal: { ko: 'TW - 정상', en: 'TW - Retail' },
+  tw_normal: { ko: 'TW - 리테일', en: 'TW - Retail' },
   tw_outlet: { ko: 'TW - 아울렛', en: 'TW - Outlet' },
   tw_online: { ko: 'TW - 온라인', en: 'TW - Online' },
-  hk_normal: { ko: 'HK - 정상', en: 'HK - Retail' },
+  hk_normal: { ko: 'HK - 리테일', en: 'HK - Retail' },
   hk_outlet: { ko: 'HK - 아울렛', en: 'HK - Outlet' },
   hk_online: { ko: 'HK - 온라인', en: 'HK - Online' },
-  mc_normal: { ko: 'MC - 정상', en: 'MC - Retail' },
+  mc_normal: { ko: 'MC - 리테일', en: 'MC - Retail' },
   mc_outlet: { ko: 'MC - 아울렛', en: 'MC - Outlet' },
   mc_online: { ko: 'MC - 온라인', en: 'MC - Online' },
 };
