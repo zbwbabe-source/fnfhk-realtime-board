@@ -26,6 +26,11 @@ export function getPeriodFromDateString(dateStr: string): string {
   return getCurrentPeriod(date);
 }
 
+export function getPeriodFromYearMonth(year: number, month: number): string {
+  const yy = year % 100;
+  return `${yy.toString().padStart(2, '0')}${month.toString().padStart(2, '0')}`;
+}
+
 /**
  * 특정 기간의 환율 조회
  * @param period - YYMM 형식 문자열 (예: "2602")
