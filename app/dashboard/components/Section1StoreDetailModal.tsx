@@ -21,6 +21,7 @@ interface Section1StoreDetailModalProps {
 
 interface StoreDetailProductRow {
   prdt_cd: string;
+  sesn: string;
   category: string;
   category_small: string;
   category_large: string;
@@ -33,6 +34,7 @@ interface StoreDetailProductRow {
 }
 
 interface StoreDetailSmallCategoryRow {
+  category_small_key: string;
   category_small: string;
   sales_tag: number;
   sales_act: number;
@@ -207,6 +209,12 @@ export default function Section1StoreDetailModal({
 
     const fallbackMap: Record<string, string> = {
       의류: 'Apparel',
+      당시즌의류: 'Current Apparel',
+      '1년차의류': '1Y Apparel',
+      '2년차의류': '2Y Apparel',
+      과시즌의류: 'Old Apparel',
+      과시즌F: 'Old F',
+      과시즌S: 'Old S',
       모자: 'Headwear',
       신발: 'Shoes',
       가방: 'Bags',
@@ -218,6 +226,10 @@ export default function Section1StoreDetailModal({
 
   const visibleCategories = useMemo(() => {
     if (!data) return [];
+    const hasSeasonBuckets = data.categories.some((category) =>
+      ['당시즌의류', '1년차의류', '2년차의류', '과시즌의류', '과시즌F', '과시즌S'].includes(category.category)
+    );
+    if (hasSeasonBuckets) return data.categories;
     return showAllCategories ? data.categories : data.categories.slice(0, 5);
   }, [data, showAllCategories]);
 
@@ -227,11 +239,11 @@ export default function Section1StoreDetailModal({
     );
   };
 
-  const toggleSmallCategory = (categorySmall: string) => {
+  const toggleSmallCategory = (categorySmallKey: string) => {
     setExpandedSmallCategories((current) =>
-      current.includes(categorySmall)
-        ? current.filter((item) => item !== categorySmall)
-        : [...current, categorySmall]
+      current.includes(categorySmallKey)
+        ? current.filter((item) => item !== categorySmallKey)
+        : [...current, categorySmallKey]
     );
   };
 
@@ -377,6 +389,7 @@ export default function Section1StoreDetailModal({
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
+                    <CategoryTableColGroup />
                     <thead className="bg-gray-50 text-gray-700">
                       <tr className="border-b border-gray-200">
                         <th className="px-4 py-3 text-left font-semibold">{labels.category}</th>
@@ -421,60 +434,47 @@ export default function Section1StoreDetailModal({
                             }
                             detail={
                               expanded ? (
-                                <tr className="border-b border-gray-100 bg-gray-50/50">
-                                  <td colSpan={9} className="px-4 py-3">
-                                    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                <tr className="border-b border-gray-100 bg-slate-50/70">
+                                  <td colSpan={9} className="px-0 py-0">
+                                    <div className="overflow-hidden bg-slate-50/70">
                                       <div className="overflow-x-auto">
                                         <table className="min-w-full text-sm">
-                                          <thead className="bg-gray-50 text-gray-700">
-                                            <tr className="border-b border-gray-200">
-                                              <th className="px-4 py-3 text-left font-semibold">{labels.smallCategory}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.salesTag}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.salesAct}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.salesShare}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.tagYoy}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.actYoy}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.discount}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.discountDiff}</th>
-                                              <th className="px-4 py-3 text-right font-semibold">{labels.skuCount}</th>
-                                              <th className="px-4 py-3 text-center font-semibold">{labels.detail}</th>
-                                            </tr>
-                                          </thead>
+                                          <CategoryTableColGroup />
                                           <tbody>
                                             {category.small_categories.map((smallCategory) => {
-                                              const smallExpanded = expandedSmallCategories.includes(smallCategory.category_small);
-                                              const products = data.products_by_small_category[smallCategory.category_small] || [];
+                                              const smallExpanded = expandedSmallCategories.includes(smallCategory.category_small_key);
+                                              const products = data.products_by_small_category[smallCategory.category_small_key] || [];
 
                                               return (
                                                 <FragmentRow
-                                                  keyValue={`${category.category}-${smallCategory.category_small}`}
+                                                  keyValue={smallCategory.category_small_key}
                                                   header={
-                                                    <tr className="border-b border-gray-100">
-                                                      <td className="px-4 py-4 font-medium text-gray-800">{smallCategory.category_small}</td>
-                                                      <td className="px-4 py-4 text-right tabular-nums text-gray-900">{formatCurrency(smallCategory.sales_tag)}</td>
-                                                      <td className="px-4 py-4 text-right tabular-nums text-gray-900">{formatCurrency(smallCategory.sales_act)}</td>
-                                                      <td className="px-4 py-4 text-right tabular-nums text-gray-600">{formatPercent(smallCategory.sales_share_pct)}</td>
+                                                    <tr className="border-b border-slate-200/80 bg-slate-50/70">
+                                                      <td className="px-4 py-4">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => toggleSmallCategory(smallCategory.category_small_key)}
+                                                          className="flex items-center gap-2 pl-5 font-medium text-slate-700"
+                                                        >
+                                                          <span className="text-[10px] text-slate-400">{smallExpanded ? '▼' : '▶'}</span>
+                                                          <span>{smallCategory.category_small}</span>
+                                                        </button>
+                                                      </td>
+                                                      <td className="px-4 py-4 text-right tabular-nums text-slate-800">{formatCurrency(smallCategory.sales_tag)}</td>
+                                                      <td className="px-4 py-4 text-right tabular-nums text-slate-800">{formatCurrency(smallCategory.sales_act)}</td>
+                                                      <td className="px-4 py-4 text-right tabular-nums text-slate-500">{formatPercent(smallCategory.sales_share_pct)}</td>
                                                       <td className={`px-4 py-4 text-right font-semibold tabular-nums ${yoyClass(smallCategory.sales_tag_yoy_pct)}`}>{formatYoy(smallCategory.sales_tag_yoy_pct)}</td>
                                                       <td className={`px-4 py-4 text-right font-semibold tabular-nums ${yoyClass(smallCategory.sales_act_yoy_pct)}`}>{formatYoy(smallCategory.sales_act_yoy_pct)}</td>
                                                       <td className="px-4 py-4 text-right font-semibold tabular-nums text-sky-700">{formatPercent(smallCategory.discount_rate)}</td>
                                                       <td className={`px-4 py-4 text-right font-semibold tabular-nums ${diffClass(smallCategory.discount_rate_diff)}`}>{formatDiff(smallCategory.discount_rate_diff)}</td>
-                                                      <td className="px-4 py-4 text-right tabular-nums text-gray-500">{smallCategory.product_count}</td>
-                                                      <td className="px-4 py-4 text-center">
-                                                        <button
-                                                          type="button"
-                                                          onClick={() => toggleSmallCategory(smallCategory.category_small)}
-                                                          className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50"
-                                                        >
-                                                          {smallExpanded ? labels.closeSkus : labels.viewSkus}
-                                                        </button>
-                                                      </td>
+                                                      <td className="px-4 py-4 text-right tabular-nums text-slate-500">{smallCategory.product_count}</td>
                                                     </tr>
                                                   }
                                                   detail={
                                                     smallExpanded ? (
-                                                      <tr className="bg-white">
-                                                        <td colSpan={10} className="px-4 py-3">
-                                                          <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                                                      <tr className="bg-slate-100/80">
+                                                        <td colSpan={9} className="px-0 py-0">
+                                                          <div className="overflow-hidden bg-slate-100/80">
                                                             <div className="overflow-x-auto">
                                                               <table className="min-w-full text-sm">
                                                                 <thead className="bg-gray-100 text-gray-700">
@@ -490,7 +490,7 @@ export default function Section1StoreDetailModal({
                                                                 </thead>
                                                                 <tbody>
                                                                   {products.map((product) => (
-                                                                    <tr key={`${smallCategory.category_small}-${product.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
+                                                                    <tr key={`${smallCategory.category_small_key}-${product.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
                                                                       <td className="px-4 py-3 font-medium text-gray-800">{product.prdt_cd}</td>
                                                                       <td className="px-4 py-3 text-right tabular-nums text-gray-900">{formatCurrency(product.sales_tag)}</td>
                                                                       <td className="px-4 py-3 text-right tabular-nums text-gray-900">{formatCurrency(product.sales_act)}</td>
@@ -561,5 +561,21 @@ function FragmentRow({
       {header}
       {detail}
     </>
+  );
+}
+
+function CategoryTableColGroup() {
+  return (
+    <colgroup>
+      <col className="w-[16%]" />
+      <col className="w-[11%]" />
+      <col className="w-[11%]" />
+      <col className="w-[14%]" />
+      <col className="w-[11%]" />
+      <col className="w-[11%]" />
+      <col className="w-[10%]" />
+      <col className="w-[10%]" />
+      <col className="w-[6%]" />
+    </colgroup>
   );
 }

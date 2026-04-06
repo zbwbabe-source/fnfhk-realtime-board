@@ -194,11 +194,20 @@ function StoreTreemapCell({
   const fill =
     safeYoy === null
       ? '#e5e7eb'
+      : isNewStore
+        ? '#dbeafe'
       : safeYoy >= 100
         ? '#bbf7d0'
         : '#fecaca';
 
-  const border = safeYoy !== null && safeYoy >= 100 ? '#86efac' : '#fca5a5';
+  const border =
+    safeYoy === null
+      ? '#cbd5e1'
+      : isNewStore
+        ? '#93c5fd'
+        : safeYoy >= 100
+          ? '#86efac'
+          : '#fca5a5';
   const yoyPrefix = language === 'ko' ? '실판 YoY' : 'Actual YoY';
   const yoyDisplayText = isNewStore
     ? (language === 'ko' ? '실판 YoY 신규' : 'Actual YoY New')

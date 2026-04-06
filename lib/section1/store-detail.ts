@@ -5,6 +5,7 @@ import { convertTwdToHkd, getPeriodFromDateString } from '@/lib/exchange-rate-ut
 
 export interface StoreDetailProductRow {
   prdt_cd: string;
+  sesn: string;
   category: string;
   category_small: string;
   category_large: string;
@@ -17,6 +18,7 @@ export interface StoreDetailProductRow {
 }
 
 export interface StoreDetailSmallCategoryRow {
+  category_small_key: string;
   category_small: string;
   middle_category: string;
   sales_tag: number;
@@ -91,6 +93,46 @@ function normalizeLargeCategory(raw: string): string {
   return raw || '기타악세';
 }
 
+type SeasonPart = 'S' | 'F';
+
+function parseSeasonCode(sesn: string): { yy: number; part: SeasonPart } | null {
+  const match = String(sesn || '').trim().toUpperCase().match(/^(\d{2})([SF])$/);
+  if (!match) return null;
+  return { yy: Number(match[1]), part: match[2] as SeasonPart };
+}
+
+function getSeasonBucketLabel(sesn: string, asofDate: string): string | null {
+  const parsed = parseSeasonCode(sesn);
+  if (!parsed) return null;
+
+  const date = new Date(asofDate);
+  const year = date.getFullYear() % 100;
+  const month = date.getMonth() + 1;
+  const activePart: SeasonPart = month >= 3 && month <= 8 ? 'S' : 'F';
+  const currentSYear = month >= 3 ? year : year - 1;
+  const currentFYear = month >= 9 ? year : year - 1;
+
+  if (activePart === 'S') {
+    if (parsed.part === 'F') return '과시즌F';
+    if (parsed.yy === currentSYear) return '당시즌의류';
+    if (parsed.yy === currentSYear - 1) return '1년차의류';
+    if (parsed.yy === currentSYear - 2) return '2년차의류';
+    return '과시즌의류';
+  }
+
+  if (parsed.part === 'S') return '과시즌S';
+  if (parsed.yy === currentFYear) return '당시즌의류';
+  if (parsed.yy === currentFYear - 1) return '1년차의류';
+  if (parsed.yy === currentFYear - 2) return '2년차의류';
+  if (parsed.yy <= currentFYear - 3) return '과시즌의류';
+  return null;
+}
+
+function getDisplayCategory(largeCategory: string, sesn: string, asofDate: string): string {
+  if (largeCategory !== '의류') return largeCategory;
+  return getSeasonBucketLabel(sesn, asofDate) || '의류';
+}
+
 export async function fetchSection1StoreDetail({
   region,
   brand,
@@ -127,6 +169,7 @@ export async function fetchSection1StoreDetail({
     `
       SELECT
         PRDT_CD,
+        ANY_VALUE(SESN) AS SESN,
         ANY_VALUE(PART_CD) AS PART_CD,
         SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) AS SALES_ACT,
         SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN TAG_SALE_AMT ELSE 0 END) AS SALES_TAG,
@@ -164,9 +207,10 @@ export async function fetchSection1StoreDetail({
       date,
     ]
   );
-  const smallCategoryAggRows = await executeSnowflakeQuery(
+  const seasonSmallCategoryAggRows = await executeSnowflakeQuery(
     `
       SELECT
+        SESN,
         SUBSTR(PART_CD, 3, 2) AS CATEGORY_SMALL,
         SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) AS SALES_ACT,
         SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN TAG_SALE_AMT ELSE 0 END) AS SALES_TAG,
@@ -177,13 +221,12 @@ export async function fetchSection1StoreDetail({
         (CASE WHEN BRD_CD IN ('M', 'I') THEN 'M' ELSE BRD_CD END) = ?
         AND LOCAL_SHOP_CD = ?
         AND SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
-      GROUP BY SUBSTR(PART_CD, 3, 2)
+      GROUP BY SESN, SUBSTR(PART_CD, 3, 2)
       HAVING
         SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN TAG_SALE_AMT ELSE 0 END) > 0
         OR SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) > 0
         OR SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN TAG_SALE_AMT ELSE 0 END) > 0
         OR SUM(CASE WHEN SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) > 0
-      ORDER BY SALES_TAG DESC, SALES_ACT DESC
     `,
     [
       periodStartDate,
@@ -208,36 +251,7 @@ export async function fetchSection1StoreDetail({
       lyDate,
     ]
   );
-
-  const products: StoreDetailProductRow[] = rows
-    .map((row: any) => {
-      const partCd = String(row.PART_CD || '');
-      const categorySmall = partCd.length >= 4 ? partCd.slice(2, 4) : '';
-      const mapping = getCategoryMapping(categorySmall);
-      const salesAct = applyCurrentRate(Number(row.SALES_ACT || 0));
-      const salesTag = applyCurrentRate(Number(row.SALES_TAG || 0));
-      const salesActLy = applyLyRate(Number(row.SALES_ACT_LY || 0));
-      const salesTagLy = applyLyRate(Number(row.SALES_TAG_LY || 0));
-      const discountRate = salesTag > 0 ? (1 - salesAct / salesTag) * 100 : null;
-      const discountRateLy = salesTagLy > 0 ? (1 - salesActLy / salesTagLy) * 100 : null;
-
-      return {
-        prdt_cd: String(row.PRDT_CD || '').trim(),
-        category: mapping.middle || 'Unknown',
-        category_small: categorySmall || '-',
-        category_large: normalizeLargeCategory(mapping.large),
-        sales_tag: salesTag,
-        sales_act: salesAct,
-        sales_tag_yoy_pct: salesTagLy > 0 ? (salesTag / salesTagLy) * 100 : null,
-        sales_act_yoy_pct: salesActLy > 0 ? (salesAct / salesActLy) * 100 : null,
-        discount_rate: discountRate,
-        discount_rate_diff:
-          discountRate !== null && discountRateLy !== null ? discountRate - discountRateLy : null,
-      };
-    })
-    .filter((row) => row.prdt_cd && (row.sales_tag > 0 || row.sales_act > 0))
-    .sort((a, b) => b.sales_tag - a.sales_tag || b.sales_act - a.sales_act);
-
+  const products: StoreDetailProductRow[] = [];
   const categoryMap = new Map<
     string,
     {
@@ -252,6 +266,7 @@ export async function fetchSection1StoreDetail({
   const smallCategoryMap = new Map<
     string,
     {
+      category_small_key: string;
       category_small: string;
       middle_category: string;
       category_large: string;
@@ -264,21 +279,66 @@ export async function fetchSection1StoreDetail({
   >();
   const rawRowsBySmallCategory = new Map<string, StoreDetailProductRow[]>();
 
-  smallCategoryAggRows.forEach((row: any) => {
-    const categorySmall = String(row.CATEGORY_SMALL || '').trim();
-    if (!categorySmall) return;
+  rows.forEach((row: any) => {
+    const prdtCd = String(row.PRDT_CD || '').trim();
+    const partCd = String(row.PART_CD || '');
+    const sesn = String(row.SESN || '').trim().toUpperCase();
+    const categorySmall = partCd.length >= 4 ? partCd.slice(2, 4) : '';
     const mapping = getCategoryMapping(categorySmall);
-    const category = normalizeLargeCategory(mapping.large);
+    const categoryLarge = getDisplayCategory(normalizeLargeCategory(mapping.large), sesn, date);
     const middleCategory = mapping.middle || 'Unknown';
     const salesAct = applyCurrentRate(Number(row.SALES_ACT || 0));
     const salesTag = applyCurrentRate(Number(row.SALES_TAG || 0));
     const salesActLy = applyLyRate(Number(row.SALES_ACT_LY || 0));
     const salesTagLy = applyLyRate(Number(row.SALES_TAG_LY || 0));
+
+    if (!prdtCd || (salesTag <= 0 && salesAct <= 0 && salesTagLy <= 0 && salesActLy <= 0)) return;
+
+    const discountRate = salesTag > 0 ? (1 - salesAct / salesTag) * 100 : null;
+    const discountRateLy = salesTagLy > 0 ? (1 - salesActLy / salesTagLy) * 100 : null;
+
+    const product: StoreDetailProductRow = {
+      prdt_cd: prdtCd,
+      sesn,
+      category: middleCategory,
+      category_small: categorySmall || '-',
+      category_large: categoryLarge,
+      sales_tag: salesTag,
+      sales_act: salesAct,
+      sales_tag_yoy_pct: salesTagLy > 0 ? (salesTag / salesTagLy) * 100 : null,
+      sales_act_yoy_pct: salesActLy > 0 ? (salesAct / salesActLy) * 100 : null,
+      discount_rate: discountRate,
+      discount_rate_diff:
+        discountRate !== null && discountRateLy !== null ? discountRate - discountRateLy : null,
+    };
+    products.push(product);
+
+    const categorySmallKey = `${categoryLarge}__${categorySmall || '-'}`;
+    const existing = rawRowsBySmallCategory.get(categorySmallKey) || [];
+    existing.push(product);
+    rawRowsBySmallCategory.set(categorySmallKey, existing);
+  });
+
+  products.sort((a, b) => b.sales_tag - a.sales_tag || b.sales_act - a.sales_act);
+
+  seasonSmallCategoryAggRows.forEach((row: any) => {
+    const sesn = String(row.SESN || '').trim().toUpperCase();
+    const categorySmall = String(row.CATEGORY_SMALL || '').trim() || '-';
+    const mapping = getCategoryMapping(categorySmall);
+    const normalizedLarge = normalizeLargeCategory(mapping.large);
+    const currentCategoryLarge = getDisplayCategory(normalizedLarge, sesn, date);
+    const lyCategoryLarge = getDisplayCategory(normalizedLarge, sesn, lyDate);
+    const middleCategory = mapping.middle || 'Unknown';
+    const salesAct = applyCurrentRate(Number(row.SALES_ACT || 0));
+    const salesTag = applyCurrentRate(Number(row.SALES_TAG || 0));
+    const salesActLy = applyLyRate(Number(row.SALES_ACT_LY || 0));
+    const salesTagLy = applyLyRate(Number(row.SALES_TAG_LY || 0));
+
     if (salesTag <= 0 && salesAct <= 0 && salesTagLy <= 0 && salesActLy <= 0) return;
 
-    if (!categoryMap.has(category)) {
-      categoryMap.set(category, {
-        category,
+    if (!categoryMap.has(currentCategoryLarge)) {
+      categoryMap.set(currentCategoryLarge, {
+        category: currentCategoryLarge,
         sales_tag: 0,
         sales_act: 0,
         sales_tag_ly_base: 0,
@@ -286,18 +346,30 @@ export async function fetchSection1StoreDetail({
         product_count: 0,
       });
     }
+    if (!categoryMap.has(lyCategoryLarge)) {
+      categoryMap.set(lyCategoryLarge, {
+        category: lyCategoryLarge,
+        sales_tag: 0,
+        sales_act: 0,
+        sales_tag_ly_base: 0,
+        sales_act_ly_base: 0,
+        product_count: 0,
+      });
+    }
+    const currentCategoryAgg = categoryMap.get(currentCategoryLarge)!;
+    currentCategoryAgg.sales_tag += salesTag;
+    currentCategoryAgg.sales_act += salesAct;
+    const lyCategoryAgg = categoryMap.get(lyCategoryLarge)!;
+    lyCategoryAgg.sales_tag_ly_base += salesTagLy;
+    lyCategoryAgg.sales_act_ly_base += salesActLy;
 
-    const categoryAgg = categoryMap.get(category)!;
-    categoryAgg.sales_tag += salesTag;
-    categoryAgg.sales_act += salesAct;
-    categoryAgg.sales_tag_ly_base += salesTagLy;
-    categoryAgg.sales_act_ly_base += salesActLy;
-
-    if (!smallCategoryMap.has(categorySmall)) {
-      smallCategoryMap.set(categorySmall, {
-        category_small: categorySmall || '-',
+    const currentCategorySmallKey = `${currentCategoryLarge}__${categorySmall}`;
+    if (!smallCategoryMap.has(currentCategorySmallKey)) {
+      smallCategoryMap.set(currentCategorySmallKey, {
+        category_small_key: currentCategorySmallKey,
+        category_small: categorySmall,
         middle_category: middleCategory,
-        category_large: category,
+        category_large: currentCategoryLarge,
         sales_tag: 0,
         sales_act: 0,
         sales_tag_ly_base: 0,
@@ -305,22 +377,30 @@ export async function fetchSection1StoreDetail({
         product_count: 0,
       });
     }
-
-    const smallAgg = smallCategoryMap.get(categorySmall)!;
-    smallAgg.sales_tag += salesTag;
-    smallAgg.sales_act += salesAct;
-    smallAgg.sales_tag_ly_base += salesTagLy;
-    smallAgg.sales_act_ly_base += salesActLy;
+    const lyCategorySmallKey = `${lyCategoryLarge}__${categorySmall}`;
+    if (!smallCategoryMap.has(lyCategorySmallKey)) {
+      smallCategoryMap.set(lyCategorySmallKey, {
+        category_small_key: lyCategorySmallKey,
+        category_small: categorySmall,
+        middle_category: middleCategory,
+        category_large: lyCategoryLarge,
+        sales_tag: 0,
+        sales_act: 0,
+        sales_tag_ly_base: 0,
+        sales_act_ly_base: 0,
+        product_count: 0,
+      });
+    }
+    const currentSmallAgg = smallCategoryMap.get(currentCategorySmallKey)!;
+    currentSmallAgg.sales_tag += salesTag;
+    currentSmallAgg.sales_act += salesAct;
+    const lySmallAgg = smallCategoryMap.get(lyCategorySmallKey)!;
+    lySmallAgg.sales_tag_ly_base += salesTagLy;
+    lySmallAgg.sales_act_ly_base += salesActLy;
   });
 
-  products.forEach((product) => {
-    const existing = rawRowsBySmallCategory.get(product.category_small) || [];
-    existing.push(product);
-    rawRowsBySmallCategory.set(product.category_small, existing);
-  });
-
-  rawRowsBySmallCategory.forEach((productRows, categorySmall) => {
-    const smallAgg = smallCategoryMap.get(categorySmall);
+  rawRowsBySmallCategory.forEach((productRows, categorySmallKey) => {
+    const smallAgg = smallCategoryMap.get(categorySmallKey);
     if (!smallAgg) return;
     smallAgg.product_count = productRows.length;
     const categoryAgg = categoryMap.get(smallAgg.category_large);
@@ -335,6 +415,7 @@ export async function fetchSection1StoreDetail({
         ? (1 - smallAgg.sales_act_ly_base / smallAgg.sales_tag_ly_base) * 100
         : null;
     return {
+      category_small_key: smallAgg.category_small_key,
       category_small: smallAgg.category_small,
       middle_category: smallAgg.middle_category,
       sales_tag: smallAgg.sales_tag,
@@ -379,8 +460,8 @@ export async function fetchSection1StoreDetail({
     .sort((a, b) => b.sales_tag - a.sales_tag || b.sales_act - a.sales_act);
 
   const productsBySmallCategory = Object.fromEntries(
-    Array.from(rawRowsBySmallCategory.entries()).map(([categorySmall, productRows]) => [
-      categorySmall,
+    Array.from(rawRowsBySmallCategory.entries()).map(([categorySmallKey, productRows]) => [
+      categorySmallKey,
       [...productRows].sort((a, b) => b.sales_tag - a.sales_tag || b.sales_act - a.sales_act),
     ])
   );
@@ -397,6 +478,22 @@ export async function fetchSection1StoreDetail({
       ...smallCategory,
       sales_share_pct: category.sales_tag > 0 ? (smallCategory.sales_tag / category.sales_tag) * 100 : 0,
     }));
+  });
+  const categoryOrder = new Map<string, number>([
+    ['당시즌의류', 0],
+    ['1년차의류', 1],
+    ['2년차의류', 2],
+    ['과시즌의류', 3],
+    ['과시즌F', 4],
+    ['과시즌S', 4],
+  ]);
+  categories.sort((a, b) => {
+    const aOrder = categoryOrder.get(a.category);
+    const bOrder = categoryOrder.get(b.category);
+    if (aOrder !== undefined || bOrder !== undefined) {
+      return (aOrder ?? 999) - (bOrder ?? 999);
+    }
+    return b.sales_tag - a.sales_tag || b.sales_act - a.sales_act;
   });
   const totalSalesTagLy = rows.reduce((sum: number, row: any) => sum + applyLyRate(Number(row.SALES_TAG_LY || 0)), 0);
   const totalSalesActLy = rows.reduce((sum: number, row: any) => sum + applyLyRate(Number(row.SALES_ACT_LY || 0)), 0);
