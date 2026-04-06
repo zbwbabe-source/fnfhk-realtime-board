@@ -23,11 +23,13 @@ export interface Section3Response {
     year_bucket: string;
     base_stock_amt: number;
     curr_stock_amt: number;
+    curr_stock_qty: number;
     ly_curr_stock_amt: number | null;
     curr_stock_yoy_pct: number | null;
     prev_month_curr_stock_amt: number;
     curr_stock_change: number;
     stagnant_stock_amt: number;
+    stagnant_stock_qty: number;
     prev_month_stagnant_stock_amt: number;
     stagnant_ratio: number;
     prev_month_stagnant_ratio: number;
@@ -80,7 +82,9 @@ export interface Section3Response {
     sesn: string;
     base_stock_amt: number;
     curr_stock_amt: number;
+    curr_stock_qty: number;
     stagnant_stock_amt: number;
+    stagnant_stock_qty: number;
     depleted_stock_amt: number;
     period_tag_sales: number;
     period_act_sales: number;
@@ -95,7 +99,9 @@ export interface Section3Response {
     cat2: string;
     base_stock_amt: number;
     curr_stock_amt: number;
+    curr_stock_qty: number;
     stagnant_stock_amt: number;
+    stagnant_stock_qty: number;
     depleted_stock_amt: number;
     discount_rate: number;
     inv_days_raw: number | null;
@@ -109,7 +115,9 @@ export interface Section3Response {
     prdt_cd: string;
     base_stock_amt: number;
     curr_stock_amt: number;
+    curr_stock_qty: number;
     stagnant_stock_amt: number;
+    stagnant_stock_qty: number;
     depleted_stock_amt: number;
     period_tag_sales: number;
     period_act_sales: number;
@@ -448,7 +456,8 @@ CURR_STOCK_SNAP_RAW AS (
       ELSE ST.PRDT_CD
     END AS PRDT_CD,
     SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
-    SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT
+    SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(ST.STOCK_QTY) AS CURR_STOCK_QTY
   FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
   CROSS JOIN PARAM PA
   CROSS JOIN CURR_STOCK_DT_RESOLVED CSD
@@ -478,7 +487,8 @@ CURR_STOCK_SKU_RAW AS (
     ST.SESN,
     ST.PRDT_CD,
     SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
-    SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT
+    SUM(ST.TAG_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(ST.STOCK_QTY) AS CURR_STOCK_QTY
   FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
   CROSS JOIN PARAM PA
   CROSS JOIN CURR_STOCK_DT_RESOLVED CSD
@@ -502,7 +512,8 @@ CURR_STOCK_SNAP AS (
     CS.SESN,
     CS.PRDT_CD,
     CS.CAT2,
-    CS.CURR_STOCK_AMT
+    CS.CURR_STOCK_AMT,
+    CS.CURR_STOCK_QTY
   FROM CURR_STOCK_SNAP_RAW CS
   INNER JOIN SEASON_BUCKETS SB ON CS.SESN = SB.SESN
   WHERE SB.YEAR_BUCKET IS NOT NULL
@@ -754,6 +765,7 @@ SKU_LEVEL AS (
     COALESCE(BS.PRDT_CD, CS.PRDT_CD, PS.PRDT_CD) AS PRDT_CD,
     COALESCE(BS.BASE_STOCK_AMT, 0) AS BASE_STOCK_AMT,
     LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0)) AS CURR_STOCK_AMT,
+    COALESCE(CS.CURR_STOCK_QTY, 0) AS CURR_STOCK_QTY,
     CASE
       WHEN LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0)) > 0
         AND (
@@ -763,6 +775,15 @@ SKU_LEVEL AS (
       THEN LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0))
       ELSE 0
     END AS STAGNANT_STOCK_AMT,
+    CASE
+      WHEN LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0)) > 0
+        AND (
+          COALESCE(MS.MONTHLY_TAG_SALES, 0) = 0
+          OR COALESCE(MS.MONTHLY_TAG_SALES, 0) < (LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0)) * 0.001)
+        )
+      THEN COALESCE(CS.CURR_STOCK_QTY, 0)
+      ELSE 0
+    END AS STAGNANT_STOCK_QTY,
     (COALESCE(BS.BASE_STOCK_AMT, 0) - LEAST(COALESCE(CS.CURR_STOCK_AMT, 0), COALESCE(BS.BASE_STOCK_AMT, 0))) AS DEPLETED_STOCK_AMT,
     COALESCE(PS.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
     COALESCE(PS.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES,
@@ -799,11 +820,13 @@ CAT_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(SL.BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(SL.CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(SL.CURR_STOCK_QTY) AS CURR_STOCK_QTY,
     CASE
       WHEN MAX(CASE WHEN PA.BASE_STOCK_DT < CAST('2025-09-22' AS DATE) THEN 1 ELSE 0 END) = 1
       THEN COALESCE(MAX(SP.STAGNANT_STOCK_AMT), SUM(SL.STAGNANT_STOCK_AMT))
       ELSE SUM(SL.STAGNANT_STOCK_AMT)
     END AS STAGNANT_STOCK_AMT,
+    SUM(SL.STAGNANT_STOCK_QTY) AS STAGNANT_STOCK_QTY,
     SUM(SL.DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
     SUM(SL.PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(SL.PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -851,7 +874,9 @@ YEAR_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(CURR_STOCK_QTY) AS CURR_STOCK_QTY,
     SUM(STAGNANT_STOCK_AMT) AS STAGNANT_STOCK_AMT,
+    SUM(STAGNANT_STOCK_QTY) AS STAGNANT_STOCK_QTY,
     SUM(DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
     SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -894,7 +919,9 @@ HEADER_LEVEL AS (
     NULL AS PRDT_CD,
     SUM(BASE_STOCK_AMT) AS BASE_STOCK_AMT,
     SUM(CURR_STOCK_AMT) AS CURR_STOCK_AMT,
+    SUM(CURR_STOCK_QTY) AS CURR_STOCK_QTY,
     SUM(STAGNANT_STOCK_AMT) AS STAGNANT_STOCK_AMT,
+    SUM(STAGNANT_STOCK_QTY) AS STAGNANT_STOCK_QTY,
     SUM(DEPLETED_STOCK_AMT) AS DEPLETED_STOCK_AMT,
     SUM(PERIOD_TAG_SALES) AS PERIOD_TAG_SALES,
     SUM(PERIOD_ACT_SALES) AS PERIOD_ACT_SALES,
@@ -942,7 +969,7 @@ HEADER_LEVEL AS (
 
 SELECT
   SORT_LEVEL, ROW_LEVEL, YEAR_BUCKET, SESN, CAT2, PRDT_CD,
-  BASE_STOCK_AMT, CURR_STOCK_AMT, STAGNANT_STOCK_AMT, DEPLETED_STOCK_AMT,
+  BASE_STOCK_AMT, CURR_STOCK_AMT, CURR_STOCK_QTY, STAGNANT_STOCK_AMT, STAGNANT_STOCK_QTY, DEPLETED_STOCK_AMT,
   PERIOD_TAG_SALES, PERIOD_ACT_SALES,
   DISCOUNT_RATE, INV_DAYS_RAW, INV_DAYS, IS_OVER_1Y, PERIOD_DAYS,
   PREV_CURR_STOCK_AMT, PREV_STAGNANT_STOCK_AMT, CURRENT_MONTH_DEPLETED_AMT
@@ -1487,11 +1514,13 @@ ORDER BY
       year_bucket: header.YEAR_BUCKET,
       base_stock_amt: applyExchangeRate(parseFloat(header.BASE_STOCK_AMT || 0)) || 0,
       curr_stock_amt: applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0,
+      curr_stock_qty: parseFloat(header.CURR_STOCK_QTY || 0) || 0,
       ly_curr_stock_amt: null,
       curr_stock_yoy_pct: null,
       prev_month_curr_stock_amt: applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0,
       curr_stock_change: (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0) - (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0),
       stagnant_stock_amt: applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0,
+      stagnant_stock_qty: parseFloat(header.STAGNANT_STOCK_QTY || 0) || 0,
       prev_month_stagnant_stock_amt: applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0,
       stagnant_ratio: (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0) > 0
         ? (applyExchangeRate(parseFloat(header.STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.CURR_STOCK_AMT || 0)) || 0)
@@ -1524,7 +1553,9 @@ ORDER BY
       sesn: row.SESN,
       base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
       curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+      curr_stock_qty: parseFloat(row.CURR_STOCK_QTY || 0) || 0,
       stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+      stagnant_stock_qty: parseFloat(row.STAGNANT_STOCK_QTY || 0) || 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
       period_tag_sales: applyExchangeRate(parseFloat(row.PERIOD_TAG_SALES || 0)) || 0,
       period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,
@@ -1539,7 +1570,9 @@ ORDER BY
       cat2: row.CAT2,
       base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
       curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+      curr_stock_qty: parseFloat(row.CURR_STOCK_QTY || 0) || 0,
       stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+      stagnant_stock_qty: parseFloat(row.STAGNANT_STOCK_QTY || 0) || 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
       discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
       inv_days_raw: row.INV_DAYS_RAW ? parseFloat(row.INV_DAYS_RAW) : null,
@@ -1553,7 +1586,9 @@ ORDER BY
       prdt_cd: row.PRDT_CD,
       base_stock_amt: applyExchangeRate(parseFloat(row.BASE_STOCK_AMT || 0)) || 0,
       curr_stock_amt: applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0,
+      curr_stock_qty: parseFloat(row.CURR_STOCK_QTY || 0) || 0,
       stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
+      stagnant_stock_qty: parseFloat(row.STAGNANT_STOCK_QTY || 0) || 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(row.DEPLETED_STOCK_AMT || 0)) || 0,
       period_tag_sales: applyExchangeRate(parseFloat(row.PERIOD_TAG_SALES || 0)) || 0,
       period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,

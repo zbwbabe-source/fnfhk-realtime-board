@@ -22,7 +22,9 @@ interface SKURow {
   prdt_cd: string;
   base_stock_amt: number;
   curr_stock_amt: number;
+  curr_stock_qty: number;
   stagnant_stock_amt: number;
+  stagnant_stock_qty: number;
   depleted_stock_amt: number;
   period_tag_sales: number;
   period_act_sales: number;
@@ -33,7 +35,9 @@ interface CategoryRow {
   cat2: string;
   base_stock_amt: number;
   curr_stock_amt: number;
+  curr_stock_qty: number;
   stagnant_stock_amt: number;
+  stagnant_stock_qty: number;
   depleted_stock_amt: number;
   discount_rate: number;
   inv_days_raw: number | null;
@@ -47,7 +51,9 @@ interface YearRow {
   sesn?: string;
   base_stock_amt: number;
   curr_stock_amt: number;
+  curr_stock_qty: number;
   stagnant_stock_amt: number;
+  stagnant_stock_qty: number;
   depleted_stock_amt: number;
   discount_rate: number;
   inv_days_raw: number | null;
@@ -207,6 +213,10 @@ export default function Section3OldSeasonInventory({
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
+  };
+  const formatQty = (num: number | null | undefined): string => {
+    if (num == null) return '-';
+    return `${Math.round(num).toLocaleString('en-US')} pcs`;
   };
   const unitLabel =
     region === 'TW'
@@ -633,9 +643,15 @@ export default function Section3OldSeasonInventory({
                   {t(language, 'currentStock')}<br/>
                   <span className="text-xs font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span>
                 </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  {language === 'ko' ? '재고수량' : 'Stock Qty'}
+                </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200 cursor-help" title={t(language, 'stagnantStockInfo')}>
                   {t(language, 'stagnantStock')}
                   <span className="ml-1 text-sm text-orange-500 font-bold">※</span>
+                </th>
+                <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200">
+                  {language === 'ko' ? '정체재고 수량' : 'Stagnant Qty'}
                 </th>
                 <th className="px-3 py-3 text-center font-medium text-gray-700 bg-gray-50 border-r border-gray-200" title={t(language, 'stagnantRatioDesc')}>
                   {t(language, 'stagnantRatio')}<br/>
@@ -674,9 +690,15 @@ export default function Section3OldSeasonInventory({
                     </td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.base_stock_amt)}</td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(year.curr_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">{formatQty(year.curr_stock_qty)}</td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">
                       <span className={year.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                         {formatNumber(year.stagnant_stock_amt)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right border-r border-gray-100">
+                      <span className={year.stagnant_stock_qty > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {formatQty(year.stagnant_stock_qty)}
                       </span>
                     </td>
                     <td className="px-2 py-2 text-right border-r border-gray-100">
@@ -704,9 +726,15 @@ export default function Section3OldSeasonInventory({
                     <td className="px-3 py-2 bg-blue-100 border-r border-gray-100">{t(language, 'total')}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.base_stock_amt)}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatNumber(data.header.curr_stock_amt)}</td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">{formatQty(data.header.curr_stock_qty)}</td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
                       <span className={data.header.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                         {formatNumber(data.header.stagnant_stock_amt)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
+                      <span className={data.header.stagnant_stock_qty > 0 ? 'text-orange-600 font-semibold' : ''}>
+                        {formatQty(data.header.stagnant_stock_qty)}
                       </span>
                     </td>
                     <td className="px-2 py-2 text-right bg-blue-100 border-r border-gray-100">
@@ -782,9 +810,17 @@ export default function Section3OldSeasonInventory({
                           <span className="text-[10px] font-semibold text-blue-600">({formatDateShort(data.asof_date)})</span><br/>
                           {getSortIcon('curr_stock_amt', catSortConfig)}
                         </th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('curr_stock_qty')}>
+                          {language === 'ko' ? '재고수량' : 'Stock Qty'}<br/>
+                          {getSortIcon('curr_stock_qty', catSortConfig)}
+                        </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_amt')} title={t(language, 'stagnantStockInfo')}>
                           {t(language, 'stagnantStock')} <span className="text-orange-500 font-bold">※</span><br/>
                           {getSortIcon('stagnant_stock_amt', catSortConfig)}
+                        </th>
+                        <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100 cursor-pointer hover:bg-gray-100" onClick={() => handleCatSort('stagnant_stock_qty')}>
+                          {language === 'ko' ? '정체재고 수량' : 'Stagnant Qty'}<br/>
+                          {getSortIcon('stagnant_stock_qty', catSortConfig)}
                         </th>
                         <th className="px-2 py-2 text-center text-xs font-medium text-gray-700 border-r border-gray-100" title={t(language, 'stagnantRatioDesc')}>
                           {t(language, 'stagnantRatio')}<br/>
@@ -833,9 +869,15 @@ export default function Section3OldSeasonInventory({
                               <td className="px-3 py-2 font-medium border-r border-gray-100">{cat.cat2}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.base_stock_amt)}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.curr_stock_amt)}</td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">{formatQty(cat.curr_stock_qty)}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">
                                 <span className={cat.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                                   {formatNumber(cat.stagnant_stock_amt)}
+                                </span>
+                              </td>
+                              <td className="px-2 py-2 text-right border-r border-gray-100">
+                                <span className={cat.stagnant_stock_qty > 0 ? 'text-orange-600 font-semibold' : ''}>
+                                  {formatQty(cat.stagnant_stock_qty)}
                                 </span>
                               </td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">
@@ -870,9 +912,15 @@ export default function Section3OldSeasonInventory({
                                   <td className="px-3 py-1 pl-8 border-r border-gray-100">{sku.prdt_cd}</td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.base_stock_amt)}</td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">{formatNumber(sku.curr_stock_amt)}</td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">{formatQty(sku.curr_stock_qty)}</td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">
                                     <span className={sku.stagnant_stock_amt > 0 ? 'text-orange-600 font-semibold' : ''}>
                                       {formatNumber(sku.stagnant_stock_amt)}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-1 text-right border-r border-gray-100">
+                                    <span className={sku.stagnant_stock_qty > 0 ? 'text-orange-600 font-semibold' : ''}>
+                                      {formatQty(sku.stagnant_stock_qty)}
                                     </span>
                                   </td>
                                   <td className="px-2 py-1 text-right border-r border-gray-100">
@@ -894,7 +942,7 @@ export default function Section3OldSeasonInventory({
                       {/* 湲고? 移댄뀒怨좊━ 踰꾪듉 (TOP5留??쒖떆 以묒씪 ?? */}
                       {!showAllCats && others.length > 0 && (
                         <tr className="bg-gray-50 border-t border-gray-200">
-                          <td colSpan={9} className="px-3 py-3 text-center text-sm">
+                          <td colSpan={11} className="px-3 py-3 text-center text-sm">
                             <button
                               onClick={() => {
                                 setShowAllCategoriesInYear(prev => new Set([...prev, year.year_bucket]));

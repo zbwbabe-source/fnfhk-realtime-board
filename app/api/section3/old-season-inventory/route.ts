@@ -108,6 +108,38 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'current_month_depleted_act');
+        const hasCurrentStockQty =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'curr_stock_qty');
+        const hasStagnantStockQty =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'stagnant_stock_qty');
+        const hasYearQtyFields =
+          payload &&
+          Array.isArray(payload.years) &&
+          payload.years.every(
+            (row: any) =>
+              Object.prototype.hasOwnProperty.call(row, 'curr_stock_qty') &&
+              Object.prototype.hasOwnProperty.call(row, 'stagnant_stock_qty')
+          );
+        const hasCategoryQtyFields =
+          payload &&
+          Array.isArray(payload.categories) &&
+          payload.categories.every(
+            (row: any) =>
+              Object.prototype.hasOwnProperty.call(row, 'curr_stock_qty') &&
+              Object.prototype.hasOwnProperty.call(row, 'stagnant_stock_qty')
+          );
+        const hasSkuQtyFields =
+          payload &&
+          Array.isArray(payload.skus) &&
+          payload.skus.every(
+            (row: any) =>
+              Object.prototype.hasOwnProperty.call(row, 'curr_stock_qty') &&
+              Object.prototype.hasOwnProperty.call(row, 'stagnant_stock_qty')
+          );
         const hasTargetInfo =
           region !== 'HKMC' ||
           (
@@ -137,6 +169,11 @@ export async function GET(request: NextRequest) {
           hasPeriodActSales &&
           hasCurrentMonthDepleted &&
           hasCurrentMonthDepletedAct &&
+          hasCurrentStockQty &&
+          hasStagnantStockQty &&
+          hasYearQtyFields &&
+          hasCategoryQtyFields &&
+          hasSkuQtyFields &&
           hasTargetInfo
         ) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
