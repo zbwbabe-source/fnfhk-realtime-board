@@ -476,7 +476,7 @@ export default function Section3Card({
   };
 
   return (
-    <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className="text-base font-semibold leading-tight text-gray-900">
@@ -611,8 +611,8 @@ export default function Section3Card({
       )}
 
       {!simpleDetail && bottomCards.length > 0 && (
-        <div className="mt-1.5 border-t border-gray-100 pt-2.5">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+        <div className={`border-t border-gray-100 ${fixedHeight ? 'mt-1 pt-2' : 'mt-1.5 pt-2.5'}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-5 ${fixedHeight ? 'gap-1.5' : 'gap-2'}`}>
             {bottomCards.map((card: any) => {
               const cardDiscountRate =
                 card.targetInfo?.actual_discount_rate ?? card.discountRate ?? null;
@@ -631,21 +631,21 @@ export default function Section3Card({
               const progressCardClassName = getBottomProgressCardClassName(card.key, progressPct, projectedPct);
 
               return (
-                <div key={card.key} className={`min-w-0 rounded-lg border p-3 ${progressCardClassName}`}>
-                  <div className="mb-2">
-                    <p className={`text-sm font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
+                <div key={card.key} className={`min-w-0 rounded-lg border ${fixedHeight ? 'p-2.5' : 'p-3'} ${progressCardClassName}`}>
+                  <div className={fixedHeight ? 'mb-1.5' : 'mb-2'}>
+                    <p className={`${fixedHeight ? 'text-[13px]' : 'text-sm'} font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
                       {card.title}
                       {card.seasonCode ? <span className="text-[11px] font-medium text-gray-500">({card.seasonCode})</span> : null}
                     </p>
                   </div>
-                  <p className={`text-lg font-bold leading-tight ${getBottomCardValueClassName(card.key)}`}>
+                  <p className={`${fixedHeight ? 'text-[15px]' : 'text-lg'} font-bold leading-tight ${getBottomCardValueClassName(card.key)}`}>
                     {card.completed
                       ? language === 'ko'
                         ? '소진완료'
                         : 'Cleared'
                       : formatCurrency(card.stockAmt || 0)}
                   </p>
-                  <div className="mt-2.5 space-y-0.5">
+                  <div className={`${fixedHeight ? 'mt-1.5 space-y-0' : 'mt-2.5 space-y-0.5'}`}>
                     {card.key === 'stagnant' ? (
                       <>
                         {renderMetricLine(
@@ -658,7 +658,7 @@ export default function Section3Card({
                           formatSignedPercentPoint(((card.stagnantRatio ?? 0) - (card.prevMonthStagnantRatio ?? 0)) * 100),
                           ((card.stagnantRatio ?? 0) - (card.prevMonthStagnantRatio ?? 0)) * 100 > 0 ? 'text-red-600' : 'text-green-600'
                         )}
-                        {Array.isArray(card.breakdown) &&
+                        {!fixedHeight && Array.isArray(card.breakdown) &&
                           card.breakdown.map((item: any) =>
                             renderMetricLine(
                               item.label,
@@ -673,41 +673,71 @@ export default function Section3Card({
                       </p>
                     ) : (
                       <>
-                        {renderMetricLine(
-                          language === 'ko' ? '소진액' : 'Depleted',
-                          formatMillionFixed(card.salesAmt || 0),
-                          'text-gray-900',
-                          undefined,
-                          'text-[12px]'
-                        )}
-                        {yoyText
-                          ? renderMetricLine(
-                              language === 'ko' ? 'YoY' : 'YoY',
-                              yoyText.replace('YoY ', ''),
-                              card.salesYoyPct !== null && card.salesYoyPct >= 100 ? 'text-green-600' : 'text-red-600'
-                            )
-                          : null}
-                        {renderMetricLine(
-                          language === 'ko' ? '진척률' : 'Progress',
-                          formatPercent(progressPct, 1),
-                          progressPct !== null && progressPct >= 100 ? 'text-green-600' : 'text-gray-900'
-                        )}
-                        {renderMetricLine(
-                          getProjectionLabel(),
-                          formatPercent(projectedPct, 1),
-                          projectedPct !== null && projectedPct >= 100 ? 'text-green-600' : 'text-red-600'
-                        )}
-                        {renderDiscountLine(
-                          discountCombinedLabel,
-                          formatPercent(cardDiscountRate !== null ? cardDiscountRate * 100 : null, 1),
-                          discountDelta !== null ? `(${formatSignedPercentPoint(discountDelta)})` : undefined,
-                          discountDelta !== null
-                            ? discountDelta > 0
-                              ? 'text-red-600'
-                              : discountDelta < 0
-                                ? 'text-green-600'
+                        {fixedHeight ? (
+                          <>
+                            {renderMetricLine(
+                              language === 'ko' ? '소진액' : 'Depleted',
+                              formatMillionFixed(card.salesAmt || 0),
+                              'text-gray-900',
+                              undefined,
+                              'text-[11px]'
+                            )}
+                            {yoyText
+                              ? renderMetricLine(
+                                  language === 'ko' ? 'YoY' : 'YoY',
+                                  yoyText.replace('YoY ', ''),
+                                  card.salesYoyPct !== null && card.salesYoyPct >= 100 ? 'text-green-600' : 'text-red-600'
+                                )
+                              : renderMetricLine(
+                                  language === 'ko' ? '진척률' : 'Progress',
+                                  formatPercent(progressPct, 1),
+                                  progressPct !== null && progressPct >= 100 ? 'text-green-600' : 'text-gray-900'
+                                )}
+                            {renderMetricLine(
+                              getProjectionLabel(),
+                              formatPercent(projectedPct, 1),
+                              projectedPct !== null && projectedPct >= 100 ? 'text-green-600' : 'text-red-600'
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {renderMetricLine(
+                              language === 'ko' ? '소진액' : 'Depleted',
+                              formatMillionFixed(card.salesAmt || 0),
+                              'text-gray-900',
+                              undefined,
+                              'text-[12px]'
+                            )}
+                            {yoyText
+                              ? renderMetricLine(
+                                  language === 'ko' ? 'YoY' : 'YoY',
+                                  yoyText.replace('YoY ', ''),
+                                  card.salesYoyPct !== null && card.salesYoyPct >= 100 ? 'text-green-600' : 'text-red-600'
+                                )
+                              : null}
+                            {renderMetricLine(
+                              language === 'ko' ? '진척률' : 'Progress',
+                              formatPercent(progressPct, 1),
+                              progressPct !== null && progressPct >= 100 ? 'text-green-600' : 'text-gray-900'
+                            )}
+                            {renderMetricLine(
+                              getProjectionLabel(),
+                              formatPercent(projectedPct, 1),
+                              projectedPct !== null && projectedPct >= 100 ? 'text-green-600' : 'text-red-600'
+                            )}
+                            {renderDiscountLine(
+                              discountCombinedLabel,
+                              formatPercent(cardDiscountRate !== null ? cardDiscountRate * 100 : null, 1),
+                              discountDelta !== null ? `(${formatSignedPercentPoint(discountDelta)})` : undefined,
+                              discountDelta !== null
+                                ? discountDelta > 0
+                                  ? 'text-red-600'
+                                  : discountDelta < 0
+                                    ? 'text-green-600'
+                                    : 'text-gray-600'
                                 : 'text-gray-600'
-                            : 'text-gray-600'
+                            )}
+                          </>
                         )}
                       </>
                     )}
