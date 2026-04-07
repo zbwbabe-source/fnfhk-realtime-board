@@ -505,11 +505,14 @@ export default function DashboardPage() {
 
         if (nextDates.length > 0) {
           setAvailableDates(nextDates);
-          setDate((prev) => (prev === initialDate ? prev : initialDate));
+          setDate((prev) => {
+            if (prev && nextDates.includes(prev)) return prev;
+            return initialDate;
+          });
           setLatestDate(metaTopDate || resolvedLatestDate || fallbackDate);
         } else {
           setAvailableDates([initialDate]);
-          setDate((prev) => (prev === initialDate ? prev : initialDate));
+          setDate((prev) => (prev || initialDate));
           setLatestDate(initialDate);
         }
       } catch (error) {
