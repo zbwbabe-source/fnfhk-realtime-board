@@ -370,7 +370,7 @@ function StoreTreemapTooltip({
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
       <p className="text-sm font-semibold text-gray-900">{item.fullName}</p>
       <p className="mt-1 text-xs text-gray-600">
-        {language === 'ko' ? '태그매출' : 'Tag Sales'}: {formatCurrency(item.tagSales)}
+        {language === 'ko' ? 'Tag매출' : 'Tag Sales'}: {formatCurrency(item.tagSales)}
       </p>
       <p className="text-xs text-gray-600">
         {language === 'ko' ? '실판매출' : 'Actual Sales'}: {formatCurrency(item.sales)}
