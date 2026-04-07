@@ -38,10 +38,17 @@ export default function DailyHighlight({
     execution: string;
     risk: string;
   };
+  type StrategySection = 'performance' | 'risk' | 'action';
+  type StrategyItem = {
+    key: string;
+    region: StrategyRegion;
+    sectionLabel: string;
+    text: string;
+  };
 
   const [data, setData] = useState<ExecutiveInsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showStrategyPanel, setShowStrategyPanel] = useState(false);
+  const [isStrategyExpanded, setIsStrategyExpanded] = useState(false);
   const isInsightInputReady =
     !!hkmcSection1Data?.total_subtotal &&
     !!twSection1Data?.total_subtotal &&
@@ -459,6 +466,109 @@ export default function DailyHighlight({
     [strategyRows]
   );
 
+  const monthInfo = useMemo(() => {
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return {
+        performanceTitle: language === 'ko' ? '당월 주요 성과' : 'Monthly Performance',
+        riskTitle: language === 'ko' ? '당월 주요 이슈 & 리스크' : 'Monthly Risks',
+        actionTitle: language === 'ko' ? '당월 액션플랜' : 'Action Plan',
+      };
+    }
+
+    const month = parsed.getMonth() + 1;
+    const monthLabel =
+      language === 'ko'
+        ? `${month}월`
+        : parsed.toLocaleString('en-US', {
+            month: 'long',
+          });
+
+    return language === 'ko'
+      ? {
+          performanceTitle: `${monthLabel} 주요 성과`,
+          riskTitle: `${monthLabel} 주요 이슈 & 리스크`,
+          actionTitle: `${monthLabel} 액션플랜`,
+        }
+      : {
+          performanceTitle: `${monthLabel} Performance`,
+          riskTitle: `${monthLabel} Risks`,
+          actionTitle: `${monthLabel} Action Plan`,
+        };
+  }, [date, language]);
+
+  const sectionItems = useMemo<Record<StrategySection, StrategyItem[]>>(() => {
+    const items: Record<StrategySection, StrategyItem[]> = {
+      performance: [],
+      risk: [],
+      action: [],
+    };
+
+    const normalizeCategoryLabel = (category: string) => {
+      if (language === 'ko') return category;
+      if (category === '매장') return 'Store';
+      if (category === '당시즌') return 'In-season';
+      if (category === '과시즌') return 'Old-season';
+      return category;
+    };
+
+    (['HKMC', 'TW'] as const).forEach((region) => {
+      groupedStrategyRows[region].forEach((row, index) => {
+        const sectionLabel = normalizeCategoryLabel(row.category || '-');
+        const itemKey = `${region}-${sectionLabel}-${index}`;
+
+        if (row.status && row.status !== '-') {
+          items.performance.push({
+            key: `${itemKey}-performance`,
+            region,
+            sectionLabel,
+            text: row.status,
+          });
+        }
+
+        if (row.risk && row.risk !== '-') {
+          items.risk.push({
+            key: `${itemKey}-risk`,
+            region,
+            sectionLabel,
+            text: row.risk,
+          });
+        }
+
+        if (row.execution && row.execution !== '-') {
+          const actionText =
+            row.target && row.target !== '-'
+              ? `${row.execution} (${language === 'ko' ? '대상' : 'Target'}: ${row.target})`
+              : row.execution;
+
+          items.action.push({
+            key: `${itemKey}-action`,
+            region,
+            sectionLabel,
+            text: actionText,
+          });
+        }
+      });
+    });
+
+    return items;
+  }, [groupedStrategyRows, language]);
+
+  const renderStrategyList = (items: StrategyItem[]) => (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.key} className="flex items-start gap-2 text-sm leading-relaxed text-gray-800">
+          <span className="mt-1 text-gray-500">•</span>
+          <p>
+            <span className="font-semibold text-gray-900">{item.region}</span>{' '}
+            <span className="font-semibold text-gray-700">{item.sectionLabel}</span>{' '}
+            {item.text}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section className="mb-4 rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -488,66 +598,41 @@ export default function DailyHighlight({
             ))}
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">
-                {language === 'ko' ? 'AI 추천 전략' : 'AI Strategy'}
-              </h3>
+              <h3 className="text-sm font-semibold text-gray-900">{t(language, 'aiRecommendedStrategy')}</h3>
               <button
                 type="button"
-                onClick={() => setShowStrategyPanel((prev) => !prev)}
-                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => setIsStrategyExpanded((prev) => !prev)}
+                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
-                {showStrategyPanel ? (language === 'ko' ? '접기' : 'Collapse') : language === 'ko' ? '펼치기' : 'Expand'}
+                {isStrategyExpanded ? (language === 'ko' ? '접기' : 'Collapse') : language === 'ko' ? '펼치기' : 'Expand'}
               </button>
             </div>
-            <summary className="hidden">
-              {language === 'ko' ? '상세 보기 (AI 추천 전략)' : 'Details (AI Strategy)'}
-            </summary>
 
-            {showStrategyPanel ? (
-            <div className="space-y-2 pt-2">
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-gray-900">{t(language, 'aiRecommendedStrategy')}</h3>
-                <div className="space-y-3">
-                  {(['HKMC', 'TW'] as const).map((region) => {
-                    const rows = groupedStrategyRows[region];
-                    if (rows.length === 0) return null;
-                    return (
-                      <div key={`strategy-${region}`} className="rounded-lg border border-gray-200 bg-white">
-                        <div className="border-b border-gray-200 px-3 py-2">
-                          <p className="text-xs font-semibold tracking-wide text-gray-700">{region}</p>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="min-w-[760px] w-full text-xs text-gray-700">
-                            <thead>
-                              <tr className="bg-gray-50 text-gray-800">
-                                <th className="px-3 py-2 text-left font-semibold">{language === 'ko' ? '구분' : 'Type'}</th>
-                                <th className="px-3 py-2 text-left font-semibold text-purple-700">{language === 'ko' ? '현황' : 'Status'}</th>
-                                <th className="px-3 py-2 text-left font-semibold text-blue-700">{language === 'ko' ? '대상' : 'Target'}</th>
-                                <th className="px-3 py-2 text-left font-semibold text-emerald-700">{language === 'ko' ? '실행' : 'Action'}</th>
-                                <th className="px-3 py-2 text-left font-semibold text-rose-700">{language === 'ko' ? '리스크' : 'Risk'}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {rows.map((row, idx) => (
-                                <tr key={`${region}-${row.category}-${idx}`} className="border-t border-gray-100 align-top">
-                                  <td className="px-3 py-2 font-semibold text-gray-900">{row.category}</td>
-                                  <td className="px-3 py-2">{row.status}</td>
-                                  <td className="px-3 py-2">{row.target}</td>
-                                  <td className="px-3 py-2">{row.execution}</td>
-                                  <td className="px-3 py-2">{row.risk}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    );
-                  })}
+            {isStrategyExpanded ? (
+              <div className="grid gap-3 xl:grid-cols-3">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
+                  <h4 className="text-base font-semibold text-emerald-800">{monthInfo.performanceTitle}</h4>
+                  <div className="mt-3">
+                    {renderStrategyList(sectionItems.performance)}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-4">
+                  <h4 className="text-base font-semibold text-rose-800">{monthInfo.riskTitle}</h4>
+                  <div className="mt-3">
+                    {renderStrategyList(sectionItems.risk)}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+                  <h4 className="text-base font-semibold text-amber-800">{monthInfo.actionTitle}</h4>
+                  <div className="mt-3">
+                    {renderStrategyList(sectionItems.action)}
+                  </div>
                 </div>
               </div>
-            </div>
             ) : null}
           </div>
         </div>
