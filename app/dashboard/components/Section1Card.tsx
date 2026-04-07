@@ -64,6 +64,16 @@ type SelectedStore = {
   storeName: string;
 };
 
+function getTreemapStoreShortName(store: any): string {
+  const storeCode = String(store.shop_cd || '');
+  const fullName = String(store.shop_name || storeCode || '-');
+
+  if (storeCode === 'MC3') return 'SEN';
+  if (storeCode === 'MC4') return 'Sen(O)';
+
+  return getStoreShortCode(fullName) || fullName;
+}
+
 export default function Section1Card({
   isYtdMode,
   section1Data,
@@ -414,7 +424,8 @@ export default function Section1Card({
         return {
           storeCode: String(store.shop_cd || ''),
           storeName: fullName,
-          shortName: getStoreShortCode(fullName) || fullName,
+          shortName: getTreemapStoreShortName(store),
+          channel: typeof store.channel === 'string' ? store.channel : undefined,
           mtdTagSales: Number(store.mtd_tag || 0),
           mtdSales: Number(store.mtd_act || 0),
           mtdPrevSales: Number(store.mtd_act_py || 0),

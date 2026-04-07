@@ -8,6 +8,7 @@ export interface Section1AllStoresTreemapItem {
   storeCode: string;
   storeName: string;
   shortName: string;
+  channel?: string;
   mtdSales: number;
   mtdPrevSales: number;
   ytdSales: number;
@@ -48,6 +49,10 @@ export default function Section1AllStoresTreemapModal({
   hkdToTwdRate = 1,
 }: Section1AllStoresTreemapModalProps) {
   const [mode, setMode] = useState<'mtd' | 'ytd'>(isYtdMode ? 'ytd' : 'mtd');
+  const title =
+    language === 'ko'
+      ? `${region === 'TW' ? 'TW' : 'HKMC'} 매장 현황`
+      : `${region === 'TW' ? 'TW' : 'HKMC'} Store Status`;
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +84,7 @@ export default function Section1AllStoresTreemapModal({
       name: store.shortName || store.storeCode,
       storeCode: store.storeCode,
       fullName: store.storeName,
+      channel: store.channel,
       value: store.sales,
       sales: store.sales,
       prevSales: store.prevSales,
@@ -101,9 +107,7 @@ export default function Section1AllStoresTreemapModal({
         <div className="border-b border-gray-200 px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-[18px] font-bold text-gray-900">
-                {language === 'ko' ? '전체 매장 트리맵' : 'All Stores Treemap'}
-              </h2>
+              <h2 className="text-[18px] font-bold text-gray-900">{title}</h2>
               <p className="mt-1 text-xs text-gray-500">
                 {language === 'ko'
                   ? `기준: ${mode === 'ytd' ? `${date.slice(0, 4)}-01-01` : `${date.slice(0, 7)}-01`}~${date}`
@@ -148,6 +152,20 @@ export default function Section1AllStoresTreemapModal({
               ? '사각형 크기는 현재 모드 기준 매출 비중이며, 큰 매장부터 왼쪽에 배치됩니다.'
               : 'Rectangle size reflects sales share in the selected mode, with larger stores placed first.'}
           </p>
+          <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-gray-600">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full border border-emerald-300 bg-emerald-200" />
+              <span>{language === 'ko' ? '정상' : 'Retail'}</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full border border-amber-300 bg-amber-200" />
+              <span>{language === 'ko' ? '아울렛' : 'Outlet'}</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full border border-violet-300 bg-violet-200" />
+              <span>{language === 'ko' ? '온라인' : 'Online'}</span>
+            </div>
+          </div>
           <div className="h-[min(62vh,640px)] overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <ResponsiveContainer width="100%" height="100%">
               <Treemap
@@ -178,39 +196,49 @@ function StoreTreemapCell({
   name,
   storeCode,
   fullName,
+  channel,
   prevSales,
   yoy,
   discountRate,
   discountRateDiff,
 }: any) {
   if (!width || !height || width <= 0 || height <= 0) return null;
+
   const safeYoy = typeof yoy === 'number' && Number.isFinite(yoy) ? yoy : null;
   const safePrevSales = typeof prevSales === 'number' && Number.isFinite(prevSales) ? prevSales : 0;
   const isNewStore = safePrevSales <= 0 && safeYoy !== null && safeYoy === 0;
   const safeDiscountRate = typeof discountRate === 'number' && Number.isFinite(discountRate) ? discountRate : null;
   const safeDiscountRateDiff =
     typeof discountRateDiff === 'number' && Number.isFinite(discountRateDiff) ? discountRateDiff : null;
+  const isOnlineStore = channel === '온라인';
+  const isOutletStore = channel === '아울렛';
+  const isWarningStore = !isNewStore && safeYoy !== null && safeYoy < 100;
 
-  const fill =
-    safeYoy === null
-      ? '#e5e7eb'
-      : isNewStore
-        ? '#dbeafe'
-      : safeYoy >= 100
-        ? '#bbf7d0'
-        : '#fecaca';
+  const fill = isWarningStore
+    ? '#fecaca'
+    : isOnlineStore
+      ? '#ddd6fe'
+      : isOutletStore
+        ? '#fde68a'
+        : safeYoy === null
+          ? '#e5e7eb'
+          : '#bbf7d0';
 
-  const border =
-    safeYoy === null
-      ? '#cbd5e1'
-      : isNewStore
-        ? '#93c5fd'
-        : safeYoy >= 100
-          ? '#86efac'
-          : '#fca5a5';
+  const border = isWarningStore
+    ? '#fca5a5'
+    : isOnlineStore
+      ? '#a78bfa'
+      : isOutletStore
+        ? '#f59e0b'
+        : safeYoy === null
+          ? '#cbd5e1'
+          : '#86efac';
+
   const yoyPrefix = language === 'ko' ? '실판 YoY' : 'Actual YoY';
   const yoyDisplayText = isNewStore
-    ? (language === 'ko' ? '실판 YoY 신규' : 'Actual YoY New')
+    ? language === 'ko'
+      ? '실판 YoY 신규'
+      : 'Actual YoY New'
     : `${yoyPrefix} ${safeYoy !== null ? `${safeYoy.toFixed(0)}%` : '-'}`;
 
   const showTitle = width >= 36 && height >= 22;
@@ -223,7 +251,7 @@ function StoreTreemapCell({
       : safeDiscountRateDiff > 0
         ? `+${safeDiscountRateDiff.toFixed(1)}%p`
         : safeDiscountRateDiff < 0
-          ? `△${Math.abs(safeDiscountRateDiff).toFixed(1)}%p`
+          ? `-${Math.abs(safeDiscountRateDiff).toFixed(1)}%p`
           : '0.0%p';
 
   const discountDiffColor =
@@ -326,28 +354,39 @@ function StoreTreemapTooltip({
   formatCurrency: (value: number) => string;
 }) {
   if (!active || !payload?.length) return null;
+
   const item = payload[0].payload;
   const safePrevSales = typeof item.prevSales === 'number' && Number.isFinite(item.prevSales) ? item.prevSales : 0;
   const isNewStore = safePrevSales <= 0 && typeof item.yoy === 'number' && Number.isFinite(item.yoy) && item.yoy === 0;
   const yoyText = isNewStore
-    ? (language === 'ko' ? '신규' : 'New')
-    : (typeof item.yoy === 'number' && Number.isFinite(item.yoy) ? `${item.yoy.toFixed(0)}%` : '-');
+    ? language === 'ko'
+      ? '신규'
+      : 'New'
+    : typeof item.yoy === 'number' && Number.isFinite(item.yoy)
+      ? `${item.yoy.toFixed(0)}%`
+      : '-';
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg">
       <p className="text-sm font-semibold text-gray-900">{item.fullName}</p>
       <p className="mt-1 text-xs text-gray-600">
-        {language === 'ko' ? '택매출' : 'Tag Sales'}: {formatCurrency(item.tagSales)}
+        {language === 'ko' ? '태그매출' : 'Tag Sales'}: {formatCurrency(item.tagSales)}
       </p>
       <p className="text-xs text-gray-600">
         {language === 'ko' ? '실판매출' : 'Actual Sales'}: {formatCurrency(item.sales)}
       </p>
       <p className="text-xs text-gray-600">
-        {language === 'ko' ? '매출 비중' : 'Sales Share'}: {typeof item.share === 'number' && Number.isFinite(item.share) ? item.share.toFixed(1) : '0.0'}%
+        {language === 'ko' ? '매출 비중' : 'Sales Share'}:{' '}
+        {typeof item.share === 'number' && Number.isFinite(item.share) ? item.share.toFixed(1) : '0.0'}%
       </p>
       <p className="text-xs text-gray-600">
         {language === 'ko' ? '실판 YoY' : 'Actual YoY'}: {yoyText}
       </p>
+      {item.channel ? (
+        <p className="text-xs text-gray-600">
+          {language === 'ko' ? '채널' : 'Channel'}: {item.channel}
+        </p>
+      ) : null}
     </div>
   );
 }
