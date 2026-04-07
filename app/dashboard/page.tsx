@@ -36,40 +36,6 @@ function clampDateToMax(candidate: string, maxDate: string): string {
   return candidate > maxDate ? maxDate : candidate;
 }
 
-function extractStoreCodesFromSection1Data(section1Data: any): string[] {
-  if (!section1Data || typeof section1Data !== 'object') return [];
-
-  const codes = new Set<string>();
-
-  Object.entries(section1Data)
-    .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
-    .forEach(([, value]) => {
-      (value as any[]).forEach((store) => {
-        const code = String(store?.shop_cd || '');
-        if (!code || code.endsWith('_TOTAL')) return;
-        codes.add(code);
-      });
-    });
-
-  return [...codes].sort((a, b) => a.localeCompare(b));
-}
-
-async function mapInBatches<T, R>(
-  items: T[],
-  batchSize: number,
-  worker: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = [];
-
-  for (let index = 0; index < items.length; index += batchSize) {
-    const batch = items.slice(index, index + batchSize);
-    const batchResults = await Promise.all(batch.map(worker));
-    results.push(...batchResults);
-  }
-
-  return results;
-}
-
 export default function DashboardPage() {
   const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
@@ -152,53 +118,6 @@ export default function DashboardPage() {
     setIsExportingJson(true);
 
     try {
-      const fetchJson = async (url: string) => {
-        const response = await fetch(url, { cache: 'no-store' });
-        const json = await response.json();
-
-        if (!response.ok) {
-          throw new Error(json?.message || json?.error || `Failed to fetch ${url}`);
-        }
-
-        return json;
-      };
-
-      const buildRegionModalData = async (regionCode: 'HKMC' | 'TW', section1Source: any) => {
-        const storeCodes = extractStoreCodesFromSection1Data(section1Source);
-
-        const [section2TreemapMtd, section2TreemapYtd, section3Detail, storeDetailEntries] = await Promise.all([
-          fetchJson(`/api/section2/treemap?region=${regionCode}&brand=${brand}&date=${date}&mode=monthly`),
-          fetchJson(`/api/section2/treemap?region=${regionCode}&brand=${brand}&date=${date}&mode=ytd`),
-          fetchJson(
-            `/api/section3/old-season-inventory?region=${regionCode}&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true`
-          ),
-          mapInBatches(storeCodes, 8, async (shopCd) => {
-            const [mtd, ytd] = await Promise.all([
-              fetchJson(`/api/section1/store-detail?region=${regionCode}&brand=${brand}&date=${date}&shop_cd=${shopCd}&mode=mtd`),
-              fetchJson(`/api/section1/store-detail?region=${regionCode}&brand=${brand}&date=${date}&shop_cd=${shopCd}&mode=ytd`),
-            ]);
-
-            return [shopCd, { mtd, ytd }] as const;
-          }),
-        ]);
-
-        return {
-          section1: {
-            all_stores_treemap_source: section1Source,
-            store_detail_by_store: Object.fromEntries(storeDetailEntries),
-          },
-          section2: {
-            treemap: {
-              mtd: section2TreemapMtd,
-              ytd: section2TreemapYtd,
-            },
-          },
-          section3: {
-            detail: section3Detail,
-          },
-        };
-      };
-
       const regionSectionData =
         targetRegion === 'HKMC'
           ? {
@@ -212,8 +131,6 @@ export default function DashboardPage() {
               section3: twSection3Data,
             };
 
-      const regionModalData = await buildRegionModalData(targetRegion, regionSectionData.section1);
-
       const payload = {
         exported_at: new Date().toISOString(),
         dashboard_date: date,
@@ -221,22 +138,28 @@ export default function DashboardPage() {
         region: targetRegion,
         mode: isYtdMode ? 'ytd' : 'mtd',
         language,
+        export_profile: 'llm-compact',
         summary_filters: {
           section2_category_filter: categoryFilter,
           section3_category_filter: section3CategoryFilter,
           section1_detail_view_mode: section1DetailViewMode,
         },
         data: regionSectionData,
-        modal_data: regionModalData,
+        omitted_data: [
+          'modal_data.section1.all_stores_treemap_source',
+          'modal_data.section1.store_detail_by_store',
+          'modal_data.section2.treemap',
+          'modal_data.section3.detail',
+        ],
       };
 
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      const blob = new Blob([JSON.stringify(payload)], {
         type: 'application/json;charset=utf-8',
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `dashboard-summary-${targetRegion.toLowerCase()}-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
+      anchor.download = `dashboard-summary-${targetRegion.toLowerCase()}-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}-compact.json`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
