@@ -146,7 +146,7 @@ export default function DashboardPage() {
     setTwTreemapRequestKey((prev) => prev + 1);
   }, []);
 
-  const handleDownloadSummaryJson = useCallback(async () => {
+  const handleDownloadSummaryJson = useCallback(async (targetRegion: 'HKMC' | 'TW') => {
     if (!date || activeTab !== 'summary') return;
 
     setIsExportingJson(true);
@@ -199,15 +199,26 @@ export default function DashboardPage() {
         };
       };
 
-      const [hkmcModalData, twModalData] = await Promise.all([
-        buildRegionModalData('HKMC', hkmcSection1Data),
-        buildRegionModalData('TW', twSection1Data),
-      ]);
+      const regionSectionData =
+        targetRegion === 'HKMC'
+          ? {
+              section1: hkmcSection1Data,
+              section2: hkmcSection2Data,
+              section3: hkmcSection3Data,
+            }
+          : {
+              section1: twSection1Data,
+              section2: twSection2Data,
+              section3: twSection3Data,
+            };
+
+      const regionModalData = await buildRegionModalData(targetRegion, regionSectionData.section1);
 
       const payload = {
         exported_at: new Date().toISOString(),
         dashboard_date: date,
         brand,
+        region: targetRegion,
         mode: isYtdMode ? 'ytd' : 'mtd',
         language,
         summary_filters: {
@@ -215,22 +226,8 @@ export default function DashboardPage() {
           section3_category_filter: section3CategoryFilter,
           section1_detail_view_mode: section1DetailViewMode,
         },
-        data: {
-          hkmc: {
-            section1: hkmcSection1Data,
-            section2: hkmcSection2Data,
-            section3: hkmcSection3Data,
-          },
-          tw: {
-            section1: twSection1Data,
-            section2: twSection2Data,
-            section3: twSection3Data,
-          },
-        },
-        modal_data: {
-          hkmc: hkmcModalData,
-          tw: twModalData,
-        },
+        data: regionSectionData,
+        modal_data: regionModalData,
       };
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -239,7 +236,7 @@ export default function DashboardPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `dashboard-summary-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
+      anchor.download = `dashboard-summary-${targetRegion.toLowerCase()}-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
@@ -817,13 +814,22 @@ export default function DashboardPage() {
 
             <div className="ml-auto flex items-center gap-2">
               {activeTab === 'summary' && (
-                <button
-                  onClick={handleDownloadSummaryJson}
-                  disabled={!allDataLoaded || anyDataLoading || isExportingJson}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {language === 'ko' ? '현재 대시보드 JSON' : 'Download JSON'}
-                </button>
+                <>
+                  <button
+                    onClick={() => handleDownloadSummaryJson('HKMC')}
+                    disabled={!allDataLoaded || anyDataLoading || isExportingJson}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    HKMC JSON
+                  </button>
+                  <button
+                    onClick={() => handleDownloadSummaryJson('TW')}
+                    disabled={!allDataLoaded || anyDataLoading || isExportingJson}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    TW JSON
+                  </button>
+                </>
               )}
               {anyDataLoading && (
                 <div className="flex items-center gap-1.5 text-blue-600 text-sm">
