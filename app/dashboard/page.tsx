@@ -40,6 +40,16 @@ function clampDateToMax(candidate: string, maxDate: string): string {
   return candidate > maxDate ? maxDate : candidate;
 }
 
+function getPreviousYearSameDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  date.setFullYear(date.getFullYear() - 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getDetailExportStores(section1Data: any, region: 'HKMC' | 'TW') {
   if (!section1Data || typeof section1Data !== 'object') return [];
 
@@ -240,56 +250,92 @@ export default function DashboardPage() {
 
       try {
         const exportBrands = ['M', 'X'];
+        const lyDate = getPreviousYearSameDate(date);
         const responses = await Promise.all(
           exportBrands.map(async (brandCode) => {
-            const response = await fetch(
-              `/api/section1/store-sales?region=${regionToExport}&brand=${brandCode}&date=${date}&mode=${detailExportMode}`,
-              { cache: 'no-store' }
-            );
+            const [tyResponse, lyResponse] = await Promise.all([
+              fetch(
+                `/api/section1/store-sales?region=${regionToExport}&brand=${brandCode}&date=${date}&mode=${detailExportMode}`,
+                { cache: 'no-store' }
+              ),
+              fetch(
+                `/api/section1/store-sales?region=${regionToExport}&brand=${brandCode}&date=${lyDate}&mode=${detailExportMode}`,
+                { cache: 'no-store' }
+              ),
+            ]);
 
-            if (!response.ok) {
-              throw new Error(`Failed to fetch section1 export data for ${regionToExport}/${brandCode}`);
+            if (!tyResponse.ok) {
+              throw new Error(`Failed to fetch section1 export data for ${regionToExport}/${brandCode}/${date}`);
             }
 
-            const json = await response.json();
-            return { brandCode, data: json };
+            if (!lyResponse.ok) {
+              throw new Error(`Failed to fetch section1 export data for ${regionToExport}/${brandCode}/${lyDate}`);
+            }
+
+            const [tyJson, lyJson] = await Promise.all([tyResponse.json(), lyResponse.json()]);
+            return { brandCode, tyData: tyJson, lyData: lyJson };
           })
         );
 
         const period = getPeriodFromDateString(date);
         const twdToHkdRate = getExchangeRate(period);
         const hkdToTwdRateForExport = twdToHkdRate > 0 ? 1 / twdToHkdRate : 1;
+        const lyPeriod = getPeriodFromDateString(lyDate);
+        const lyTwdToHkdRate = getExchangeRate(lyPeriod);
+        const lyHkdToTwdRateForExport = lyTwdToHkdRate > 0 ? 1 / lyTwdToHkdRate : 1;
 
         const workbook = XLSX.utils.book_new();
         const matrixRows = responses
-          .flatMap(({ brandCode, data }) =>
-            getDetailExportStores(data, regionToExport).map((store) => {
+          .flatMap(({ brandCode, tyData, lyData }) => {
+            const lyStoreMap = new Map(
+              getDetailExportStores(lyData, regionToExport).map((store) => [String(store.shop_cd || ''), store])
+            );
+
+            return getDetailExportStores(tyData, regionToExport).map((store) => {
+              const shopCode = String(store.shop_cd || '');
+              const lyStore = lyStoreMap.get(shopCode);
               const tagSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_tag || 0 : store.mtd_tag || 0);
               const actualSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_act || 0 : store.mtd_act || 0);
+              const lyTagSalesHkd = Number(
+                detailExportMode === 'ytd' ? lyStore?.ytd_tag || 0 : lyStore?.mtd_tag || 0
+              );
+              const lyActualSalesHkd = Number(
+                detailExportMode === 'ytd' ? lyStore?.ytd_act || 0 : lyStore?.mtd_act || 0
+              );
+              const actualYoy =
+                lyActualSalesHkd > 0 ? Number(((actualSalesHkd / lyActualSalesHkd) * 100).toFixed(2)) : null;
 
               if (regionToExport === 'TW') {
                 return {
                   Brand: getBrandLabel(brandCode),
                   Country: String(store.country || regionToExport),
-                  'Shop Code': String(store.shop_cd || ''),
+                  'Shop Code': shopCode,
                   'Shop Name': String(store.shop_name || store.shop_cd || ''),
-                  'TAG Sales (HKD)': tagSalesHkd,
-                  'Actual Sales (HKD)': actualSalesHkd,
-                  'TAG Sales (TWD)': Number((tagSalesHkd * hkdToTwdRateForExport).toFixed(2)),
-                  'Actual Sales (TWD)': Number((actualSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`TAG Sales ${date} (HKD)`]: tagSalesHkd,
+                  [`Actual Sales ${date} (HKD)`]: actualSalesHkd,
+                  [`TAG Sales ${date} (TWD)`]: Number((tagSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`Actual Sales ${date} (TWD)`]: Number((actualSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`TAG Sales ${lyDate} (HKD)`]: lyTagSalesHkd,
+                  [`Actual Sales ${lyDate} (HKD)`]: lyActualSalesHkd,
+                  [`TAG Sales ${lyDate} (TWD)`]: Number((lyTagSalesHkd * lyHkdToTwdRateForExport).toFixed(2)),
+                  [`Actual Sales ${lyDate} (TWD)`]: Number((lyActualSalesHkd * lyHkdToTwdRateForExport).toFixed(2)),
+                  'Actual YoY (%)': actualYoy,
                 };
               }
 
               return {
                 Brand: getBrandLabel(brandCode),
                 Country: String(store.country || ''),
-                'Shop Code': String(store.shop_cd || ''),
+                'Shop Code': shopCode,
                 'Shop Name': String(store.shop_name || store.shop_cd || ''),
-                'TAG Sales (HKD)': tagSalesHkd,
-                'Actual Sales (HKD)': actualSalesHkd,
+                [`TAG Sales ${date} (HKD)`]: tagSalesHkd,
+                [`Actual Sales ${date} (HKD)`]: actualSalesHkd,
+                [`TAG Sales ${lyDate} (HKD)`]: lyTagSalesHkd,
+                [`Actual Sales ${lyDate} (HKD)`]: lyActualSalesHkd,
+                'Actual YoY (%)': actualYoy,
               };
-            })
-          )
+            });
+          })
           .sort((a, b) => {
             const brandCompare = String(a.Brand || '').localeCompare(String(b.Brand || ''));
             if (brandCompare !== 0) return brandCompare;
@@ -300,12 +346,14 @@ export default function DashboardPage() {
           regionToExport === 'TW'
             ? [
                 ['As Of Date', date, 'Region', regionToExport],
-                ['Mode', detailExportMode.toUpperCase(), 'Exchange Rate (TWD->HKD)', twdToHkdRate],
+                ['LY Same Period', lyDate, 'Mode', detailExportMode.toUpperCase()],
+                ['TY Exchange Rate (TWD->HKD)', twdToHkdRate, 'LY Exchange Rate (TWD->HKD)', lyTwdToHkdRate],
                 [],
               ]
             : [
                 ['As Of Date', date, 'Region', regionToExport],
-                ['Mode', detailExportMode.toUpperCase(), 'Currency', 'HKD'],
+                ['LY Same Period', lyDate, 'Mode', detailExportMode.toUpperCase()],
+                ['Currency', 'HKD'],
                 [],
               ];
 
@@ -324,6 +372,11 @@ export default function DashboardPage() {
                 { wch: 18 },
                 { wch: 18 },
                 { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 14 },
               ]
             : [
                 { wch: 14 },
@@ -332,6 +385,9 @@ export default function DashboardPage() {
                 { wch: 28 },
                 { wch: 18 },
                 { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 14 },
               ];
 
         XLSX.utils.book_append_sheet(workbook, worksheet, `${regionToExport}_${detailExportMode.toUpperCase()}`);
