@@ -136,6 +136,7 @@ export default function DashboardPage() {
         dashboard_date: date,
         brand,
         region: targetRegion,
+        export_currency: 'HKD',
         mode: isYtdMode ? 'ytd' : 'mtd',
         language,
         export_profile: 'llm-compact',
@@ -159,7 +160,7 @@ export default function DashboardPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `dashboard-summary-${targetRegion.toLowerCase()}-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}-compact.json`;
+      anchor.download = `dashboard-summary-${targetRegion.toLowerCase()}-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}-hkd-compact.json`;
       document.body.appendChild(anchor);
       anchor.click();
       document.body.removeChild(anchor);
