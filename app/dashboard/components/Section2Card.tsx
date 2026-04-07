@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 
 interface Section2CardProps {
   section2Data: any;
@@ -45,6 +46,17 @@ export default function Section2Card({
 
   const [rankingView, setRankingView] = useState<'top5' | 'worst5'>('top5');
   const [periodView, setPeriodView] = useState<'cum' | 'mtd'>('mtd');
+
+  const renderCategoryTooltip = (categoryCode: string) => {
+    const tooltipText = getCategoryTooltipText(categoryCode);
+    if (!tooltipText) return null;
+
+    return (
+      <div className="pointer-events-none absolute left-1/2 top-2 z-20 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[11px] font-medium text-white shadow-lg group-hover:block">
+        {tooltipText}
+      </div>
+    );
+  };
 
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
@@ -251,9 +263,14 @@ export default function Section2Card({
                     : `Bottom ${index - 3}`;
 
               return (
-                <div key={`${groupLabel}-${item.key}`} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 shadow-sm">
+                <div
+                  key={`${groupLabel}-${item.key}`}
+                  className="group relative rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 shadow-sm"
+                  title={getCategoryTooltipText(item.category)}
+                >
+                  {renderCategoryTooltip(item.category)}
                   <p className="text-[10px] font-semibold tracking-[0.08em] text-gray-400">{groupLabel}</p>
-                  <p className="mt-1 text-[13px] font-bold leading-tight text-gray-800">{item.category}</p>
+                  <p className="mt-1 text-[13px] font-bold leading-tight text-gray-800" title={getCategoryTooltipText(item.category)}>{item.category}</p>
                   <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">{item.sellthroughPct.toFixed(1)}%</p>
                   <p className="mt-1 text-[11px] font-medium text-gray-500">
                     {language === 'ko' ? '판매율' : isCompactEnglish ? 'STR' : 'Sell-through'}
@@ -316,8 +333,13 @@ export default function Section2Card({
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {categoryRankingCards.map((item, idx) => (
-              <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 shadow-sm">
-                <p className="min-h-[30px] break-keep text-sm font-bold leading-snug text-gray-800">{`${idx + 1}. ${item.category}`}</p>
+              <div
+                key={item.key}
+                className="group relative rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 shadow-sm"
+                title={getCategoryTooltipText(item.category)}
+              >
+                {renderCategoryTooltip(item.category)}
+                <p className="min-h-[30px] break-keep text-sm font-bold leading-snug text-gray-800" title={getCategoryTooltipText(item.category)}>{`${idx + 1}. ${item.category}`}</p>
                 <p className="mt-0.5 text-lg font-bold tabular-nums text-gray-900">
                   {formatCurrency(periodView === 'cum' ? item.salesTag : item.mtdSalesTag)}
                 </p>

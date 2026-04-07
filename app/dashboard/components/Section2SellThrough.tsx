@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 
 interface Section2Props {
   region: string;
@@ -266,7 +267,7 @@ export default function Section2SellThrough({
 
   const renderProductRow = (row: ProductRow) => (
     <tr key={row.prdt_cd}>
-      <td className="px-4 py-2 border-b border-gray-200">{row.category}</td>
+      <td className="px-4 py-2 border-b border-gray-200" title={getCategoryTooltipText(row.category)}>{row.category}</td>
       <td className="px-4 py-2 border-b border-gray-200">{row.prdt_cd}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatQty(row.inbound_qty)}
@@ -292,7 +293,7 @@ export default function Section2SellThrough({
       onClick={() => scrollToProductSection(row.category)}
       className="cursor-pointer hover:bg-blue-100 transition-colors"
     >
-      <td className="px-4 py-2 border-b border-gray-200 font-medium">{row.category}</td>
+      <td className="px-4 py-2 border-b border-gray-200 font-medium" title={getCategoryTooltipText(row.category)}>{row.category}</td>
       <td className="px-4 py-2 border-b border-gray-200 text-right">
         {formatQty(row.inbound_qty)}
       </td>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import { t, type Language } from '@/lib/translations';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 import { 
   CardShell, 
   CardHeader,
@@ -321,6 +322,7 @@ export default function Section2Treemap({
 
         return (
           <g>
+            <title>{getCategoryTooltipText(name)}</title>
             <rect
               x={x}
               y={y}
@@ -381,6 +383,7 @@ export default function Section2Treemap({
       if (displayLevel === 6) {
         return (
           <g>
+            <title>{getCategoryTooltipText(name)}</title>
             <defs>
               <clipPath id={clipId}>
                 <rect x={x} y={y} width={width} height={height} />
@@ -515,6 +518,7 @@ export default function Section2Treemap({
       if (displayLevel === 4) {
         return (
           <g>
+            <title>{getCategoryTooltipText(name)}</title>
             <defs>
               <clipPath id={clipId}>
                 <rect x={x} y={y} width={width} height={height} />
@@ -615,6 +619,7 @@ export default function Section2Treemap({
       if (displayLevel === 2) {
         return (
           <g>
+            <title>{getCategoryTooltipText(name)}</title>
             <defs>
               <clipPath id={clipId}>
                 <rect x={x} y={y} width={width} height={height} />
@@ -680,6 +685,7 @@ export default function Section2Treemap({
       if (displayLevel === 1) {
         return (
           <g>
+            <title>{getCategoryTooltipText(name)}</title>
             <defs>
               <clipPath id={clipId}>
                 <rect x={x} y={y} width={width} height={height} />
@@ -726,6 +732,7 @@ export default function Section2Treemap({
       // 극소형 셀: 텍스트 없음
       return (
         <g>
+          <title>{getCategoryTooltipText(name)}</title>
           <rect
             x={x}
             y={y}
@@ -756,7 +763,7 @@ export default function Section2Treemap({
 
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-300 text-sm">
-        <div className="font-bold text-gray-900 mb-3 text-base">{translateCategory(data.name)}</div>
+        <div className="font-bold text-gray-900 mb-3 text-base" title={getCategoryTooltipText(data.name)}>{translateCategory(data.name)}</div>
         <div className="space-y-1.5 text-gray-700">
           <div>
             <span className="font-semibold">{language === 'ko' ? '택매출' : 'Tag Sales'}:</span>{' '}

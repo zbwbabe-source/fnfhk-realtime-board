@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 
 interface Section1StoreDetailModalProps {
   open: boolean;
@@ -457,7 +458,7 @@ export default function Section1StoreDetailModal({
                                                           className="flex items-center gap-2 pl-5 font-medium text-slate-700"
                                                         >
                                                           <span className="text-[10px] text-slate-400">{smallExpanded ? '▼' : '▶'}</span>
-                                                          <span>{smallCategory.category_small}</span>
+                                                          <span title={getCategoryTooltipText(smallCategory.category_small)}>{smallCategory.category_small}</span>
                                                         </button>
                                                       </td>
                                                       <td className="px-4 py-4 text-right tabular-nums text-slate-800">{formatCurrency(smallCategory.sales_tag)}</td>

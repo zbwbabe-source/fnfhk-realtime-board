@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import BrandSelect from './components/BrandSelect';
 import DailyHighlight from './components/DailyHighlight';
 import DateSelect from './components/DateSelect';
@@ -19,6 +20,9 @@ import GuideModal from './components/GuideModal';
 import { t, type Language } from '@/lib/translations';
 import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
 
+type DetailExportMode = 'mtd' | 'ytd';
+type ExportRegion = 'HKMC' | 'TW';
+
 function getKstYesterdayString(): string {
   const now = new Date();
   const utcTime = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -36,6 +40,44 @@ function clampDateToMax(candidate: string, maxDate: string): string {
   return candidate > maxDate ? maxDate : candidate;
 }
 
+function getDetailExportStores(section1Data: any, region: 'HKMC' | 'TW') {
+  if (!section1Data || typeof section1Data !== 'object') return [];
+
+  const storeGroups =
+    region === 'TW'
+      ? [section1Data.tw_normal, section1Data.tw_outlet, section1Data.tw_online]
+      : [
+          section1Data.hk_normal,
+          section1Data.hk_outlet,
+          section1Data.hk_online,
+          section1Data.mc_normal,
+          section1Data.mc_outlet,
+          section1Data.mc_online,
+        ];
+
+  const deduped = new Map<string, any>();
+  storeGroups
+    .flatMap((group) => (Array.isArray(group) ? group : []))
+    .filter((store) => store && typeof store === 'object')
+    .forEach((store) => {
+      const shopCd = String(store.shop_cd || '').trim();
+      if (!shopCd || shopCd.includes('_TOTAL')) return;
+      if (!deduped.has(shopCd)) {
+        deduped.set(shopCd, store);
+      }
+    });
+
+  return [...deduped.values()].sort((a, b) =>
+    String(a.shop_cd || '').localeCompare(String(b.shop_cd || ''))
+  );
+}
+
+function getBrandLabel(brandCode: string): string {
+  if (brandCode === 'M') return 'MLB';
+  if (brandCode === 'X') return 'Discovery';
+  return brandCode;
+}
+
 export default function DashboardPage() {
   const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
@@ -51,8 +93,10 @@ export default function DashboardPage() {
   const [section1DetailViewMode, setSection1DetailViewMode] = useState<'season' | 'top5' | 'worst5'>('season');
   const [activeTab, setActiveTab] = useState<'summary' | 'hkmc' | 'tw'>('summary');
   const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
+  const [detailExportMode, setDetailExportMode] = useState<DetailExportMode>('mtd');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isExportingMatrix, setIsExportingMatrix] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [hkmcTreemapRequestKey, setHkmcTreemapRequestKey] = useState(0);
@@ -187,6 +231,121 @@ export default function DashboardPage() {
     twSection2Data,
     twSection3Data,
   ]);
+
+  const handleDownloadShopSalesMatrix = useCallback((targetRegion: 'HKMC' | 'TW') => {
+    if (activeTab === 'summary' || !date) return;
+
+    const exportAllBrandStoreSales = async (regionToExport: ExportRegion) => {
+      setIsExportingMatrix(true);
+
+      try {
+        const exportBrands = ['M', 'X'];
+        const responses = await Promise.all(
+          exportBrands.map(async (brandCode) => {
+            const response = await fetch(
+              `/api/section1/store-sales?region=${regionToExport}&brand=${brandCode}&date=${date}&mode=${detailExportMode}`,
+              { cache: 'no-store' }
+            );
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch section1 export data for ${regionToExport}/${brandCode}`);
+            }
+
+            const json = await response.json();
+            return { brandCode, data: json };
+          })
+        );
+
+        const period = getPeriodFromDateString(date);
+        const twdToHkdRate = getExchangeRate(period);
+        const hkdToTwdRateForExport = twdToHkdRate > 0 ? 1 / twdToHkdRate : 1;
+
+        const workbook = XLSX.utils.book_new();
+        const matrixRows = responses
+          .flatMap(({ brandCode, data }) =>
+            getDetailExportStores(data, regionToExport).map((store) => {
+              const tagSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_tag || 0 : store.mtd_tag || 0);
+              const actualSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_act || 0 : store.mtd_act || 0);
+
+              if (regionToExport === 'TW') {
+                return {
+                  Brand: getBrandLabel(brandCode),
+                  Country: String(store.country || regionToExport),
+                  'Shop Code': String(store.shop_cd || ''),
+                  'Shop Name': String(store.shop_name || store.shop_cd || ''),
+                  'TAG Sales (HKD)': tagSalesHkd,
+                  'Actual Sales (HKD)': actualSalesHkd,
+                  'TAG Sales (TWD)': Number((tagSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  'Actual Sales (TWD)': Number((actualSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                };
+              }
+
+              return {
+                Brand: getBrandLabel(brandCode),
+                Country: String(store.country || ''),
+                'Shop Code': String(store.shop_cd || ''),
+                'Shop Name': String(store.shop_name || store.shop_cd || ''),
+                'TAG Sales (HKD)': tagSalesHkd,
+                'Actual Sales (HKD)': actualSalesHkd,
+              };
+            })
+          )
+          .sort((a, b) => {
+            const brandCompare = String(a.Brand || '').localeCompare(String(b.Brand || ''));
+            if (brandCompare !== 0) return brandCompare;
+            return String(a['Shop Code'] || '').localeCompare(String(b['Shop Code'] || ''));
+          });
+
+        const metaRows =
+          regionToExport === 'TW'
+            ? [
+                ['As Of Date', date, 'Region', regionToExport],
+                ['Mode', detailExportMode.toUpperCase(), 'Exchange Rate (TWD->HKD)', twdToHkdRate],
+                [],
+              ]
+            : [
+                ['As Of Date', date, 'Region', regionToExport],
+                ['Mode', detailExportMode.toUpperCase(), 'Currency', 'HKD'],
+                [],
+              ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet(metaRows);
+        XLSX.utils.sheet_add_json(worksheet, matrixRows, {
+          origin: 'A4',
+        });
+        worksheet['!cols'] =
+          regionToExport === 'TW'
+            ? [
+                { wch: 14 },
+                { wch: 10 },
+                { wch: 14 },
+                { wch: 28 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
+              ]
+            : [
+                { wch: 14 },
+                { wch: 10 },
+                { wch: 14 },
+                { wch: 28 },
+                { wch: 18 },
+                { wch: 18 },
+              ];
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${regionToExport}_${detailExportMode.toUpperCase()}`);
+        XLSX.writeFile(workbook, `${regionToExport.toLowerCase()}-shop-sales-all-brands-${date}-${detailExportMode}.xlsx`);
+      } catch (error) {
+        console.error('Failed to export shop sales matrix:', error);
+        window.alert(language === 'ko' ? '매장 매출 엑셀 저장에 실패했습니다.' : 'Failed to export shop sales Excel file.');
+      } finally {
+        setIsExportingMatrix(false);
+      }
+    };
+
+    void exportAllBrandStoreSales(targetRegion);
+  }, [activeTab, date, detailExportMode, language]);
 
   const handleSection1Change = useCallback((data: any) => {
     setSection1Data(data);
@@ -637,7 +796,39 @@ export default function DashboardPage() {
                 {t(language, 'updated')} {date || '-'} | {t(language, 'asOf')} {date || '-'}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {activeTab !== 'summary' && (
+                <div className="flex flex-nowrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                    {language === 'ko' ? '매출데이터 저장' : 'Sales Data Export'}
+                  </span>
+                  <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    <button
+                      onClick={() => setDetailExportMode('mtd')}
+                      className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                        detailExportMode === 'mtd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      MTD
+                    </button>
+                    <button
+                      onClick={() => setDetailExportMode('ytd')}
+                      className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                        detailExportMode === 'ytd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      YTD
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleDownloadShopSalesMatrix(region as 'HKMC' | 'TW')}
+                    disabled={anyDataLoading || isExportingMatrix}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {language === 'ko' ? '파일저장' : 'Save File'}
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => setIsDataManagementOpen(true)}
                 className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
@@ -677,7 +868,8 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2 whitespace-nowrap">
               <button
                 onClick={() => setActiveTab('summary')}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -714,12 +906,12 @@ export default function DashboardPage() {
               >
                 {t(language, 'twDetail')}
               </button>
-            </div>
+              </div>
 
-            <BrandSelect value={brand} onChange={setBrand} />
-            <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} language={language} />
-            {activeTab === 'tw' && (
-              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <BrandSelect value={brand} onChange={setBrand} />
+              <DateSelect value={date} onChange={setDate} availableDates={availableDates} disabled={metaLoading} language={language} />
+              {activeTab === 'tw' && (
+                <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white whitespace-nowrap">
                 <button
                   onClick={() => setTwCurrency('HKD')}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
@@ -736,10 +928,11 @@ export default function DashboardPage() {
                 >
                   TWD
                 </button>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-nowrap items-center gap-2">
               {activeTab === 'summary' && (
                 <>
                   <button
@@ -800,7 +993,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <p className="mt-3 text-xs text-gray-500">{t(language, 'insightAsOf')} {date || '-'}</p>
+          <p className="mt-3 text-xs text-gray-500">{language === 'ko' ? '기준일' : 'As of'} {date || '-'}</p>
         </div>
       </div>
 

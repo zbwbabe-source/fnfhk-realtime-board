@@ -1,6 +1,7 @@
 'use client';
 
 import { t, type Language } from '@/lib/translations';
+import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
 import Section1Card from './Section1Card';
 import Section2Card from './Section2Card';
 import Section3Card from './Section3Card';
@@ -69,11 +70,23 @@ function RegionColumn({
   regionLabel,
   treemapRequestKey,
 }: RegionColumnProps) {
+  const appliedExchangeRate =
+    regionCode === 'TW' && date
+      ? getExchangeRate(getPeriodFromDateString(date)).toFixed(4)
+      : null;
+
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex items-end justify-between border-b border-gray-200 pb-4">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-gray-900">{regionLabel}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold tracking-tight text-gray-900">{regionLabel}</h2>
+            {appliedExchangeRate ? (
+              <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
+                {language === 'ko' ? `적용환율 ${appliedExchangeRate}` : `Rate ${appliedExchangeRate}`}
+              </span>
+            ) : null}
+          </div>
           <p className="mt-0.5 text-xs text-gray-500">
             {brand} | {date}
           </p>

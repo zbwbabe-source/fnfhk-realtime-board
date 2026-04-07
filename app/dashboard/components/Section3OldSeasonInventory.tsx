@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { t, type Language } from '@/lib/translations';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 
 interface Section3Props {
   region: string;
@@ -866,7 +867,7 @@ export default function Section3OldSeasonInventory({
                                 if (hasSkuDetails) toggleCategory(year.year_bucket, cat.cat2);
                               }}
                             >
-                              <td className="px-3 py-2 font-medium border-r border-gray-100">{cat.cat2}</td>
+                              <td className="px-3 py-2 font-medium border-r border-gray-100" title={getCategoryTooltipText(cat.cat2)}>{cat.cat2}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.base_stock_amt)}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatNumber(cat.curr_stock_amt)}</td>
                               <td className="px-2 py-2 text-right border-r border-gray-100">{formatQty(cat.curr_stock_qty)}</td>

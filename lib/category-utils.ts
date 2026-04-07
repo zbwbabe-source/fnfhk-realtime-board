@@ -6,6 +6,101 @@ interface CategoryMapping {
   small: string;
 }
 
+const categoryDetailNames: Record<string, string> = {
+  AC: 'Props',
+  BG: 'Bag',
+  BK: 'Backpack',
+  BM: 'Bucket Bag',
+  BN: 'Beanie',
+  BQ: 'Shoulder Bag',
+  BR: 'Bra',
+  BS: 'Baseball Shirts',
+  BV: 'Baby',
+  BW: 'Boston Bag',
+  BZ: 'Body Bag',
+  CB: 'Beret',
+  CP: 'Cap',
+  CR: 'Crossbody Bag',
+  CT: 'Coat',
+  CV: 'Canvas Shoes',
+  DC: 'Down Scarf',
+  DD: 'Denim Dress',
+  DJ: 'Jumper',
+  DK: 'Denim Jacket',
+  DP: 'Pants',
+  DR: 'Denim Shirt',
+  DS: 'Skirt',
+  DT: 'Pants',
+  DV: 'Vest',
+  ET: 'Accessary',
+  FD: 'Fleece Jumper',
+  GL: 'Glove',
+  HD: 'Sweat Shirts',
+  HS: 'Hip Sack',
+  HT: 'Hat',
+  JA: 'Earrings',
+  JB: 'Necklace',
+  JC: 'Bracelet',
+  JD: 'Ring',
+  JK: 'Jacket',
+  JP: 'Jumper',
+  KC: 'Knit Cardigan',
+  KP: 'Sweater Pullover',
+  KT: 'Knit',
+  LE: 'Leather',
+  LG: 'Pants',
+  LP: 'Slippers',
+  MC: 'Meshed Cap',
+  MF: 'Muffler',
+  ML: 'Arm Sleeve',
+  MR: 'Messenger bag',
+  MT: 'Sweat Shirts',
+  MU: 'Mules',
+  OP: 'Onepiece',
+  OR: 'Shopping Bag',
+  PD: 'Padded Jumper',
+  PE: 'Pet',
+  PO: 'Pouch',
+  PQ: 'Polo shirt',
+  RL: 'Long-sleeve T-shirt',
+  RN: 'Running Shoes',
+  RS: 'Short-sleeve T-shirt',
+  S1: 'T-Shirt & Sweatpants',
+  S2: 'Sweatshirt & Sweatpants',
+  S5: 'Training Set',
+  S6: 'Sleeveless Shirt&Shorts',
+  SC: 'Sun Cap',
+  SD: 'Sandals',
+  SG: 'Slingback shoes',
+  SH: 'Shoes',
+  SK: 'Skirt',
+  SM: 'Short Pants',
+  SO: 'Socks',
+  SP: 'Short Pants',
+  SQ: 'Shoes',
+  SS: 'Softshell Jacket',
+  SW: 'Swim Wear',
+  SX: 'Sneakers',
+  TB: 'Bottom',
+  TG: 'Bag',
+  TK: 'Tank Top',
+  TL: 'Long-sleeve Tee',
+  TO: 'Top',
+  TP: 'Pants',
+  TR: 'T/Shirts',
+  TS: 'T/Shirts',
+  TW: 'Towel',
+  UB: 'Shoe Bag',
+  VT: 'Vest',
+  WB: 'Winter Boots',
+  WJ: 'Windbreaker',
+  WM: 'Winter Headwear',
+  WP: 'Pants',
+  WR: 'Wire Cap',
+  WS: 'Woven Shirts',
+  ZT: 'T/Shirts',
+};
+
 /**
  * 소분류 코드(2글자)를 대분류-중분류-소분류로 매핑
  */
@@ -67,4 +162,26 @@ export function getColorByMiddleCategory(large: string, middle: string): string 
 export function getColorBySmallCategory(smallCode: string): string {
   const mapping = getCategoryMapping(smallCode);
   return getColorByMiddleCategory(mapping.large, mapping.middle);
+}
+
+export function getCategoryDetailName(smallCode: string): string {
+  const normalized = String(smallCode || '').trim().toUpperCase();
+  return categoryDetailNames[normalized] || '';
+}
+
+export function getCategoryTooltipText(smallCode: string): string {
+  const normalized = String(smallCode || '').trim().toUpperCase();
+  if (!normalized) return '';
+
+  const detail = getCategoryDetailName(normalized);
+  if (detail) {
+    return `${normalized} - ${detail}`;
+  }
+
+  const mapping = getCategoryMapping(normalized);
+  if (mapping.middle && mapping.middle !== 'Unknown') {
+    return `${normalized} - ${mapping.middle}`;
+  }
+
+  return normalized;
 }

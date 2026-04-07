@@ -1,150 +1,150 @@
-﻿BRD_CD,CTGR,SUB_CTGR,CTGR_GRP
-M,ATC,DC,기타
-M,ATC,ET,기타
-M,ATC,GL,기타
-M,ATC,JA,기타
-M,ATC,JB,기타
-M,ATC,JC,기타
-M,ATC,JD,기타
-M,ATC,MF,기타
-M,ATC,ML,기타
-M,ATC,PE,기타
-M,ATC,PO,기타
-M,ATC,SO,기타
-M,ATC,TW,기타
-M,BAG,BG,가방
-M,BAG,BK,가방
-M,BAG,BM,가방
-M,BAG,BQ,가방
-M,BAG,BW,가방
-M,BAG,BZ,가방
-M,BAG,CR,가방
-M,BAG,HS,가방
-M,BAG,MR,가방
-M,BAG,OR,가방
-M,BAG,SG,가방
-M,BAG,TG,가방
-M,BAG,UB,가방
-M,BOT,DP,의류
-M,BOT,DS,의류
-M,BOT,DT,의류
-M,BOT,LG,의류
-M,BOT,PT,의류
-M,BOT,SB,의류
-M,BOT,SK,의류
-M,BOT,SM,의류
-M,BOT,SP,의류
-M,BOT,SW,의류
-M,BOT,TB,의류
-M,BOT,TP,의류
-M,BOT,WP,의류
-M,HEA,BN,모자
-M,HEA,CB,모자
-M,HEA,CP,모자
-M,HEA,HT,모자
-M,HEA,MC,모자
-M,HEA,SC,모자
-M,HEA,WM,모자
-M,HEA,WR,모자
-M,INN,BS,의류
-M,INN,DD,의류
-M,INN,DR,의류
-M,INN,HD,의류
-M,INN,KP,의류
-M,INN,MT,의류
-M,INN,OP,의류
-M,INN,PQ,의류
-M,INN,RL,의류
-M,INN,RS,의류
-M,INN,S2,의류
-M,INN,SW,의류
-M,INN,TK,의류
-M,INN,TO,의류
-M,INN,TR,의류
-M,INN,TS,의류
-M,INN,WS,의류
-M,INN,ZT,의류
-M,OUT,CT,의류
-M,OUT,DJ,의류
-M,OUT,DK,의류
-M,OUT,DV,의류
-M,OUT,FD,의류
-M,OUT,JK,의류
-M,OUT,JP,의류
-M,OUT,KC,의류
-M,OUT,KT,의류
-M,OUT,LE,의류
-M,OUT,PD,의류
-M,OUT,SS,의류
-M,OUT,TR,의류
-M,OUT,VT,의류
-M,OUT,WJ,의류
-M,SHO,CV,신발
-M,SHO,LP,신발
-M,SHO,MU,신발
-M,SHO,RN,신발
-M,SHO,SD,신발
-M,SHO,SH,신발
-M,SHO,SQ,신발
-M,SHO,SX,신발
-M,SHO,WB,신발
-M,WTC,BR,
-M,WTC,BV,
-M,WTC,S1,
-M,WTC,S2,
-M,WTC,S5,
-M,WTC,S6,
-X,ATC,AC,기타
-X,ATC,DC,기타
-X,ATC,GL,기타
-X,ATC,SO,기타
-X,BAG,BK,가방
-X,BAG,BM,가방
-X,BAG,BQ,가방
-X,BAG,BZ,가방
-X,BAG,CR,가방
-X,BAG,HS,가방
-X,BAG,MR,가방
-X,BAG,OR,가방
-X,BAG,SG,가방
-X,BAG,TG,가방
-X,BOT,DS,의류
-X,BOT,LG,의류
-X,BOT,PT,의류
-X,BOT,SB,의류
-X,BOT,SK,의류
-X,BOT,SM,의류
-X,BOT,SP,의류
-X,BOT,TB,의류
-X,BOT,TP,의류
-X,BOT,WP,의류
-X,HEA,BN,모자
-X,HEA,CP,모자
-X,HEA,HT,모자
-X,HEA,WM,모자
-X,INN,HD,의류
-X,INN,MT,의류
-X,INN,OP,의류
-X,INN,PQ,의류
-X,INN,RL,의류
-X,INN,RS,의류
-X,INN,SW,의류
-X,INN,TL,의류
-X,INN,TO,의류
-X,INN,TR,의류
-X,INN,TS,의류
-X,INN,WS,의류
-X,INN,ZT,의류
-X,OUT,DJ,의류
-X,OUT,DV,의류
-X,OUT,JP,의류
-X,OUT,KC,의류
-X,OUT,PD,의류
-X,OUT,SS,의류
-X,OUT,VT,의류
-X,OUT,WJ,의류
-X,SHO,LP,신발
-X,SHO,RN,신발
-X,SHO,SH,신발
-X,WTC,BR,
-X,WTC,S1,
+﻿BRD_CD,CTGR,SUB_CTGR,CTGR_KR,CTGR_GRP
+M,ATC,DC,Down Scarf,기타
+M,ATC,ET,ACCESSARY,기타
+M,ATC,GL,GLOVE,기타
+M,ATC,JA,Earrings,기타
+M,ATC,JB,Necklace,기타
+M,ATC,JC,Bracelet,기타
+M,ATC,JD,Ring,기타
+M,ATC,MF,MUFFLER,기타
+M,ATC,ML,Arm Sleeve,기타
+M,ATC,PE,PET,기타
+M,ATC,PO,Pouch,기타
+M,ATC,SO,SOCKS,기타
+M,ATC,TW,Towel,기타
+M,BAG,BG,BAG,가방
+M,BAG,BK,Backpack,가방
+M,BAG,BM,Bucket Bag,가방
+M,BAG,BQ,Shoulder Bag,가방
+M,BAG,BW,Boston Bag,가방
+M,BAG,BZ,Body Bag,가방
+M,BAG,CR,Crossbody Bag,가방
+M,BAG,HS,Hip Sack,가방
+M,BAG,MR,Messenger bag,가방
+M,BAG,OR,Shopping Bag,가방
+M,BAG,SG,Slingback shoes,가방
+M,BAG,TG,0,가방
+M,BAG,UB,Shoe Bag,가방
+M,BOT,DP,PANTS,의류
+M,BOT,DS,SKIRT,의류
+M,BOT,DT,PANTS,의류
+M,BOT,LG,PANTS,의류
+M,BOT,PT,PANTS,의류
+M,BOT,SB,0,의류
+M,BOT,SK,SKIRT,의류
+M,BOT,SM,SHORT PANTS,의류
+M,BOT,SP,SHORT PANTS,의류
+M,BOT,SW,SWIM WEAR,의류
+M,BOT,TB,0,의류
+M,BOT,TP,PANTS,의류
+M,BOT,WP,PANTS,의류
+M,HEA,BN,Beanie,모자
+M,HEA,CB,Beret,모자
+M,HEA,CP,CAP,모자
+M,HEA,HT,Hat,모자
+M,HEA,MC,Meshed Cap,모자
+M,HEA,SC,Sun Cap,모자
+M,HEA,WM,Winter Headwear,모자
+M,HEA,WR,Wire Cap,모자
+M,INN,BS,BASEBALL SHIRTS,의류
+M,INN,DD,DENIM DRESS,의류
+M,INN,DR,DENIM SHIRT,의류
+M,INN,HD,SWEAT SHIRTS,의류
+M,INN,KP,Sweater Pullover,의류
+M,INN,MT,SWEAT SHIRTS,의류
+M,INN,OP,ONEPIECE,의류
+M,INN,PQ,Polo shirt,의류
+M,INN,RL,Long-sleeve T-shirt,의류
+M,INN,RS,Short-sleeve T-shirt,의류
+M,INN,S2,Sweatshirt & Sweatpants,의류
+M,INN,SW,SWIM WEAR,의류
+M,INN,TK,TANK TOP,의류
+M,INN,TO,TOP,의류
+M,INN,TR,T/SHIRTS,의류
+M,INN,TS,T/SHIRTS,의류
+M,INN,WS,WOVEN SHIRTS,의류
+M,INN,ZT,T/SHIRTS,의류
+M,OUT,CT,COAT,의류
+M,OUT,DJ,JUMPER,의류
+M,OUT,DK,DENIM JACKET,의류
+M,OUT,DV,VEST,의류
+M,OUT,FD,Fleece Jumper,의류
+M,OUT,JK,Jacket,의류
+M,OUT,JP,JUMPER,의류
+M,OUT,KC,Knit Cardigan,의류
+M,OUT,KT,Knit,의류
+M,OUT,LE,LEATHER,의류
+M,OUT,PD,Padded Jumper,의류
+M,OUT,SS,Softshell Jacket,의류
+M,OUT,TR,T/SHIRTS,의류
+M,OUT,VT,VEST,의류
+M,OUT,WJ,Windbreaker,의류
+M,SHO,CV,Canvas Shoes,신발
+M,SHO,LP,Slippers,신발
+M,SHO,MU,Mules,신발
+M,SHO,RN,RUNNING SHOES,신발
+M,SHO,SD,Sandals,신발
+M,SHO,SH,SHOES,신발
+M,SHO,SQ,0,신발
+M,SHO,SX,Sneakers,신발
+M,SHO,WB,Winter Boots,신발
+M,WTC,BR,Bra,
+M,WTC,BV,Baby,
+M,WTC,S1,T-Shirt & Sweatpants,
+M,WTC,S2,Sweatshirt & Sweatpants,
+M,WTC,S5,Training Set,
+M,WTC,S6,SLEEVELESS SHIRT&SHORTS,
+X,ATC,AC,Props,기타
+X,ATC,DC,Down Scarf,기타
+X,ATC,GL,GLOVE,기타
+X,ATC,SO,SOCKS,기타
+X,BAG,BK,Backpack,가방
+X,BAG,BM,Bucket Bag,가방
+X,BAG,BQ,Shoulder Bag,가방
+X,BAG,BZ,Body Bag,가방
+X,BAG,CR,Crossbody Bag,가방
+X,BAG,HS,Hip Sack,가방
+X,BAG,MR,Messenger bag,가방
+X,BAG,OR,Shopping Bag,가방
+X,BAG,SG,Slingback shoes,가방
+X,BAG,TG,0,가방
+X,BOT,DS,SKIRT,의류
+X,BOT,LG,PANTS,의류
+X,BOT,PT,PANTS,의류
+X,BOT,SB,0,의류
+X,BOT,SK,SKIRT,의류
+X,BOT,SM,SHORT PANTS,의류
+X,BOT,SP,SHORT PANTS,의류
+X,BOT,TB,0,의류
+X,BOT,TP,PANTS,의류
+X,BOT,WP,PANTS,의류
+X,HEA,BN,Beanie,모자
+X,HEA,CP,CAP,모자
+X,HEA,HT,Hat,모자
+X,HEA,WM,Winter Headwear,모자
+X,INN,HD,SWEAT SHIRTS,의류
+X,INN,MT,SWEAT SHIRTS,의류
+X,INN,OP,ONEPIECE,의류
+X,INN,PQ,Polo shirt,의류
+X,INN,RL,Long-sleeve T-shirt,의류
+X,INN,RS,Short-sleeve T-shirt,의류
+X,INN,SW,SWIM WEAR,의류
+X,INN,TL,Long-sleeve Collar T-shirt,의류
+X,INN,TO,TOP,의류
+X,INN,TR,T/SHIRTS,의류
+X,INN,TS,T/SHIRTS,의류
+X,INN,WS,WOVEN SHIRTS,의류
+X,INN,ZT,T/SHIRTS,의류
+X,OUT,DJ,JUMPER,의류
+X,OUT,DV,VEST,의류
+X,OUT,JP,JUMPER,의류
+X,OUT,KC,Knit Cardigan,의류
+X,OUT,PD,Padded Jumper,의류
+X,OUT,SS,Softshell Jacket,의류
+X,OUT,VT,VEST,의류
+X,OUT,WJ,Windbreaker,의류
+X,SHO,LP,Slippers,신발
+X,SHO,RN,RUNNING SHOES,신발
+X,SHO,SH,SHOES,신발
+X,WTC,BR,Bra,
+X,WTC,S1,T-Shirt & Sweatpants,
