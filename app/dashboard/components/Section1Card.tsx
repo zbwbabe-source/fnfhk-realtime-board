@@ -766,10 +766,10 @@ export default function Section1Card({
           </div>
           <div className="grid grid-cols-2 items-center gap-2.5">
             <div className="min-w-0 border-r border-gray-200 pr-2.5">
-              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k3.value}</p>
+              <p className="text-base font-bold leading-tight tabular-nums text-gray-900 sm:text-lg">{kpis.k3.value}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{(kpis.k3 as any).projectedValue}</p>
+              <p className="text-base font-bold leading-tight tabular-nums text-gray-900 sm:text-lg">{(kpis.k3 as any).projectedValue}</p>
             </div>
           </div>
           <div />

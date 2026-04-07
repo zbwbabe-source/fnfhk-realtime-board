@@ -36,6 +36,40 @@ function clampDateToMax(candidate: string, maxDate: string): string {
   return candidate > maxDate ? maxDate : candidate;
 }
 
+function extractStoreCodesFromSection1Data(section1Data: any): string[] {
+  if (!section1Data || typeof section1Data !== 'object') return [];
+
+  const codes = new Set<string>();
+
+  Object.entries(section1Data)
+    .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
+    .forEach(([, value]) => {
+      (value as any[]).forEach((store) => {
+        const code = String(store?.shop_cd || '');
+        if (!code || code.endsWith('_TOTAL')) return;
+        codes.add(code);
+      });
+    });
+
+  return [...codes].sort((a, b) => a.localeCompare(b));
+}
+
+async function mapInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    const batchResults = await Promise.all(batch.map(worker));
+    results.push(...batchResults);
+  }
+
+  return results;
+}
+
 export default function DashboardPage() {
   const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
@@ -52,6 +86,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'summary' | 'hkmc' | 'tw'>('summary');
   const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isExportingJson, setIsExportingJson] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [hkmcTreemapRequestKey, setHkmcTreemapRequestKey] = useState(0);
@@ -111,45 +146,110 @@ export default function DashboardPage() {
     setTwTreemapRequestKey((prev) => prev + 1);
   }, []);
 
-  const handleDownloadSummaryJson = useCallback(() => {
+  const handleDownloadSummaryJson = useCallback(async () => {
     if (!date || activeTab !== 'summary') return;
 
-    const payload = {
-      exported_at: new Date().toISOString(),
-      dashboard_date: date,
-      brand,
-      mode: isYtdMode ? 'ytd' : 'mtd',
-      language,
-      summary_filters: {
-        section2_category_filter: categoryFilter,
-        section3_category_filter: section3CategoryFilter,
-        section1_detail_view_mode: section1DetailViewMode,
-      },
-      data: {
-        hkmc: {
-          section1: hkmcSection1Data,
-          section2: hkmcSection2Data,
-          section3: hkmcSection3Data,
-        },
-        tw: {
-          section1: twSection1Data,
-          section2: twSection2Data,
-          section3: twSection3Data,
-        },
-      },
-    };
+    setIsExportingJson(true);
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: 'application/json;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `dashboard-summary-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
+    try {
+      const fetchJson = async (url: string) => {
+        const response = await fetch(url, { cache: 'no-store' });
+        const json = await response.json();
+
+        if (!response.ok) {
+          throw new Error(json?.message || json?.error || `Failed to fetch ${url}`);
+        }
+
+        return json;
+      };
+
+      const buildRegionModalData = async (regionCode: 'HKMC' | 'TW', section1Source: any) => {
+        const storeCodes = extractStoreCodesFromSection1Data(section1Source);
+
+        const [section2TreemapMtd, section2TreemapYtd, section3Detail, storeDetailEntries] = await Promise.all([
+          fetchJson(`/api/section2/treemap?region=${regionCode}&brand=${brand}&date=${date}&mode=monthly`),
+          fetchJson(`/api/section2/treemap?region=${regionCode}&brand=${brand}&date=${date}&mode=ytd`),
+          fetchJson(
+            `/api/section3/old-season-inventory?region=${regionCode}&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true`
+          ),
+          mapInBatches(storeCodes, 8, async (shopCd) => {
+            const [mtd, ytd] = await Promise.all([
+              fetchJson(`/api/section1/store-detail?region=${regionCode}&brand=${brand}&date=${date}&shop_cd=${shopCd}&mode=mtd`),
+              fetchJson(`/api/section1/store-detail?region=${regionCode}&brand=${brand}&date=${date}&shop_cd=${shopCd}&mode=ytd`),
+            ]);
+
+            return [shopCd, { mtd, ytd }] as const;
+          }),
+        ]);
+
+        return {
+          section1: {
+            all_stores_treemap_source: section1Source,
+            store_detail_by_store: Object.fromEntries(storeDetailEntries),
+          },
+          section2: {
+            treemap: {
+              mtd: section2TreemapMtd,
+              ytd: section2TreemapYtd,
+            },
+          },
+          section3: {
+            detail: section3Detail,
+          },
+        };
+      };
+
+      const [hkmcModalData, twModalData] = await Promise.all([
+        buildRegionModalData('HKMC', hkmcSection1Data),
+        buildRegionModalData('TW', twSection1Data),
+      ]);
+
+      const payload = {
+        exported_at: new Date().toISOString(),
+        dashboard_date: date,
+        brand,
+        mode: isYtdMode ? 'ytd' : 'mtd',
+        language,
+        summary_filters: {
+          section2_category_filter: categoryFilter,
+          section3_category_filter: section3CategoryFilter,
+          section1_detail_view_mode: section1DetailViewMode,
+        },
+        data: {
+          hkmc: {
+            section1: hkmcSection1Data,
+            section2: hkmcSection2Data,
+            section3: hkmcSection3Data,
+          },
+          tw: {
+            section1: twSection1Data,
+            section2: twSection2Data,
+            section3: twSection3Data,
+          },
+        },
+        modal_data: {
+          hkmc: hkmcModalData,
+          tw: twModalData,
+        },
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `dashboard-summary-${brand}-${date}-${isYtdMode ? 'ytd' : 'mtd'}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export dashboard JSON with modal data:', error);
+      window.alert(language === 'ko' ? '대시보드 JSON 내보내기에 실패했습니다.' : 'Failed to export dashboard JSON.');
+    } finally {
+      setIsExportingJson(false);
+    }
   }, [
     activeTab,
     brand,
@@ -719,7 +819,7 @@ export default function DashboardPage() {
               {activeTab === 'summary' && (
                 <button
                   onClick={handleDownloadSummaryJson}
-                  disabled={!allDataLoaded || anyDataLoading}
+                  disabled={!allDataLoaded || anyDataLoading || isExportingJson}
                   className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {language === 'ko' ? '현재 대시보드 JSON' : 'Download JSON'}
