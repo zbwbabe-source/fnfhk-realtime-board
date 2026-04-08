@@ -6,6 +6,7 @@ import { getStoreShortCode } from '@/lib/store-name-utils';
 import { getStoreArea } from '@/lib/store-area-utils';
 import Section1AllStoresTreemapModal, { type Section1AllStoresTreemapItem } from './Section1AllStoresTreemapModal';
 import Section1StoreDetailModal from './Section1StoreDetailModal';
+import Section1StoreCountMatrixModal from './Section1StoreCountMatrixModal';
 
 interface Section1CardProps {
   isYtdMode: boolean;
@@ -64,6 +65,17 @@ type SelectedStore = {
   storeName: string;
 };
 
+type StoreCountMatrixItem = {
+  shopCd: string;
+  shopName: string;
+  channel: string;
+  currentSales: number;
+  previousSales: number;
+  yoy: number | null;
+  discountRate: number | null;
+  discountDiff: number | null;
+};
+
 function getTreemapStoreShortName(store: any): string {
   const storeCode = String(store.shop_cd || '');
   const fullName = String(store.shop_name || storeCode || '-');
@@ -94,6 +106,7 @@ export default function Section1Card({
   const [detailView, setDetailView] = useState<DetailView>('season');
   const [selectedStore, setSelectedStore] = useState<SelectedStore | null>(null);
   const [allStoresOpen, setAllStoresOpen] = useState(false);
+  const [storeCountMatrixOpen, setStoreCountMatrixOpen] = useState(false);
   const prevOpenAllStoresRequestKeyRef = useRef(openAllStoresRequestKey ?? 0);
 
   useEffect(() => {
@@ -402,6 +415,82 @@ export default function Section1Card({
 
     cards.sort((a, b) => b.sales - a.sales);
     return cards;
+  }, [section1Data, isYtdMode]);
+
+  const storeCountMatrixItems = useMemo(() => {
+    if (!section1Data || typeof section1Data !== 'object') {
+      return {
+        previous: [] as StoreCountMatrixItem[],
+        current: [] as StoreCountMatrixItem[],
+        sameStore: [] as StoreCountMatrixItem[],
+      };
+    }
+
+    const rawStores = Object.entries(section1Data)
+      .filter(([key, value]) => Array.isArray(value) && !key.endsWith('_subtotal'))
+      .flatMap(([, value]) => value as any[])
+      .filter((store) => store && typeof store === 'object');
+
+    const dedupedByCode = new Map<string, any>();
+    rawStores.forEach((store) => {
+      const code = String(store.shop_cd || '').trim();
+      if (!code || code.includes('_TOTAL')) return;
+      if (!dedupedByCode.has(code)) dedupedByCode.set(code, store);
+    });
+
+    const stores = [...dedupedByCode.values()];
+    const currentMetricKey = isYtdMode ? 'ytd_act' : 'mtd_act';
+    const previousMetricKey = isYtdMode ? 'ytd_act_py' : 'mtd_act_py';
+
+    const isOfflineStore = (store: any) => (store?.channel || '') !== '온라인';
+    const isExcludedByZeroSalesRule = (store: any) =>
+      !isYtdMode &&
+      isOfflineStore(store) &&
+      typeof store?.mtd_zero_sales_days === 'number' &&
+      store.mtd_zero_sales_days >= 5;
+
+    const toMatrixItem = (store: any): StoreCountMatrixItem => ({
+      shopCd: String(store.shop_cd || ''),
+      shopName: String(store.shop_name || store.shop_cd || ''),
+      channel: String(store.channel || ''),
+      currentSales: Number(store?.[currentMetricKey] || 0),
+      previousSales: Number(store?.[previousMetricKey] || 0),
+      yoy: typeof (isYtdMode ? store?.yoy_ytd : store?.yoy) === 'number' && isFinite(isYtdMode ? store?.yoy_ytd : store?.yoy)
+        ? Number(isYtdMode ? store.yoy_ytd : store.yoy)
+        : null,
+      discountRate:
+        typeof (isYtdMode ? store?.discount_rate_ytd : store?.discount_rate_mtd) === 'number' &&
+        isFinite(isYtdMode ? store?.discount_rate_ytd : store?.discount_rate_mtd)
+          ? Number(isYtdMode ? store.discount_rate_ytd : store.discount_rate_mtd)
+          : null,
+      discountDiff:
+        typeof (isYtdMode ? store?.discount_rate_ytd_diff : store?.discount_rate_mtd_diff) === 'number' &&
+        isFinite(isYtdMode ? store?.discount_rate_ytd_diff : store?.discount_rate_mtd_diff)
+          ? Number(isYtdMode ? store.discount_rate_ytd_diff : store.discount_rate_mtd_diff)
+          : null,
+    });
+
+    const previous = stores
+      .filter((store) => Number(store?.[previousMetricKey] || 0) > 0)
+      .map(toMatrixItem)
+      .sort((a, b) => a.shopCd.localeCompare(b.shopCd));
+
+    const current = stores
+      .filter((store) => Number(store?.[currentMetricKey] || 0) > 0 && !isExcludedByZeroSalesRule(store))
+      .map(toMatrixItem)
+      .sort((a, b) => a.shopCd.localeCompare(b.shopCd));
+
+    const sameStore = stores
+      .filter(
+        (store) =>
+          Number(store?.[currentMetricKey] || 0) > 0 &&
+          Number(store?.[previousMetricKey] || 0) > 0 &&
+          !isExcludedByZeroSalesRule(store)
+      )
+      .map(toMatrixItem)
+      .sort((a, b) => a.shopCd.localeCompare(b.shopCd));
+
+    return { previous, current, sameStore };
   }, [section1Data, isYtdMode]);
 
   const allStoreTreemapItems = useMemo<Section1AllStoresTreemapItem[]>(() => {
@@ -736,10 +825,14 @@ export default function Section1Card({
               </span>
             </div>
           </div>
-          <div className="pt-1 text-center text-[10px] font-semibold leading-tight text-gray-600">
-            <p>{(kpis.k2 as any).offlineStoreCountFlow}</p>
-            <p>{(kpis.k2 as any).onlineStoreCountFlow}</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setStoreCountMatrixOpen(true)}
+            className="pt-1 text-center text-[10px] font-semibold leading-tight text-gray-600 transition-colors hover:text-purple-700"
+          >
+            <p className="underline decoration-dotted underline-offset-2">{(kpis.k2 as any).offlineStoreCountFlow}</p>
+            <p className="underline decoration-dotted underline-offset-2">{(kpis.k2 as any).onlineStoreCountFlow}</p>
+          </button>
         </div>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-2 gap-2.5">
@@ -933,6 +1026,14 @@ export default function Section1Card({
         stores={allStoreTreemapItems}
         currencyCode={currencyCode}
         hkdToTwdRate={hkdToTwdRate}
+      />
+
+      <Section1StoreCountMatrixModal
+        open={storeCountMatrixOpen}
+        onClose={() => setStoreCountMatrixOpen(false)}
+        language={language}
+        isYtdMode={isYtdMode}
+        items={storeCountMatrixItems}
       />
     </article>
   );
