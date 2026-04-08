@@ -280,9 +280,6 @@ export default function DashboardPage() {
         const period = getPeriodFromDateString(date);
         const twdToHkdRate = getExchangeRate(period);
         const hkdToTwdRateForExport = twdToHkdRate > 0 ? 1 / twdToHkdRate : 1;
-        const lyPeriod = getPeriodFromDateString(lyDate);
-        const lyTwdToHkdRate = getExchangeRate(lyPeriod);
-        const lyHkdToTwdRateForExport = lyTwdToHkdRate > 0 ? 1 / lyTwdToHkdRate : 1;
 
         const workbook = XLSX.utils.book_new();
         const matrixRows = responses
@@ -296,11 +293,15 @@ export default function DashboardPage() {
               const lyStore = lyStoreMap.get(shopCode);
               const tagSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_tag || 0 : store.mtd_tag || 0);
               const actualSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_act || 0 : store.mtd_act || 0);
+              const targetSalesHkd = Number(detailExportMode === 'ytd' ? store.ytd_target || 0 : store.target_mth || 0);
               const lyTagSalesHkd = Number(
                 detailExportMode === 'ytd' ? lyStore?.ytd_tag || 0 : lyStore?.mtd_tag || 0
               );
               const lyActualSalesHkd = Number(
                 detailExportMode === 'ytd' ? lyStore?.ytd_act || 0 : lyStore?.mtd_act || 0
+              );
+              const lyTargetSalesHkd = Number(
+                detailExportMode === 'ytd' ? lyStore?.ytd_target || 0 : lyStore?.target_mth || 0
               );
               const actualYoy =
                 lyActualSalesHkd > 0 ? Number(((actualSalesHkd / lyActualSalesHkd) * 100).toFixed(2)) : null;
@@ -313,12 +314,16 @@ export default function DashboardPage() {
                   'Shop Name': String(store.shop_name || store.shop_cd || ''),
                   [`TAG Sales ${date} (HKD)`]: tagSalesHkd,
                   [`Actual Sales ${date} (HKD)`]: actualSalesHkd,
+                  [`Target ${date} (HKD)`]: targetSalesHkd,
                   [`TAG Sales ${date} (TWD)`]: Number((tagSalesHkd * hkdToTwdRateForExport).toFixed(2)),
                   [`Actual Sales ${date} (TWD)`]: Number((actualSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`Target ${date} (TWD)`]: Number((targetSalesHkd * hkdToTwdRateForExport).toFixed(2)),
                   [`TAG Sales ${lyDate} (HKD)`]: lyTagSalesHkd,
                   [`Actual Sales ${lyDate} (HKD)`]: lyActualSalesHkd,
-                  [`TAG Sales ${lyDate} (TWD)`]: Number((lyTagSalesHkd * lyHkdToTwdRateForExport).toFixed(2)),
-                  [`Actual Sales ${lyDate} (TWD)`]: Number((lyActualSalesHkd * lyHkdToTwdRateForExport).toFixed(2)),
+                  [`Target ${lyDate} (HKD)`]: lyTargetSalesHkd,
+                  [`TAG Sales ${lyDate} (TWD)`]: Number((lyTagSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`Actual Sales ${lyDate} (TWD)`]: Number((lyActualSalesHkd * hkdToTwdRateForExport).toFixed(2)),
+                  [`Target ${lyDate} (TWD)`]: Number((lyTargetSalesHkd * hkdToTwdRateForExport).toFixed(2)),
                   'Actual YoY (%)': actualYoy,
                 };
               }
@@ -330,8 +335,10 @@ export default function DashboardPage() {
                 'Shop Name': String(store.shop_name || store.shop_cd || ''),
                 [`TAG Sales ${date} (HKD)`]: tagSalesHkd,
                 [`Actual Sales ${date} (HKD)`]: actualSalesHkd,
+                [`Target ${date} (HKD)`]: targetSalesHkd,
                 [`TAG Sales ${lyDate} (HKD)`]: lyTagSalesHkd,
                 [`Actual Sales ${lyDate} (HKD)`]: lyActualSalesHkd,
+                [`Target ${lyDate} (HKD)`]: lyTargetSalesHkd,
                 'Actual YoY (%)': actualYoy,
               };
             });
@@ -347,7 +354,7 @@ export default function DashboardPage() {
             ? [
                 ['As Of Date', date, 'Region', regionToExport],
                 ['LY Same Period', lyDate, 'Mode', detailExportMode.toUpperCase()],
-                ['TY Exchange Rate (TWD->HKD)', twdToHkdRate, 'LY Exchange Rate (TWD->HKD)', lyTwdToHkdRate],
+                ['Exchange Rate Basis Month', period, 'TWD->HKD', twdToHkdRate],
                 [],
               ]
             : [
@@ -376,6 +383,8 @@ export default function DashboardPage() {
                 { wch: 18 },
                 { wch: 18 },
                 { wch: 18 },
+                { wch: 18 },
+                { wch: 18 },
                 { wch: 14 },
               ]
             : [
@@ -383,6 +392,8 @@ export default function DashboardPage() {
                 { wch: 10 },
                 { wch: 14 },
                 { wch: 28 },
+                { wch: 18 },
+                { wch: 18 },
                 { wch: 18 },
                 { wch: 18 },
                 { wch: 18 },
