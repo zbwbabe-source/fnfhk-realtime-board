@@ -26,6 +26,7 @@ interface StoreRow {
   
   // MTD
   target_mth: number;
+  target_mth_local?: number;
   mtd_act: number;
   progress: number;
   mtd_act_py: number;
@@ -37,6 +38,7 @@ interface StoreRow {
   
   // YTD
   ytd_target: number;
+  ytd_target_local?: number;
   ytd_act: number;
   progress_ytd: number;
   ytd_act_py: number;
@@ -127,8 +129,8 @@ export default function Section1Table({
           bValue = b.shop_name || b.shop_cd;
           break;
         case 'target':
-          aValue = isYtdMode ? a.ytd_target : a.target_mth;
-          bValue = isYtdMode ? b.ytd_target : b.target_mth;
+          aValue = getDisplayTarget(a);
+          bValue = getDisplayTarget(b);
           break;
         case 'actual':
           aValue = isYtdMode ? a.ytd_act : a.mtd_act;
@@ -308,12 +310,33 @@ export default function Section1Table({
     }).format(thousands);
   };
 
+  const formatTargetNumber = (num: number) => {
+    const thousands = num / 1000;
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(thousands);
+  };
+
   const formatPercent = (num: number) => {
     return `${num.toFixed(0)}%`;
   };
 
   const formatProgress = (num: number) => {
     return `${num.toFixed(1)}%`;
+  };
+
+  const isTwTwdMode = region === 'TW' && currencyCode === 'TWD';
+  const getDisplayTarget = (row: StoreRow) =>
+    isYtdMode
+      ? (isTwTwdMode ? row.ytd_target_local ?? row.ytd_target * hkdToTwdRate : row.ytd_target)
+      : (isTwTwdMode ? row.target_mth_local ?? row.target_mth * hkdToTwdRate : row.target_mth);
+
+  const getSubtotalDisplayTarget = (stores: StoreRow[], subtotal: StoreRow | null) => {
+    if (isTwTwdMode) {
+      return stores.reduce((sum, row) => sum + getDisplayTarget(row), 0);
+    }
+    return subtotal ? (isYtdMode ? subtotal.ytd_target : subtotal.target_mth) : 0;
   };
 
   const renderChannelSection = (
@@ -328,7 +351,7 @@ export default function Section1Table({
     const sortedStores = getSortedStores(stores);
     
     // MTD/YTD 모드에 따라 사용할 subtotal 값 결정
-    const subtotalTarget = subtotal ? (isYtdMode ? subtotal.ytd_target : subtotal.target_mth) : 0;
+    const subtotalTarget = getSubtotalDisplayTarget(stores, subtotal);
     const subtotalActual = subtotal ? (isYtdMode ? subtotal.ytd_act : subtotal.mtd_act) : 0;
     const subtotalProgress = subtotal ? (isYtdMode ? subtotal.progress_ytd : subtotal.progress) : 0;
     const subtotalActualPy = subtotal ? (isYtdMode ? subtotal.ytd_act_py : subtotal.mtd_act_py) : 0;
@@ -353,7 +376,7 @@ export default function Section1Table({
           {subtotal ? (
             <>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
-                {formatNumber(subtotalTarget)}
+                {formatTargetNumber(subtotalTarget)}
               </td>
               <td className="px-4 py-2 border-b border-gray-200 text-right">
                 {formatNumber(subtotalActual)}
@@ -394,7 +417,7 @@ export default function Section1Table({
     // MTD/YTD 모드에 따라 사용할 값 결정
     const actualValue = isYtdMode ? row.ytd_act : row.mtd_act;
     const actualPyValue = isYtdMode ? row.ytd_act_py : row.mtd_act_py;
-    const targetValue = isYtdMode ? row.ytd_target : row.target_mth;
+    const targetValue = getDisplayTarget(row);
     const progressValue = isYtdMode ? row.progress_ytd : row.progress;
     // X 브랜드는 MoM, 나머지는 YoY
     const yoyValue = isYtdMode ? row.yoy_ytd : (brand === 'X' ? row.mom : row.yoy);
@@ -426,7 +449,7 @@ export default function Section1Table({
           )}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
-          {formatNumber(targetValue)}
+          {formatTargetNumber(targetValue)}
         </td>
         <td className={`px-4 py-2 border-b border-gray-200 text-right ${isClosed ? 'text-gray-400' : ''}`}>
           {formatNumber(actualValue)}

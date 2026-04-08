@@ -7,6 +7,27 @@ export const dynamic = 'force-dynamic';
 function isLegacySnapshotPayload(payload: any): boolean {
   const total = payload?.total_subtotal;
   const expectedSameStoreFilterRule = 'exclude_offline_mtd_zero_sales_days_ge_5';
+  const hasTargetLocalFields = (() => {
+    const storeGroups = [
+      payload?.hk_normal,
+      payload?.hk_outlet,
+      payload?.hk_online,
+      payload?.mc_normal,
+      payload?.mc_outlet,
+      payload?.mc_online,
+      payload?.tw_normal,
+      payload?.tw_outlet,
+      payload?.tw_online,
+    ];
+    const firstStore = storeGroups.find((group) => Array.isArray(group) && group.length > 0)?.[0];
+    if (!firstStore) return false;
+    return (
+      typeof firstStore.target_mth_local !== 'undefined' &&
+      typeof firstStore.ytd_target_local !== 'undefined' &&
+      typeof total?.target_mth_local !== 'undefined' &&
+      typeof total?.ytd_target_local !== 'undefined'
+    );
+  })();
   return (
     !payload?.season_category_sales?.metrics ||
     !total ||
@@ -28,7 +49,8 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof total.ytd_projection_basis === 'undefined' ||
     total.ytd_projection_basis !== 'current_month_end' ||
     typeof total.forecast_source === 'undefined' ||
-    !Array.isArray(total.forecast_months)
+    !Array.isArray(total.forecast_months) ||
+    !hasTargetLocalFields
   );
 }
 

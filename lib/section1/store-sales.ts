@@ -844,6 +844,7 @@ export async function fetchSection1StoreSales({
 
     // MTD 합계
     const target_mth = stores.reduce((sum, s) => sum + s.target_mth, 0);
+    const target_mth_local = stores.reduce((sum, s) => sum + Number(s.target_mth_local ?? 0), 0);
     const mtd_act = stores.reduce((sum, s) => sum + s.mtd_act, 0);
     const mtd_act_py = stores.reduce((sum, s) => sum + s.mtd_act_py, 0);
     const mtd_act_pm = stores.reduce((sum, s) => sum + s.mtd_act_pm, 0);
@@ -859,6 +860,7 @@ export async function fetchSection1StoreSales({
 
     // YTD 합계
     const ytd_target = stores.reduce((sum, s) => sum + s.ytd_target, 0);
+    const ytd_target_local = stores.reduce((sum, s) => sum + Number(s.ytd_target_local ?? 0), 0);
     const ytd_act = stores.reduce((sum, s) => sum + s.ytd_act, 0);
     const ytd_act_py = stores.reduce((sum, s) => sum + s.ytd_act_py, 0);
     const ytd_tag = stores.reduce((sum, s) => sum + (s.ytd_tag || 0), 0);
@@ -913,6 +915,7 @@ export async function fetchSection1StoreSales({
 
       // MTD
       target_mth,
+      target_mth_local,
       actual_mtd: mtd_act,
       mtd_act,
       progress,
@@ -934,6 +937,7 @@ export async function fetchSection1StoreSales({
       // YTD
       annual_target,
       ytd_target,
+      ytd_target_local,
       actual_ytd: ytd_act,
       ytd_act,
       progress_ytd,
