@@ -638,18 +638,19 @@ export async function fetchSection1StoreSales({
 
     // MTD 목표값 가져오기 (환율 적용)
     const targetInfo = targetsByStore[storeInfo.store_code];
-    const target_mth = targetInfo ? applyExchangeRate(targetInfo.target_mth) : 0;
+    const target_mth_local = targetInfo ? Number(targetInfo.target_mth || 0) : 0;
+    const target_mth = targetInfo ? applyExchangeRate(target_mth_local) : 0;
     const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
 
     // YTD 목표 계산 (매장별, 환율 적용)
-    const ytd_target_original = calculateYtdTargetForStore(
+    const ytd_target_local = calculateYtdTargetForStore(
       storeInfo.store_code,
       year,
       month,
       asofDate.getDate(),
       targetData
     );
-    const ytd_target = applyExchangeRate(ytd_target_original);
+    const ytd_target = applyExchangeRate(ytd_target_local);
     const progress_ytd = ytd_target > 0 ? (ytd_act / ytd_target) * 100 : 0;
     const annual_target = applyExchangeRate(
       calculateAnnualTargetForStore(storeInfo.store_code, year, targetData)
@@ -676,6 +677,11 @@ export async function fetchSection1StoreSales({
     const outputChannel = normalizeChannel(storeInfo.channel);
 
     const record = {
+      target_mth,
+      target_mth_local,
+      annual_target,
+      ytd_target,
+      ytd_target_local,
       shop_cd: storeInfo.store_code,
       shop_name: resolvedShopName,
       country: storeInfo.country,
@@ -683,7 +689,6 @@ export async function fetchSection1StoreSales({
       base_month: resolvedBaseMonth,
 
       // MTD 데이터
-      target_mth,
       actual_mtd: mtd_act,
       mtd_act,
       progress,
@@ -702,8 +707,6 @@ export async function fetchSection1StoreSales({
       mtd_zero_sales_days: zeroSalesDayMap.get(storeInfo.store_code) || 0,
 
       // YTD 데이터
-      annual_target,
-      ytd_target,
       actual_ytd: ytd_act,
       ytd_act,
       progress_ytd,
