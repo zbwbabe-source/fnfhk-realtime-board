@@ -22,6 +22,7 @@ import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-ut
 
 type DetailExportMode = 'mtd' | 'ytd';
 type ExportRegion = 'HKMC' | 'TW';
+type DetailExportDataType = 'sales' | 'inventory';
 
 function getKstYesterdayString(): string {
   const now = new Date();
@@ -104,6 +105,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'summary' | 'hkmc' | 'tw'>('summary');
   const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
   const [detailExportMode, setDetailExportMode] = useState<DetailExportMode>('mtd');
+  const [detailExportDataType, setDetailExportDataType] = useState<DetailExportDataType>('sales');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingMatrix, setIsExportingMatrix] = useState(false);
@@ -423,6 +425,85 @@ export default function DashboardPage() {
 
     void exportAllBrandStoreSales(targetRegion);
   }, [activeTab, date, detailExportMode, language]);
+
+  const handleDownloadInventorySeasonMatrix = useCallback(async (targetRegion: ExportRegion) => {
+    if (activeTab === 'summary' || !date) return;
+
+    setIsExportingMatrix(true);
+
+    try {
+      const response = await fetch(
+        `/api/export/inventory-season?region=${targetRegion}&brand=${brand}&date=${date}`,
+        { cache: 'no-store' }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch inventory export data for ${targetRegion}/${brand}/${date}`);
+      }
+
+      const json = await response.json();
+      const currencyCode = String(json?.currencyCode || (targetRegion === 'TW' ? 'TWD' : 'HKD'));
+      const stockDateUsed = String(json?.stockDateUsed || '');
+      const rows = Array.isArray(json?.rows) ? json.rows : [];
+
+      const workbook = XLSX.utils.book_new();
+      const sheetRows = rows.map((row: any) => ({
+        Region: targetRegion,
+        Brand: getBrandLabel(brand),
+        'As Of Date': date,
+        'Stock Snapshot Date': stockDateUsed,
+        Season: String(row.season || ''),
+        'Stock Qty': Number(row.stock_qty || 0),
+        [`TAG Stock (${currencyCode})`]: Number(row.tag_stock_amt || 0),
+        [`Cost Stock (${currencyCode})`]: Number(row.cost_stock_amt || 0),
+        'SKU Count': Number(row.sku_count || 0),
+        'Store Count': Number(row.store_count || 0),
+      }));
+
+      sheetRows.push({
+        Region: targetRegion,
+        Brand: getBrandLabel(brand),
+        'As Of Date': date,
+        'Stock Snapshot Date': stockDateUsed,
+        Season: 'TOTAL',
+        'Stock Qty': rows.reduce((sum: number, row: any) => sum + Number(row.stock_qty || 0), 0),
+        [`TAG Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.tag_stock_amt || 0), 0),
+        [`Cost Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.cost_stock_amt || 0), 0),
+        'SKU Count': rows.reduce((sum: number, row: any) => sum + Number(row.sku_count || 0), 0),
+        'Store Count': rows.reduce((sum: number, row: any) => sum + Number(row.store_count || 0), 0),
+      });
+
+      const metaRows = [
+        ['As Of Date', date, 'Region', targetRegion],
+        ['Stock Snapshot Date', stockDateUsed || '-', 'Brand', getBrandLabel(brand)],
+        ['Currency', currencyCode, 'Data Type', 'Inventory by Season'],
+        [],
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(metaRows);
+      XLSX.utils.sheet_add_json(worksheet, sheetRows, { origin: 'A4' });
+      worksheet['!cols'] = [
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 12 },
+        { wch: 12 },
+      ];
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, `${targetRegion}_INVENTORY`);
+      XLSX.writeFile(workbook, `${targetRegion.toLowerCase()}-inventory-${brand}-${date}-season.xlsx`);
+    } catch (error) {
+      console.error('Failed to export inventory season matrix:', error);
+      window.alert(language === 'ko' ? '재고 엑셀 저장에 실패했습니다.' : 'Failed to export inventory Excel file.');
+    } finally {
+      setIsExportingMatrix(false);
+    }
+  }, [activeTab, brand, date, language]);
 
   const handleSection1Change = useCallback((data: any) => {
     setSection1Data(data);
@@ -877,28 +958,56 @@ export default function DashboardPage() {
               {activeTab !== 'summary' && (
                 <div className="flex flex-nowrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
                   <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                    {language === 'ko' ? '매출데이터 저장' : 'Sales Data Export'}
+                    {language === 'ko' ? '데이터 저장' : 'Data Export'}
                   </span>
                   <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white">
                     <button
-                      onClick={() => setDetailExportMode('mtd')}
+                      onClick={() => setDetailExportDataType('sales')}
                       className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                        detailExportMode === 'mtd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        detailExportDataType === 'sales' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      MTD
+                      {language === 'ko' ? '매출데이터 저장' : 'Sales Export'}
                     </button>
                     <button
-                      onClick={() => setDetailExportMode('ytd')}
+                      onClick={() => setDetailExportDataType('inventory')}
                       className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                        detailExportMode === 'ytd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        detailExportDataType === 'inventory' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      YTD
+                      {language === 'ko' ? '재고데이터 저장' : 'Inventory Export'}
                     </button>
                   </div>
+                  {detailExportDataType === 'sales' ? (
+                    <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <button
+                        onClick={() => setDetailExportMode('mtd')}
+                        className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                          detailExportMode === 'mtd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        MTD
+                      </button>
+                      <button
+                        onClick={() => setDetailExportMode('ytd')}
+                        className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                          detailExportMode === 'ytd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        YTD
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-600 whitespace-nowrap">
+                      {language === 'ko' ? '시즌별 / 기준일 스냅샷' : 'By Season / As-of Snapshot'}
+                    </div>
+                  )}
                   <button
-                    onClick={() => handleDownloadShopSalesMatrix(region as 'HKMC' | 'TW')}
+                    onClick={() =>
+                      detailExportDataType === 'sales'
+                        ? handleDownloadShopSalesMatrix(region as 'HKMC' | 'TW')
+                        : handleDownloadInventorySeasonMatrix(region as 'HKMC' | 'TW')
+                    }
                     disabled={anyDataLoading || isExportingMatrix}
                     className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
