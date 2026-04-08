@@ -1,5 +1,6 @@
 'use client';
-
+import { useState } from 'react';
+import { ResponsiveContainer, Tooltip, Treemap } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 
 interface Section3CardProps {
@@ -36,7 +37,24 @@ export default function Section3Card({
     curr_stock_amt: number;
     ly_curr_stock_amt: number | null;
     yoy_pct: number | null;
+    breakdown?: Array<{
+      label_key: string;
+      curr_stock_amt: number;
+      ly_curr_stock_amt: number | null;
+      yoy_pct: number | null;
+      category_nodes?: Array<{
+        cat2: string;
+        curr_stock_amt: number;
+        ly_curr_stock_amt?: number | null;
+        yoy_pct?: number | null;
+      }>;
+    }>;
   };
+  const [selectedInventoryCard, setSelectedInventoryCard] = useState<InventorySegmentCard | null>(null);
+  const [selectedInventoryNode, setSelectedInventoryNode] = useState<{
+    name: string;
+    categoryNodes: Array<{ cat2: string; curr_stock_amt: number; ly_curr_stock_amt?: number | null; yoy_pct?: number | null }>;
+  } | null>(null);
 
   const getYearBucketRank = (raw: string | null | undefined) => {
     if (!raw) return null;
@@ -481,13 +499,45 @@ export default function Section3Card({
         ? '의류만'
         : 'Apparel only'
       : null;
+  const getInventoryBreakdownLabel = (labelKey: string) => {
+    if (language === 'ko') {
+      const labels: Record<string, string> = {
+        current: '현재시즌',
+        y1: '1년차',
+        y2: '2년차',
+        y3_plus: '3년차+',
+        current_s: '당시즌S',
+        current_f: '당시즌F',
+        current_n: '당시즌N',
+        past_s: '과시즌S',
+        past_f: '과시즌F',
+        past_n: '과시즌N',
+      };
+      return labels[labelKey] || labelKey;
+    }
+    const labels: Record<string, string> = {
+      current: 'Current',
+      y1: 'Year 1',
+      y2: 'Year 2',
+      y3_plus: 'Year 3+',
+      current_s: 'Current S',
+      current_f: 'Current F',
+      current_n: 'Current N',
+      past_s: 'Old S',
+      past_f: 'Old F',
+      past_n: 'Old N',
+    };
+    return labels[labelKey] || labelKey;
+  };
   const getInventoryCardLabel = (key: string, fallbackLabel: string) => {
     if (language === 'ko') return fallbackLabel;
     const labels: Record<string, string> = {
       current_s: 'Current S',
       current_f: 'Current F',
+      current_n: 'Current N',
       past_s: 'Old S',
       past_f: 'Old F',
+      past_n: 'Old N',
       hat: isCompactEnglish ? 'Hat' : 'Headwear',
       shoes: 'Shoes',
       bag: 'Bag',
@@ -495,9 +545,111 @@ export default function Section3Card({
     };
     return labels[key] || fallbackLabel;
   };
+  const getInventoryTreemapColor = (yoy: number | null | undefined) => {
+    if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return '#E5E7EB';
+    if (yoy >= 130) return '#FCA5A5';
+    if (yoy >= 100) return '#FCD34D';
+    if (yoy >= 70) return '#86EFAC';
+    return '#BFDBFE';
+  };
+  const selectedInventoryTreemapData =
+    selectedInventoryNode
+      ? selectedInventoryNode.categoryNodes
+          .map((item) => ({
+            name: item.cat2,
+            value: Math.max(item.curr_stock_amt || 0, 1),
+            rawValue: item.curr_stock_amt || 0,
+            yoy: item.yoy_pct ?? null,
+            fill: getInventoryTreemapColor(item.yoy_pct ?? null),
+            categoryNodes: [],
+          }))
+          .sort((a, b) => (b.rawValue - a.rawValue) || a.name.localeCompare(b.name))
+      : selectedInventoryCard?.breakdown
+          ?.map((item) => ({
+            name: getInventoryBreakdownLabel(item.label_key),
+            value: Math.max(item.curr_stock_amt || 0, 1),
+            rawValue: item.curr_stock_amt || 0,
+            yoy: item.yoy_pct,
+            fill: getInventoryTreemapColor(item.yoy_pct),
+            categoryNodes: item.category_nodes || [],
+          }))
+          .sort((a, b) => (b.rawValue - a.rawValue) || a.name.localeCompare(b.name)) || [];
+  const InventoryTreemapTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const datum = payload[0]?.payload;
+    if (!datum) return null;
+    const totalRawValue = selectedInventoryTreemapData.reduce(
+      (sum, item) => sum + (item.rawValue || 0),
+      0
+    );
+    const sharePct = totalRawValue > 0 ? ((datum.rawValue || 0) / totalRawValue) * 100 : null;
+
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] text-gray-700 shadow-lg">
+        <p className="font-semibold text-gray-900">{datum.name}</p>
+        <p className="mt-1">{formatCurrency(datum.rawValue || 0)}</p>
+        {sharePct !== null ? <p className="mt-1 text-gray-500">비중 {sharePct.toFixed(1)}%</p> : null}
+        {datum.yoy !== null && datum.yoy !== undefined ? (
+          <p className={`mt-1 ${getInventoryYoyTone(datum.yoy)}`}>YoY {datum.yoy.toFixed(0)}%</p>
+        ) : null}
+        {!selectedInventoryNode && Array.isArray(datum.categoryNodes) && datum.categoryNodes.length > 0 ? (
+          <p className="mt-1 text-[10px] text-gray-500">
+            {language === 'ko' ? '클릭하면 카테고리 상세' : 'Click for category detail'}
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+  const renderInventoryTreemapCell = (props: any) => {
+    const { x, y, width, height, name, rawValue, yoy, fill, categoryNodes } = props;
+    if (width <= 0 || height <= 0) return <g />;
+
+    const showLabel = width >= 58 && height >= 42;
+    const showValue = width >= 78 && height >= 52;
+    const showYoy = width >= 96 && height >= 64;
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+
+    return (
+      <g>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          rx={8}
+          ry={8}
+          fill={fill}
+          stroke="#FFFFFF"
+          strokeWidth={2}
+          onClick={() => {
+            if (!selectedInventoryNode && Array.isArray(categoryNodes) && categoryNodes.length > 0) {
+              setSelectedInventoryNode({ name, categoryNodes });
+            }
+          }}
+          className={!selectedInventoryNode && Array.isArray(categoryNodes) && categoryNodes.length > 0 ? 'cursor-pointer' : undefined}
+        />
+        {showLabel ? (
+          <text x={centerX} y={centerY - (showValue ? 12 : 0)} textAnchor="middle" fill="#111827" fontSize="12" fontWeight="700" stroke="none">
+            {name}
+          </text>
+        ) : null}
+        {showValue ? (
+          <text x={centerX} y={centerY + 6} textAnchor="middle" fill="#111827" fontSize="12" fontWeight="700" stroke="none">
+            {formatCurrency(rawValue || 0)}
+          </text>
+        ) : null}
+        {showYoy ? (
+          <text x={centerX} y={centerY + 22} textAnchor="middle" fill="#065F46" fontSize="10" fontWeight="600" stroke="none">
+            {yoy !== null && yoy !== undefined ? `YoY ${yoy.toFixed(0)}%` : 'YoY -'}
+          </text>
+        ) : null}
+      </g>
+    );
+  };
 
   return (
-    <article className={`${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`relative ${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
@@ -593,21 +745,21 @@ export default function Section3Card({
       {simpleDetail && orderedInventorySegmentCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <p className="mb-2 text-[11px] text-gray-500">
-            {language === 'ko' ? '전체 재고 TAG 기준' : isCompactEnglish ? 'Total TAG basis' : 'Based on total TAG stock'}
+            {language === 'ko' ? '현재 재고 (TAG기준)' : isCompactEnglish ? 'Current stock (TAG)' : 'Based on current stock (TAG)'}
           </p>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             {orderedInventorySegmentCards.map((card) => (
-              <div
+              <button
+                type="button"
                 key={card.key}
-                className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm"
+                onClick={() => {
+                  setSelectedInventoryCard(card);
+                  setSelectedInventoryNode(null);
+                }}
+                className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition hover:border-gray-300 hover:shadow-md"
               >
-                <div className="group relative inline-flex max-w-full">
+                <div className="inline-flex max-w-full">
                   <p className="text-xs font-semibold text-gray-700">{getInventoryCardLabel(card.key, card.label)}</p>
-                  {getInventoryCardTooltip(card.key) ? (
-                    <span className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden whitespace-nowrap rounded-md border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 shadow-md group-hover:block">
-                      {getInventoryCardTooltip(card.key)}
-                    </span>
-                  ) : null}
                 </div>
                 <p className="mt-2 text-lg font-bold leading-tight text-gray-900">
                   {formatCurrency(card.curr_stock_amt || 0)}
@@ -617,11 +769,96 @@ export default function Section3Card({
                     ? `YoY ${card.yoy_pct.toFixed(0)}%`
                     : 'YoY -'}
                 </p>
-              </div>
+                {false && (
+                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-[11px] text-gray-600 shadow-lg group-hover:block">
+                    <p className="mb-2 font-semibold text-gray-800">
+                      {language === 'ko' ? '시즌별 재고' : 'Season Breakdown'}
+                    </p>
+                    <div className="space-y-1.5">
+                      {card.breakdown?.map((item) => (
+                        <div key={`${card.key}-${item.label_key}`} className="border-b border-gray-100 pb-1 last:border-b-0 last:pb-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-medium text-gray-700">{getInventoryBreakdownLabel(item.label_key)}</span>
+                            <span className="font-semibold text-gray-900">{formatCurrency(item.curr_stock_amt || 0)}</span>
+                          </div>
+                          <p className={`mt-0.5 text-[10px] ${getInventoryYoyTone(item.yoy_pct)}`}>
+                            {item.yoy_pct !== null && item.yoy_pct !== undefined
+                              ? `YoY ${item.yoy_pct.toFixed(0)}%`
+                              : 'YoY -'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {getInventoryCardTooltip(card.key) ? (
+                      <p className="mt-2 border-t border-gray-100 pt-2 text-[10px] text-gray-400">
+                        {getInventoryCardTooltip(card.key)}
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </button>
             ))}
           </div>
         </div>
       )}
+
+      {simpleDetail && selectedInventoryCard && Array.isArray(selectedInventoryCard.breakdown) && selectedInventoryCard.breakdown.length > 0 ? (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 px-4 backdrop-blur-[1px]" onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}>
+          <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {selectedInventoryNode
+                    ? `${getInventoryCardLabel(selectedInventoryCard.key, selectedInventoryCard.label)} / ${selectedInventoryNode.name}`
+                    : getInventoryCardLabel(selectedInventoryCard.key, selectedInventoryCard.label)}
+                </h4>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  {selectedInventoryNode
+                    ? (language === 'ko' ? '2글자 카테고리별 현재 재고입니다.' : 'Current stock by 2-letter category.')
+                    : (language === 'ko' ? '시즌별 현재 재고와 YoY입니다.' : 'Current stock and YoY by season bucket.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}
+                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
+              >
+                {language === 'ko' ? '닫기' : 'Close'}
+              </button>
+            </div>
+            {selectedInventoryNode ? (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInventoryNode(null)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
+                >
+                  {language === 'ko' ? '뒤로' : 'Back'}
+                </button>
+              </div>
+            ) : null}
+            <div className="h-[320px] overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <Treemap
+                  data={selectedInventoryTreemapData}
+                  dataKey="value"
+                  aspectRatio={4 / 3}
+                  stroke="#fff"
+                  content={renderInventoryTreemapCell}
+                  isAnimationActive={false}
+                >
+                  <Tooltip content={<InventoryTreemapTooltip />} />
+                </Treemap>
+              </ResponsiveContainer>
+            </div>
+            {getInventoryCardTooltip(selectedInventoryCard.key) ? (
+              <p className="mt-3 border-t border-gray-100 pt-3 text-[11px] text-gray-400">
+                {getInventoryCardTooltip(selectedInventoryCard.key)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {!simpleDetail && periodStartInfo && periodInfoPlacement === 'footer' && (
         <div className="mt-1 text-[11px] text-gray-500">

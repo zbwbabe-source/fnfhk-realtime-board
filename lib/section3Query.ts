@@ -165,6 +165,7 @@ export interface Section3Response {
         available: boolean;
         completed: boolean;
         actual_sold_amt: number;
+        current_stock_amt: number;
         target_sold_gross: number | null;
         progress_pct: number | null;
         projected_progress_pct: number | null;
@@ -181,8 +182,10 @@ export interface Section3Response {
     key:
       | 'current_s'
       | 'current_f'
+      | 'current_n'
       | 'past_s'
       | 'past_f'
+      | 'past_n'
       | 'hat'
       | 'shoes'
       | 'bag'
@@ -191,6 +194,18 @@ export interface Section3Response {
     curr_stock_amt: number;
     ly_curr_stock_amt: number | null;
     yoy_pct: number | null;
+    breakdown?: Array<{
+      label_key: string;
+      curr_stock_amt: number;
+      ly_curr_stock_amt: number | null;
+      yoy_pct: number | null;
+      category_nodes?: Array<{
+        cat2: string;
+        curr_stock_amt: number;
+        ly_curr_stock_amt?: number | null;
+        yoy_pct?: number | null;
+      }>;
+    }>;
   }>;
 }
 
@@ -1175,6 +1190,27 @@ ORDER BY
       AND TRY_TO_NUMBER(LEFT(ST.SESN, 2)) <= ?
     GROUP BY ST.SESN, SUBSTR(ST.PRDT_CD, 7, 2)
   `;
+  const currentCategoryStockQuery = `
+    WITH latest_stock_date AS (
+      SELECT MAX(STOCK_DT) AS stock_dt
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+      WHERE ${brandFilter}
+        AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+    )
+    SELECT
+      ST.SESN,
+      SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
+      COALESCE(SUM(ST.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+    FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+    CROSS JOIN latest_stock_date L
+    WHERE ${brandFilter}
+      AND ST.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+      AND ST.STOCK_DT = L.stock_dt
+      AND RIGHT(ST.SESN, 1) = ?
+      AND TRY_TO_NUMBER(LEFT(ST.SESN, 2)) <= ?
+    GROUP BY ST.SESN, SUBSTR(ST.PRDT_CD, 7, 2)
+  `;
   const ytdCategorySalesQuery = `
     SELECT
       S.SESN,
@@ -1194,6 +1230,11 @@ ORDER BY
     currentTypeForSales,
     currentYYForSales - 1,
   ]);
+  const currentCategoryStockRowsPromise = executeSnowflakeQuery(currentCategoryStockQuery, [
+    date,
+    currentTypeForSales,
+    currentYYForSales - 1,
+  ]);
   const ytdCategorySalesRowsPromise = executeSnowflakeQuery(ytdCategorySalesQuery, [
     currentTypeForSales,
     currentYYForSales - 1,
@@ -1208,6 +1249,7 @@ ORDER BY
     alignedSeasonSalesRows,
     alignedSeasonCategorySalesRows,
     yearEndStockRows,
+    currentCategoryStockRows,
     ytdCategorySalesRows,
   ] = await Promise.all([
     rowsPromise,
@@ -1216,6 +1258,7 @@ ORDER BY
     alignedSeasonSalesRowsPromise,
     alignedSeasonCategorySalesRowsPromise,
     yearEndStockRowsPromise,
+    currentCategoryStockRowsPromise,
     ytdCategorySalesRowsPromise,
   ]);
   console.log(`??Section3Query - Result: ${rows.length} rows`);
@@ -1234,6 +1277,11 @@ ORDER BY
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
   const alignedCurrentMonthTagSalesLy =
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+  const isWearCategory = (cat2Raw: string | null | undefined) => {
+    const cat2 = String(cat2Raw || '').trim().toUpperCase();
+    const mapping = getCategoryMapping(cat2);
+    return ['OUTER', 'INNER', 'BOTTOM', 'Wear_etc'].includes(mapping.middle);
+  };
   const seasonSalesMap = new Map<
     string,
     { periodTag: number; periodAct: number; monthTag: number; monthAct: number }
@@ -1265,7 +1313,7 @@ ORDER BY
     const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
     if (!bucket) continue;
     const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const categoryKey: 'wear' | 'accessory' = isWearCategory(cat2) ? 'wear' : 'accessory';
     const target = bucketCategorySales.get(bucket);
     if (!target) continue;
     const periodTag = applyExchangeRate(parseFloat(row.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
@@ -1292,6 +1340,11 @@ ORDER BY
     ['2년차', emptyBucketAmount()],
     ['3년차 이상', emptyBucketAmount()],
   ]);
+  const bucketCurrentStockMap = new Map<string, Record<'wear' | 'accessory' | 'all', number>>([
+    ['1년차', emptyBucketAmount()],
+    ['2년차', emptyBucketAmount()],
+    ['3년차 이상', emptyBucketAmount()],
+  ]);
   const addBucketCategoryAmount = (
     map: Map<string, Record<'wear' | 'accessory' | 'all', number>>,
     bucket: string,
@@ -1312,9 +1365,22 @@ ORDER BY
     const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
     if (!bucket) continue;
     const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const categoryKey: 'wear' | 'accessory' = isWearCategory(cat2) ? 'wear' : 'accessory';
     const yearEndStockAmt = applyExchangeRate(parseFloat(row.YEAR_END_STOCK_AMT || 0)) || 0;
     addBucketCategoryAmount(bucketYearEndStockMap, bucket, categoryKey, yearEndStockAmt);
+  }
+  for (const row of currentCategoryStockRows || []) {
+    const seasonCode = String(row.SESN || '').trim().toUpperCase();
+    const match = seasonCode.match(/^(\d{2})([FS])$/);
+    if (!match || match[2] !== currentTypeForSales) continue;
+    const seasonYY = Number(match[1]);
+    const diff = currentYYForSales - seasonYY;
+    const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
+    if (!bucket) continue;
+    const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+    const categoryKey: 'wear' | 'accessory' = isWearCategory(cat2) ? 'wear' : 'accessory';
+    const currentStockAmt = applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0;
+    addBucketCategoryAmount(bucketCurrentStockMap, bucket, categoryKey, currentStockAmt);
   }
   for (const row of ytdCategorySalesRows || []) {
     const seasonCode = String(row.SESN || '').trim().toUpperCase();
@@ -1325,7 +1391,7 @@ ORDER BY
     const bucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : diff >= 3 ? '3년차 이상' : null;
     if (!bucket) continue;
     const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-    const categoryKey: 'wear' | 'accessory' = apparelCategorySet.has(cat2) ? 'wear' : 'accessory';
+    const categoryKey: 'wear' | 'accessory' = isWearCategory(cat2) ? 'wear' : 'accessory';
     const ytdSalesAmt = applyExchangeRate(parseFloat(row.YTD_TAG_SALES_TOTAL || 0)) || 0;
     addBucketCategoryAmount(bucketYtdActualSalesMap, bucket, categoryKey, ytdSalesAmt);
   }
@@ -1707,6 +1773,7 @@ ORDER BY
               const projectedActual = elapsedDays > 0 ? (actual.monthTag / elapsedDays) * daysInMonth : null;
               const actualDiscountRate = actual.monthTag > 0 ? 1 - actual.monthAct / actual.monthTag : null;
               const targetDiscountRate = target?.target_discount_rate ?? null;
+              const currentStock = bucketCurrentStockMap.get(bucket)?.[categoryKey] ?? 0;
               const yearEndStock = bucketYearEndStockMap.get(bucket)?.[categoryKey] ?? 0;
               const ytdActualSales = bucketYtdActualSalesMap.get(bucket)?.[categoryKey] ?? 0;
               const yearEndTargetStock =
@@ -1719,6 +1786,7 @@ ORDER BY
                 available: !!target,
                 completed: !target && actual.monthTag <= 0,
                 actual_sold_amt: actual.monthTag,
+                current_stock_amt: currentStock,
                 target_sold_gross: target?.target_sold_gross ?? null,
                 progress_pct: buildProgressPct(actual.monthTag, target?.target_sold_gross),
                 projected_progress_pct: buildProgressPct(projectedActual ?? 0, target?.target_sold_gross),
@@ -1909,8 +1977,7 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
     const currentOldSeasonApparelAmt = skuRows
       .filter((row: any) => {
         const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-        const mapping = getCategoryMapping(cat2);
-        return ['OUTER', 'INNER', 'BOTTOM', 'Wear_etc'].includes(mapping.middle);
+        return isWearCategory(cat2);
       })
       .reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0), 0);
     let previousOldSeasonApparelAmt = await fetchPreviousYearCurrentStock(previousDate, 'clothes');
@@ -1921,15 +1988,378 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
     currentAmounts[pastSeasonKey] = currentOldSeasonApparelAmt;
     previousAmounts[pastSeasonKey] = previousOldSeasonApparelAmt;
 
+    const buildYoyPct = (curr: number, ly: number) =>
+      ly > 0 ? Math.round((curr / ly) * 10000) / 100 : null;
+    const getSeasonYY = (targetDate: string, type: 'S' | 'F') => {
+      const d = new Date(`${targetDate}T00:00:00`);
+      const month = d.getMonth() + 1;
+      const year = d.getFullYear();
+      if (type === 'S') return year % 100;
+      return month <= 2 ? (year - 1) % 100 : year % 100;
+    };
+    const aggregateWearYearBucketBreakdown = (rows: any[], targetDate: string, targetType: 'S' | 'F') => {
+      const totals: Record<'y1' | 'y2' | 'y3_plus', number> = { y1: 0, y2: 0, y3_plus: 0 };
+      const currentSeasonYY = getSeasonYY(targetDate, targetType);
+      const applyRateForDate = (amount: number) => {
+        if (region !== 'TW') return amount;
+        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+      };
+
+      for (const row of rows) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        if (!isWearCategory(cat2)) continue;
+        const match = sesn.match(/^(\d{2})([FS])$/);
+        if (!match || match[2] !== targetType) continue;
+        const seasonYY = Number(match[1]);
+        const diff = currentSeasonYY - seasonYY;
+        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        if (!amount) continue;
+        if (diff === 1) totals.y1 += amount;
+        else if (diff === 2) totals.y2 += amount;
+        else if (diff >= 3) totals.y3_plus += amount;
+      }
+
+      return totals;
+    };
+    const aggregateCategorySegmentBreakdown = (
+      rows: any[],
+      targetDate: string,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc'
+    ) => {
+      const totals: Record<'current_s' | 'current_f' | 'past_s' | 'past_f', number> = {
+        current_s: 0,
+        current_f: 0,
+        past_s: 0,
+        past_f: 0,
+      };
+      const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
+      const applyRateForDate = (amount: number) => {
+        if (region !== 'TW') return amount;
+        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+      };
+
+      for (const row of rows) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        const mapping = getCategoryMapping(cat2);
+        const matchesTarget =
+          (targetKey === 'hat' && mapping.middle === 'Headwear') ||
+          (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
+          (targetKey === 'bag' && mapping.middle === 'BAG') ||
+          (targetKey === 'acc' && mapping.large === '기타ACC');
+        if (!matchesTarget) continue;
+
+        const match = sesn.match(/^(\d{2})([FSN])$/);
+        if (!match) continue;
+        const seasonYY = Number(match[1]);
+        const seasonType = match[2] as 'S' | 'F' | 'N';
+        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        if (!amount) continue;
+
+        if (seasonType === 'S') {
+          if (seasonYY >= currentSYear) totals.current_s += amount;
+          else totals.past_s += amount;
+        } else if (seasonType === 'F') {
+          if (seasonYY >= currentFYear) totals.current_f += amount;
+          else totals.past_f += amount;
+        }
+      }
+
+      return totals;
+    };
+    const aggregateCategoryNSeasonBreakdown = (
+      rows: any[],
+      targetDate: string,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc'
+    ) => {
+      const totals = new Map<string, number>();
+      const applyRateForDate = (amount: number) => {
+        if (region !== 'TW') return amount;
+        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+      };
+
+      for (const row of rows) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        const mapping = getCategoryMapping(cat2);
+        const matchesTarget =
+          (targetKey === 'hat' && mapping.middle === 'Headwear') ||
+          (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
+          (targetKey === 'bag' && mapping.middle === 'BAG') ||
+          (targetKey === 'acc' && mapping.large === '기타ACC');
+        if (!matchesTarget) continue;
+
+        const match = sesn.match(/^(\d{2})N$/);
+        if (!match) continue;
+        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        if (!amount) continue;
+        totals.set(sesn, (totals.get(sesn) || 0) + amount);
+      }
+
+      return totals;
+    };
+    const getNSeasonSortValue = (sesn: string) => {
+      const match = String(sesn || '').trim().toUpperCase().match(/^(\d{2})N$/);
+      if (!match) return -1;
+      return Number(match[1]);
+    };
+    const buildNSeasonBreakdownItems = (
+      currentMap: Map<string, number>,
+      previousMap: Map<string, number>,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc'
+    ) =>
+      [...new Set([...currentMap.keys(), ...previousMap.keys()])]
+        .sort((a, b) => getNSeasonSortValue(b) - getNSeasonSortValue(a))
+        .map((labelKey) => {
+          const curr = currentMap.get(labelKey) || 0;
+          const ly = previousMap.get(labelKey) || 0;
+          return {
+            label_key: labelKey,
+            curr_stock_amt: curr,
+            ly_curr_stock_amt: ly > 0 ? ly : null,
+            yoy_pct: buildYoyPct(curr, ly),
+            category_nodes: buildNSeasonCategoryNodes(currentRows, currentDate, targetKey, labelKey),
+          };
+        })
+        .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
+    const sortCategoryNodes = (entries: Map<string, number>) =>
+      [...entries.entries()]
+        .map(([cat2, amount]) => ({ cat2, curr_stock_amt: amount }))
+        .filter((item) => item.curr_stock_amt > 0)
+        .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
+    const sortCategoryNodesWithYoy = (currentEntries: Map<string, number>, previousEntries: Map<string, number>) =>
+      [...new Set([...currentEntries.keys(), ...previousEntries.keys()])]
+        .map((cat2) => {
+          const curr = currentEntries.get(cat2) || 0;
+          const ly = previousEntries.get(cat2) || 0;
+          return {
+            cat2,
+            curr_stock_amt: curr,
+            ly_curr_stock_amt: ly > 0 ? ly : null,
+            yoy_pct: buildYoyPct(curr, ly),
+          };
+        })
+        .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0)
+        .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
+    const buildWearYearBucketCategoryNodes = (targetType: 'S' | 'F', bucket: 'y1' | 'y2' | 'y3_plus') => {
+      const totals = new Map<string, number>();
+      const currentSeasonYY = getSeasonYY(currentDate, targetType);
+      for (const row of skuRows || []) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        if (!isWearCategory(cat2)) continue;
+        const match = sesn.match(/^(\d{2})([FS])$/);
+        if (!match || match[2] !== targetType) continue;
+        const seasonYY = Number(match[1]);
+        const diff = currentSeasonYY - seasonYY;
+        const isMatch = bucket === 'y1' ? diff === 1 : bucket === 'y2' ? diff === 2 : diff >= 3;
+        if (!isMatch) continue;
+        const amount = applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0) || 0) || 0;
+        if (!amount) continue;
+        totals.set(cat2, (totals.get(cat2) || 0) + amount);
+      }
+      return sortCategoryNodes(totals);
+    };
+    const buildGroupedCategoryNodes = (
+      rows: any[],
+      targetDate: string,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc' | 'wear',
+      labelKey: 'current_s' | 'current_f' | 'past_s' | 'past_f'
+    ) => {
+      const totals = new Map<string, number>();
+      const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
+      const applyRateForDate = (amount: number) => {
+        if (region !== 'TW') return amount;
+        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+      };
+
+      for (const row of rows) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        const mapping = getCategoryMapping(cat2);
+        const matchesTarget =
+          targetKey === 'wear'
+            ? isWearCategory(cat2)
+            : (targetKey === 'hat' && mapping.middle === 'Headwear') ||
+              (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
+              (targetKey === 'bag' && mapping.middle === 'BAG') ||
+              (targetKey === 'acc' && mapping.large === '기타ACC');
+        if (!matchesTarget) continue;
+        const match = sesn.match(/^(\d{2})([FS])$/);
+        if (!match) continue;
+        const seasonYY = Number(match[1]);
+        const seasonType = match[2] as 'S' | 'F';
+        const groupedLabel =
+          seasonType === 'S'
+            ? seasonYY >= currentSYear ? 'current_s' : 'past_s'
+            : seasonYY >= currentFYear ? 'current_f' : 'past_f';
+        if (groupedLabel !== labelKey) continue;
+        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        if (!amount) continue;
+        totals.set(cat2, (totals.get(cat2) || 0) + amount);
+      }
+
+      return sortCategoryNodes(totals);
+    };
+    const buildGroupedCategoryNodesWithYoy = (
+      currentRowsSource: any[],
+      previousRowsSource: any[],
+      currentTargetDate: string,
+      previousTargetDate: string,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc' | 'wear',
+      labelKey: 'current_s' | 'current_f' | 'past_s' | 'past_f'
+    ) => {
+      const buildTotals = (rows: any[], targetDate: string) => {
+        const totals = new Map<string, number>();
+        const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
+        const applyRateForDate = (amount: number) => {
+          if (region !== 'TW') return amount;
+          return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+        };
+
+        for (const row of rows) {
+          const sesn = String(row.SESN || '').trim().toUpperCase();
+          const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+          const mapping = getCategoryMapping(cat2);
+          const matchesTarget =
+            targetKey === 'wear'
+              ? isWearCategory(cat2)
+              : (targetKey === 'hat' && mapping.middle === 'Headwear') ||
+                (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
+                (targetKey === 'bag' && mapping.middle === 'BAG') ||
+                (targetKey === 'acc' && mapping.large === '기타ACC');
+          if (!matchesTarget) continue;
+          const match = sesn.match(/^(\d{2})([FS])$/);
+          if (!match) continue;
+          const seasonYY = Number(match[1]);
+          const seasonType = match[2] as 'S' | 'F';
+          const groupedLabel =
+            seasonType === 'S'
+              ? seasonYY >= currentSYear ? 'current_s' : 'past_s'
+              : seasonYY >= currentFYear ? 'current_f' : 'past_f';
+          if (groupedLabel !== labelKey) continue;
+          const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          if (!amount) continue;
+          totals.set(cat2, (totals.get(cat2) || 0) + amount);
+        }
+
+        return totals;
+      };
+
+      return sortCategoryNodesWithYoy(
+        buildTotals(currentRowsSource, currentTargetDate),
+        buildTotals(previousRowsSource, previousTargetDate)
+      );
+    };
+    const buildNSeasonCategoryNodes = (
+      rows: any[],
+      targetDate: string,
+      targetKey: 'hat' | 'shoes' | 'bag' | 'acc',
+      seasonLabel: string
+    ) => {
+      const totals = new Map<string, number>();
+      const applyRateForDate = (amount: number) => {
+        if (region !== 'TW') return amount;
+        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+      };
+
+      for (const row of rows) {
+        const sesn = String(row.SESN || '').trim().toUpperCase();
+        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+        const mapping = getCategoryMapping(cat2);
+        const matchesTarget =
+          (targetKey === 'hat' && mapping.middle === 'Headwear') ||
+          (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
+          (targetKey === 'bag' && mapping.middle === 'BAG') ||
+          (targetKey === 'acc' && mapping.large === '기타ACC');
+        if (!matchesTarget || sesn !== seasonLabel) continue;
+        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        if (!amount) continue;
+        totals.set(cat2, (totals.get(cat2) || 0) + amount);
+      }
+
+      return sortCategoryNodes(totals);
+    };
+    const currentPastSBreakdown = aggregateWearYearBucketBreakdown(currentRows, currentDate, 'S');
+    const currentPastFBreakdown = aggregateWearYearBucketBreakdown(currentRows, currentDate, 'F');
+    const previousPastSBreakdown = aggregateWearYearBucketBreakdown(previousRows, previousDate, 'S');
+    const previousPastFBreakdown = aggregateWearYearBucketBreakdown(previousRows, previousDate, 'F');
+    const currentHatBreakdown = aggregateCategorySegmentBreakdown(currentRows, currentDate, 'hat');
+    const currentShoesBreakdown = aggregateCategorySegmentBreakdown(currentRows, currentDate, 'shoes');
+    const currentBagBreakdown = aggregateCategorySegmentBreakdown(currentRows, currentDate, 'bag');
+    const currentAccBreakdown = aggregateCategorySegmentBreakdown(currentRows, currentDate, 'acc');
+    const previousHatBreakdown = aggregateCategorySegmentBreakdown(previousRows, previousDate, 'hat');
+    const previousShoesBreakdown = aggregateCategorySegmentBreakdown(previousRows, previousDate, 'shoes');
+    const previousBagBreakdown = aggregateCategorySegmentBreakdown(previousRows, previousDate, 'bag');
+    const previousAccBreakdown = aggregateCategorySegmentBreakdown(previousRows, previousDate, 'acc');
+    const currentHatNBreakdown = aggregateCategoryNSeasonBreakdown(currentRows, currentDate, 'hat');
+    const currentShoesNBreakdown = aggregateCategoryNSeasonBreakdown(currentRows, currentDate, 'shoes');
+    const currentBagNBreakdown = aggregateCategoryNSeasonBreakdown(currentRows, currentDate, 'bag');
+    const currentAccNBreakdown = aggregateCategoryNSeasonBreakdown(currentRows, currentDate, 'acc');
+    const previousHatNBreakdown = aggregateCategoryNSeasonBreakdown(previousRows, previousDate, 'hat');
+    const previousShoesNBreakdown = aggregateCategoryNSeasonBreakdown(previousRows, previousDate, 'shoes');
+    const previousBagNBreakdown = aggregateCategoryNSeasonBreakdown(previousRows, previousDate, 'bag');
+    const previousAccNBreakdown = aggregateCategoryNSeasonBreakdown(previousRows, previousDate, 'acc');
+
     return inventorySegmentOrder.map((key) => {
       const curr = currentAmounts[key] || 0;
       const ly = previousAmounts[key] || 0;
+      const breakdown =
+              key === 'past_s'
+          ? [
+              { label_key: 'y1' as const, curr_stock_amt: currentPastSBreakdown.y1, ly_curr_stock_amt: previousPastSBreakdown.y1 || null, yoy_pct: buildYoyPct(currentPastSBreakdown.y1, previousPastSBreakdown.y1), category_nodes: buildWearYearBucketCategoryNodes('S', 'y1') },
+              { label_key: 'y2' as const, curr_stock_amt: currentPastSBreakdown.y2, ly_curr_stock_amt: previousPastSBreakdown.y2 || null, yoy_pct: buildYoyPct(currentPastSBreakdown.y2, previousPastSBreakdown.y2), category_nodes: buildWearYearBucketCategoryNodes('S', 'y2') },
+              { label_key: 'y3_plus' as const, curr_stock_amt: currentPastSBreakdown.y3_plus, ly_curr_stock_amt: previousPastSBreakdown.y3_plus || null, yoy_pct: buildYoyPct(currentPastSBreakdown.y3_plus, previousPastSBreakdown.y3_plus), category_nodes: buildWearYearBucketCategoryNodes('S', 'y3_plus') },
+            ]
+          : key === 'past_f'
+            ? [
+                { label_key: 'y1' as const, curr_stock_amt: currentPastFBreakdown.y1, ly_curr_stock_amt: previousPastFBreakdown.y1 || null, yoy_pct: buildYoyPct(currentPastFBreakdown.y1, previousPastFBreakdown.y1), category_nodes: buildWearYearBucketCategoryNodes('F', 'y1') },
+                { label_key: 'y2' as const, curr_stock_amt: currentPastFBreakdown.y2, ly_curr_stock_amt: previousPastFBreakdown.y2 || null, yoy_pct: buildYoyPct(currentPastFBreakdown.y2, previousPastFBreakdown.y2), category_nodes: buildWearYearBucketCategoryNodes('F', 'y2') },
+                { label_key: 'y3_plus' as const, curr_stock_amt: currentPastFBreakdown.y3_plus, ly_curr_stock_amt: previousPastFBreakdown.y3_plus || null, yoy_pct: buildYoyPct(currentPastFBreakdown.y3_plus, previousPastFBreakdown.y3_plus), category_nodes: buildWearYearBucketCategoryNodes('F', 'y3_plus') },
+              ]
+            : key === 'current_s' || key === 'current_f'
+              ? [
+                  { label_key: 'current', curr_stock_amt: curr, ly_curr_stock_amt: ly || null, yoy_pct: buildYoyPct(curr, ly), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'wear', key) },
+                ]
+              : key === 'hat'
+                ? [
+                    { label_key: 'current_s', curr_stock_amt: currentHatBreakdown.current_s, ly_curr_stock_amt: previousHatBreakdown.current_s || null, yoy_pct: buildYoyPct(currentHatBreakdown.current_s, previousHatBreakdown.current_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'hat', 'current_s') },
+                    { label_key: 'current_f', curr_stock_amt: currentHatBreakdown.current_f, ly_curr_stock_amt: previousHatBreakdown.current_f || null, yoy_pct: buildYoyPct(currentHatBreakdown.current_f, previousHatBreakdown.current_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'hat', 'current_f') },
+                    { label_key: 'past_s', curr_stock_amt: currentHatBreakdown.past_s, ly_curr_stock_amt: previousHatBreakdown.past_s || null, yoy_pct: buildYoyPct(currentHatBreakdown.past_s, previousHatBreakdown.past_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'hat', 'past_s') },
+                    { label_key: 'past_f', curr_stock_amt: currentHatBreakdown.past_f, ly_curr_stock_amt: previousHatBreakdown.past_f || null, yoy_pct: buildYoyPct(currentHatBreakdown.past_f, previousHatBreakdown.past_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'hat', 'past_f') },
+                    ...buildNSeasonBreakdownItems(currentHatNBreakdown, previousHatNBreakdown, 'hat'),
+                  ]
+                : key === 'shoes'
+                  ? [
+                      { label_key: 'current_s', curr_stock_amt: currentShoesBreakdown.current_s, ly_curr_stock_amt: previousShoesBreakdown.current_s || null, yoy_pct: buildYoyPct(currentShoesBreakdown.current_s, previousShoesBreakdown.current_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'shoes', 'current_s') },
+                      { label_key: 'current_f', curr_stock_amt: currentShoesBreakdown.current_f, ly_curr_stock_amt: previousShoesBreakdown.current_f || null, yoy_pct: buildYoyPct(currentShoesBreakdown.current_f, previousShoesBreakdown.current_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'shoes', 'current_f') },
+                      { label_key: 'past_s', curr_stock_amt: currentShoesBreakdown.past_s, ly_curr_stock_amt: previousShoesBreakdown.past_s || null, yoy_pct: buildYoyPct(currentShoesBreakdown.past_s, previousShoesBreakdown.past_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'shoes', 'past_s') },
+                      { label_key: 'past_f', curr_stock_amt: currentShoesBreakdown.past_f, ly_curr_stock_amt: previousShoesBreakdown.past_f || null, yoy_pct: buildYoyPct(currentShoesBreakdown.past_f, previousShoesBreakdown.past_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'shoes', 'past_f') },
+                      ...buildNSeasonBreakdownItems(currentShoesNBreakdown, previousShoesNBreakdown, 'shoes'),
+                    ]
+                  : key === 'bag'
+                    ? [
+                        { label_key: 'current_s', curr_stock_amt: currentBagBreakdown.current_s, ly_curr_stock_amt: previousBagBreakdown.current_s || null, yoy_pct: buildYoyPct(currentBagBreakdown.current_s, previousBagBreakdown.current_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'bag', 'current_s') },
+                        { label_key: 'current_f', curr_stock_amt: currentBagBreakdown.current_f, ly_curr_stock_amt: previousBagBreakdown.current_f || null, yoy_pct: buildYoyPct(currentBagBreakdown.current_f, previousBagBreakdown.current_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'bag', 'current_f') },
+                        { label_key: 'past_s', curr_stock_amt: currentBagBreakdown.past_s, ly_curr_stock_amt: previousBagBreakdown.past_s || null, yoy_pct: buildYoyPct(currentBagBreakdown.past_s, previousBagBreakdown.past_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'bag', 'past_s') },
+                        { label_key: 'past_f', curr_stock_amt: currentBagBreakdown.past_f, ly_curr_stock_amt: previousBagBreakdown.past_f || null, yoy_pct: buildYoyPct(currentBagBreakdown.past_f, previousBagBreakdown.past_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'bag', 'past_f') },
+                        ...buildNSeasonBreakdownItems(currentBagNBreakdown, previousBagNBreakdown, 'bag'),
+                      ]
+                    : [
+                        { label_key: 'current_s', curr_stock_amt: currentAccBreakdown.current_s, ly_curr_stock_amt: previousAccBreakdown.current_s || null, yoy_pct: buildYoyPct(currentAccBreakdown.current_s, previousAccBreakdown.current_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'acc', 'current_s') },
+                        { label_key: 'current_f', curr_stock_amt: currentAccBreakdown.current_f, ly_curr_stock_amt: previousAccBreakdown.current_f || null, yoy_pct: buildYoyPct(currentAccBreakdown.current_f, previousAccBreakdown.current_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'acc', 'current_f') },
+                        { label_key: 'past_s', curr_stock_amt: currentAccBreakdown.past_s, ly_curr_stock_amt: previousAccBreakdown.past_s || null, yoy_pct: buildYoyPct(currentAccBreakdown.past_s, previousAccBreakdown.past_s), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'acc', 'past_s') },
+                        { label_key: 'past_f', curr_stock_amt: currentAccBreakdown.past_f, ly_curr_stock_amt: previousAccBreakdown.past_f || null, yoy_pct: buildYoyPct(currentAccBreakdown.past_f, previousAccBreakdown.past_f), category_nodes: buildGroupedCategoryNodesWithYoy(currentRows, previousRows, currentDate, previousDate, 'acc', 'past_f') },
+                        ...buildNSeasonBreakdownItems(currentAccNBreakdown, previousAccNBreakdown, 'acc'),
+                      ];
       return {
         key,
         label: inventorySegmentLabels[key],
         curr_stock_amt: curr,
         ly_curr_stock_amt: ly > 0 ? ly : null,
         yoy_pct: ly > 0 ? Math.round((curr / ly) * 10000) / 100 : null,
+        breakdown: breakdown.filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0),
       };
     });
   };
@@ -1990,15 +2420,15 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         continue;
       }
 
-      const match = sesn.match(/^(\d{2})([FS])$/);
+      const match = sesn.match(/^(\d{2})([FSN])$/);
       if (!match) continue;
       const seasonYY = Number(match[1]);
-      const seasonType = match[2] as 'S' | 'F';
+      const seasonType = match[2] as 'S' | 'F' | 'N';
 
       if (seasonType === 'S') {
         if (seasonYY >= currentSYear) totals.current_s += amount;
         else totals.past_s += amount;
-      } else {
+      } else if (seasonType === 'F') {
         if (seasonYY >= currentFYear) totals.current_f += amount;
         else totals.past_f += amount;
       }
@@ -2023,6 +2453,7 @@ WITH latest_stock_date AS (
 )
 SELECT
   s.SESN,
+  s.PRDT_CD,
   SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
   COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
 FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
@@ -2030,7 +2461,7 @@ CROSS JOIN latest_stock_date l
 WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
   AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
   AND s.STOCK_DT = l.stock_dt
-GROUP BY s.SESN, SUBSTR(s.PRDT_CD, 7, 2)
+GROUP BY s.SESN, s.PRDT_CD, SUBSTR(s.PRDT_CD, 7, 2)
 `;
 
     return executeSnowflakeQuery(currentQuery, [normalizedBrand, targetDate, normalizedBrand]);
@@ -2049,6 +2480,7 @@ WITH latest_month AS (
 )
 SELECT
   s.SESN,
+  CONCAT('XX', s.SUB_CTGR) AS PRDT_CD,
   s.SUB_CTGR AS CAT2,
   COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
 FROM SAP_FNF.PREP_HMD_STOCK s
