@@ -432,50 +432,66 @@ export default function DashboardPage() {
     setIsExportingMatrix(true);
 
     try {
-      const response = await fetch(
-        `/api/export/inventory-season?region=${targetRegion}&brand=${brand}&date=${date}`,
-        { cache: 'no-store' }
+      const workbook = XLSX.utils.book_new();
+      const exportBrands: ExportRegion extends never ? never : Array<'M' | 'X'> = ['M', 'X'];
+
+      const responses = await Promise.all(
+        exportBrands.map(async (brandCode) => {
+          const response = await fetch(
+            `/api/export/inventory-season?region=${targetRegion}&brand=${brandCode}&date=${date}`,
+            { cache: 'no-store' }
+          );
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch inventory export data for ${targetRegion}/${brandCode}/${date}`);
+          }
+
+          const json = await response.json();
+          return { brandCode, json };
+        })
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch inventory export data for ${targetRegion}/${brand}/${date}`);
-      }
+      const currencyCode = String(
+        responses[0]?.json?.currencyCode || (targetRegion === 'TW' ? 'TWD' : 'HKD')
+      );
+      const stockDateUsed = String(responses[0]?.json?.stockDateUsed || '');
 
-      const json = await response.json();
-      const currencyCode = String(json?.currencyCode || (targetRegion === 'TW' ? 'TWD' : 'HKD'));
-      const stockDateUsed = String(json?.stockDateUsed || '');
-      const rows = Array.isArray(json?.rows) ? json.rows : [];
+      const sheetRows = responses.flatMap(({ brandCode, json }) => {
+        const rows = Array.isArray(json?.rows) ? json.rows : [];
+        const brandLabel = getBrandLabel(brandCode);
 
-      const workbook = XLSX.utils.book_new();
-      const sheetRows = rows.map((row: any) => ({
-        Region: targetRegion,
-        Brand: getBrandLabel(brand),
-        'As Of Date': date,
-        'Stock Snapshot Date': stockDateUsed,
-        Season: String(row.season || ''),
-        'Stock Qty': Number(row.stock_qty || 0),
-        [`TAG Stock (${currencyCode})`]: Number(row.tag_stock_amt || 0),
-        [`Cost Stock (${currencyCode})`]: Number(row.cost_stock_amt || 0),
-        'SKU Count': Number(row.sku_count || 0),
-        'Store Count': Number(row.store_count || 0),
-      }));
+        const detailRows = rows.map((row: any) => ({
+          Region: targetRegion,
+          Brand: brandLabel,
+          'As Of Date': date,
+          'Stock Snapshot Date': String(json?.stockDateUsed || stockDateUsed),
+          Season: String(row.season || ''),
+          'Stock Qty': Number(row.stock_qty || 0),
+          [`TAG Stock (${currencyCode})`]: Number(row.tag_stock_amt || 0),
+          [`Cost Stock (${currencyCode})`]: Number(row.cost_stock_amt || 0),
+          'SKU Count': Number(row.sku_count || 0),
+          'Store Count': Number(row.store_count || 0),
+        }));
 
-      sheetRows.push({
-        Region: targetRegion,
-        Brand: getBrandLabel(brand),
-        'As Of Date': date,
-        'Stock Snapshot Date': stockDateUsed,
-        Season: 'TOTAL',
-        'Stock Qty': rows.reduce((sum: number, row: any) => sum + Number(row.stock_qty || 0), 0),
-        [`TAG Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.tag_stock_amt || 0), 0),
-        [`Cost Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.cost_stock_amt || 0), 0),
-        'SKU Count': rows.reduce((sum: number, row: any) => sum + Number(row.sku_count || 0), 0),
-        'Store Count': rows.reduce((sum: number, row: any) => sum + Number(row.store_count || 0), 0),
+        detailRows.push({
+          Region: targetRegion,
+          Brand: brandLabel,
+          'As Of Date': date,
+          'Stock Snapshot Date': String(json?.stockDateUsed || stockDateUsed),
+          Season: 'TOTAL',
+          'Stock Qty': rows.reduce((sum: number, row: any) => sum + Number(row.stock_qty || 0), 0),
+          [`TAG Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.tag_stock_amt || 0), 0),
+          [`Cost Stock (${currencyCode})`]: rows.reduce((sum: number, row: any) => sum + Number(row.cost_stock_amt || 0), 0),
+          'SKU Count': rows.reduce((sum: number, row: any) => sum + Number(row.sku_count || 0), 0),
+          'Store Count': rows.reduce((sum: number, row: any) => sum + Number(row.store_count || 0), 0),
+        });
+
+        return detailRows;
       });
 
       const metaRows = [
         ['As Of Date', date, 'Region', targetRegion],
-        ['Stock Snapshot Date', stockDateUsed || '-', 'Brand', getBrandLabel(brand)],
+        ['Stock Snapshot Date', stockDateUsed || '-', 'Brand Scope', 'All Brands (M/X)'],
         ['Currency', currencyCode, 'Data Type', 'Inventory by Season'],
         [],
       ];
@@ -496,14 +512,14 @@ export default function DashboardPage() {
       ];
 
       XLSX.utils.book_append_sheet(workbook, worksheet, `${targetRegion}_INVENTORY`);
-      XLSX.writeFile(workbook, `${targetRegion.toLowerCase()}-inventory-${brand}-${date}-season.xlsx`);
+      XLSX.writeFile(workbook, `${targetRegion.toLowerCase()}-inventory-all-brands-${date}-season.xlsx`);
     } catch (error) {
       console.error('Failed to export inventory season matrix:', error);
       window.alert(language === 'ko' ? '재고 엑셀 저장에 실패했습니다.' : 'Failed to export inventory Excel file.');
     } finally {
       setIsExportingMatrix(false);
     }
-  }, [activeTab, brand, date, language]);
+  }, [activeTab, date, language]);
 
   const handleSection1Change = useCallback((data: any) => {
     setSection1Data(data);
