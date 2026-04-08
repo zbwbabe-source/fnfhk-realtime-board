@@ -471,8 +471,8 @@ export default function Section3Card({
   })();
   const getInventoryYoyTone = (yoy: number | null | undefined) => {
     if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return 'text-gray-500';
-    if (yoy > 100) return 'text-emerald-600';
-    if (yoy < 100) return 'text-rose-600';
+    if (yoy > 100) return 'text-rose-600';
+    if (yoy < 100) return 'text-emerald-600';
     return 'text-gray-600';
   };
   const getInventoryCardTooltip = (key: string) =>
