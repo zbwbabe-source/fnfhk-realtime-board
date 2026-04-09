@@ -48,7 +48,6 @@ export default function DailyHighlight({
 
   const [data, setData] = useState<ExecutiveInsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isStrategyExpanded, setIsStrategyExpanded] = useState(false);
   const isInsightInputReady =
     !!hkmcSection1Data?.total_subtotal &&
     !!twSection1Data?.total_subtotal &&
@@ -144,6 +143,50 @@ export default function DailyHighlight({
     const tw3yPlusShare =
       twAgingShares.share3yPlus ?? (typeof twSection3Data?.header?.old_stock_3y_plus_share === 'number' ? twSection3Data.header.old_stock_3y_plus_share : null);
 
+    const getSeasonCategoryDetails = (cats: any) => {
+      if (!Array.isArray(cats)) return [];
+      return cats
+        .filter((c: any) => c && typeof c === 'object' && typeof c.category === 'string')
+        .map((c: any) => ({
+          category: String(c.category).trim(),
+          inboundAmt: typeof c.inbound_tag === 'number' ? c.inbound_tag : 0,
+          salesAmt: typeof c.sales_tag === 'number' ? c.sales_tag : 0,
+          sellthrough: typeof c.sellthrough === 'number' ? c.sellthrough : 0,
+          sellthroughLy: typeof c.sellthrough_ly === 'number' ? c.sellthrough_ly : null,
+        }))
+        .filter((c: any) => c.inboundAmt > 0)
+        .sort((a: any, b: any) => b.inboundAmt - a.inboundAmt);
+    };
+
+    const getOldSeasonYearDetails = (years: any) => {
+      if (!Array.isArray(years)) return [];
+      return years
+        .filter((y: any) => y && typeof y === 'object')
+        .map((y: any) => ({
+          yearBucket: String(y.year_bucket || '').trim(),
+          sesn: String(y.sesn || y.season_code || '').trim(),
+          baseStockAmt: typeof y.base_stock_amt === 'number' ? y.base_stock_amt : 0,
+          currStockAmt: typeof y.curr_stock_amt === 'number' ? y.curr_stock_amt : 0,
+          periodTagSales: typeof y.period_tag_sales === 'number' ? y.period_tag_sales : 0,
+        }));
+    };
+
+    const getTopStagnantItems = (skus: any) => {
+      if (!Array.isArray(skus)) return [];
+      return skus
+        .filter((s: any) => s && typeof s === 'object' && (s.stagnant_stock_amt || 0) > 0)
+        .map((s: any) => ({
+          prdtCd: String(s.prdt_cd || '').trim(),
+          cat2: String(s.cat2 || '').trim(),
+          currStockAmt: typeof s.curr_stock_amt === 'number' ? s.curr_stock_amt : 0,
+          currStockQty: typeof s.curr_stock_qty === 'number' ? s.curr_stock_qty : 0,
+          periodTagSales: typeof s.period_tag_sales === 'number' ? s.period_tag_sales : 0,
+          stagnantStockAmt: typeof s.stagnant_stock_amt === 'number' ? s.stagnant_stock_amt : 0,
+        }))
+        .sort((a: any, b: any) => b.stagnantStockAmt - a.stagnantStockAmt)
+        .slice(0, 10);
+    };
+
     return {
       brand,
       asOfDate: date,
@@ -172,6 +215,9 @@ export default function DailyHighlight({
           hkmcStagnantRatio !== null && hkmcPrevStagnantRatio !== null
             ? hkmcStagnantRatio - hkmcPrevStagnantRatio
             : null,
+        seasonCategories: getSeasonCategoryDetails(hkmcSection2Data?.categories),
+        oldSeasonYears: getOldSeasonYearDetails(hkmcSection3Data?.years),
+        topStagnantItems: getTopStagnantItems(hkmcSection3Data?.skus),
       },
       tw: {
         salesMtdYoy: twSection1Data?.total_subtotal?.yoy ?? null,
@@ -195,6 +241,9 @@ export default function DailyHighlight({
           twStagnantRatio !== null && twPrevStagnantRatio !== null
             ? twStagnantRatio - twPrevStagnantRatio
             : null,
+        seasonCategories: getSeasonCategoryDetails(twSection2Data?.categories),
+        oldSeasonYears: getOldSeasonYearDetails(twSection3Data?.years),
+        topStagnantItems: getTopStagnantItems(twSection3Data?.skus),
       },
     };
   }, [
@@ -509,6 +558,7 @@ export default function DailyHighlight({
       if (category === '매장') return 'Store';
       if (category === '당시즌') return 'In-season';
       if (category === '과시즌') return 'Old-season';
+      if (category === '정체재고') return 'Stagnant';
       return category;
     };
 
@@ -598,43 +648,6 @@ export default function DailyHighlight({
             ))}
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">{t(language, 'aiRecommendedStrategy')}</h3>
-              <button
-                type="button"
-                onClick={() => setIsStrategyExpanded((prev) => !prev)}
-                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                {isStrategyExpanded ? (language === 'ko' ? '접기' : 'Collapse') : language === 'ko' ? '펼치기' : 'Expand'}
-              </button>
-            </div>
-
-            {isStrategyExpanded ? (
-              <div className="grid gap-3 xl:grid-cols-3">
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
-                  <h4 className="text-base font-semibold text-emerald-800">{monthInfo.performanceTitle}</h4>
-                  <div className="mt-3">
-                    {renderStrategyList(sectionItems.performance)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-4">
-                  <h4 className="text-base font-semibold text-rose-800">{monthInfo.riskTitle}</h4>
-                  <div className="mt-3">
-                    {renderStrategyList(sectionItems.risk)}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4">
-                  <h4 className="text-base font-semibold text-amber-800">{monthInfo.actionTitle}</h4>
-                  <div className="mt-3">
-                    {renderStrategyList(sectionItems.action)}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
         </div>
       )}
     </section>
