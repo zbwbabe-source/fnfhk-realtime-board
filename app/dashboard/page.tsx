@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import BrandSelect from './components/BrandSelect';
 import DailyHighlight from './components/DailyHighlight';
 import DateSelect from './components/DateSelect';
+import EntrySalesYoyPopup from './components/EntrySalesYoyPopup';
 import Section1Card from './components/Section1Card';
 import Section1StoreBarChart from './components/Section1StoreBarChart';
 import Section1Table from './components/Section1Table';
@@ -1379,6 +1380,11 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      <EntrySalesYoyPopup
+        date={date}
+        hkmcSection1Data={hkmcSection1Data}
+        twSection1Data={twSection1Data}
+      />
       <DataManagementModal open={isDataManagementOpen} onClose={() => setIsDataManagementOpen(false)} />
       <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} language={language} />
     </div>

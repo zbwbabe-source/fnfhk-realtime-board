@@ -531,6 +531,37 @@ export async function fetchSection1StoreSales({
     [brand, resolvedDate, resolvedDate]
   );
 
+  const dailyComparableRows = await executeSnowflakeQuery(
+    `
+      SELECT
+        LOCAL_SHOP_CD AS shop_cd,
+        SUM(CASE WHEN TO_DATE(SALE_DT) = TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) AS daily_act,
+        SUM(CASE WHEN TO_DATE(SALE_DT) = DATEADD(YEAR, -1, TO_DATE(?)) THEN ACT_SALE_AMT ELSE 0 END) AS daily_act_py,
+        SUM(
+          CASE
+            WHEN TO_DATE(SALE_DT) BETWEEN DATEADD(DAY, -6, TO_DATE(?)) AND TO_DATE(?)
+            THEN ACT_SALE_AMT ELSE 0
+          END
+        ) AS recent_7d_act,
+        SUM(
+          CASE
+            WHEN TO_DATE(SALE_DT) BETWEEN DATEADD(YEAR, -1, DATEADD(DAY, -6, TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+            THEN ACT_SALE_AMT ELSE 0
+          END
+        ) AS recent_7d_act_py
+      FROM SAP_FNF.DW_HMD_SALE_D
+      WHERE
+        (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+        AND LOCAL_SHOP_CD IN (${storeCodes})
+        AND (
+          TO_DATE(SALE_DT) BETWEEN DATEADD(DAY, -6, TO_DATE(?)) AND TO_DATE(?)
+          OR TO_DATE(SALE_DT) BETWEEN DATEADD(YEAR, -1, DATEADD(DAY, -6, TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+        )
+      GROUP BY LOCAL_SHOP_CD
+    `,
+    [resolvedDate, resolvedDate, resolvedDate, resolvedDate, resolvedDate, resolvedDate, brand, resolvedDate, resolvedDate, resolvedDate, resolvedDate]
+  );
+
   // TW 리전일 때 환율 적용
   const isTwRegion = region === 'TW';
   const period = isTwRegion ? getPeriodFromDateString(resolvedDate) : '';
@@ -562,6 +593,7 @@ export async function fetchSection1StoreSales({
   const positiveSalesDayCountMap = new Map<string, number>();
   const zeroSalesDayMap = new Map<string, number>();
   const forecastMonthsByStore = new Map<string, Array<{ month: string; amount: number }>>();
+  const dailyComparableMap = new Map<string, { daily_act: number; daily_act_py: number; recent_7d_act: number; recent_7d_act_py: number }>();
 
   monthlyStoreSalesRows.forEach((row: any) => {
     const shopCd = String(row.SHOP_CD || '');
@@ -581,6 +613,17 @@ export async function fetchSection1StoreSales({
     const salesAmt = parseFloat(row.SALES_AMT || 0);
     if (salesAmt <= 0) return;
     positiveSalesDayCountMap.set(shopCd, (positiveSalesDayCountMap.get(shopCd) || 0) + 1);
+  });
+
+  dailyComparableRows.forEach((row: any) => {
+    const shopCd = String(row.SHOP_CD || '');
+    if (!shopCd) return;
+    dailyComparableMap.set(shopCd, {
+      daily_act: applyExchangeRate(parseFloat(row.DAILY_ACT || 0)),
+      daily_act_py: applyExchangeRate(parseFloat(row.DAILY_ACT_PY || 0)),
+      recent_7d_act: applyExchangeRate(parseFloat(row.RECENT_7D_ACT || 0)),
+      recent_7d_act_py: applyExchangeRate(parseFloat(row.RECENT_7D_ACT_PY || 0)),
+    });
   });
 
   const elapsedDaysInMonth = asofDate.getDate();
@@ -618,6 +661,13 @@ export async function fetchSection1StoreSales({
     const mtd_tag_py = row ? applyExchangeRate(parseFloat(row.MTD_TAG_PY || 0)) : 0;
     const yoy = row ? parseFloat(row.YOY || 0) : 0;
     const mom = row ? parseFloat(row.MOM || 0) : 0;
+    const dailyComparable = dailyComparableMap.get(storeInfo.store_code);
+    const daily_act = dailyComparable?.daily_act ?? 0;
+    const daily_act_py = dailyComparable?.daily_act_py ?? 0;
+    const daily_yoy = daily_act_py > 0 ? (daily_act / daily_act_py) * 100 : null;
+    const recent_7d_act = dailyComparable?.recent_7d_act ?? 0;
+    const recent_7d_act_py = dailyComparable?.recent_7d_act_py ?? 0;
+    const recent_7d_yoy = recent_7d_act_py > 0 ? (recent_7d_act / recent_7d_act_py) * 100 : null;
 
     // YTD 데이터 (환율 적용)
     const ytd_act = row ? applyExchangeRate(parseFloat(row.YTD_ACT || 0)) : 0;
@@ -696,6 +746,12 @@ export async function fetchSection1StoreSales({
       mtd_act_pm,
       yoy,
       mom,
+      daily_act,
+      daily_act_py,
+      daily_yoy,
+      recent_7d_act,
+      recent_7d_act_py,
+      recent_7d_yoy,
       monthEndProjection,
       projected_progress,
       projectedYoY,
@@ -850,9 +906,15 @@ export async function fetchSection1StoreSales({
     const mtd_act_pm = stores.reduce((sum, s) => sum + s.mtd_act_pm, 0);
     const mtd_tag = stores.reduce((sum, s) => sum + (s.mtd_tag || 0), 0);
     const mtd_tag_py = stores.reduce((sum, s) => sum + (s.mtd_tag_py || 0), 0);
+    const daily_act = stores.reduce((sum, s) => sum + (s.daily_act || 0), 0);
+    const daily_act_py = stores.reduce((sum, s) => sum + (s.daily_act_py || 0), 0);
+    const recent_7d_act = stores.reduce((sum, s) => sum + (s.recent_7d_act || 0), 0);
+    const recent_7d_act_py = stores.reduce((sum, s) => sum + (s.recent_7d_act_py || 0), 0);
     const progress = target_mth > 0 ? (mtd_act / target_mth) * 100 : 0;
     const yoy = mtd_act_py > 0 ? (mtd_act / mtd_act_py) * 100 : 0;
     const mom = mtd_act_pm > 0 ? (mtd_act / mtd_act_pm) * 100 : 0;
+    const daily_yoy = daily_act_py > 0 ? (daily_act / daily_act_py) * 100 : null;
+    const recent_7d_yoy = recent_7d_act_py > 0 ? (recent_7d_act / recent_7d_act_py) * 100 : null;
     const discount_rate_mtd = mtd_tag > 0 ? (1 - mtd_act / mtd_tag) * 100 : 0;
     const discount_rate_mtd_ly = mtd_tag_py > 0 ? (1 - mtd_act_py / mtd_tag_py) * 100 : null;
     const discount_rate_mtd_diff =
@@ -923,6 +985,12 @@ export async function fetchSection1StoreSales({
       mtd_act_pm,
       yoy,
       mom,
+      daily_act,
+      daily_act_py,
+      daily_yoy,
+      recent_7d_act,
+      recent_7d_act_py,
+      recent_7d_yoy,
       monthEndProjection,
       projected_progress,
       projectedYoY,
