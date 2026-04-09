@@ -18,6 +18,7 @@ type MetricRow = {
 };
 
 interface EntrySalesYoyPopupProps {
+  brand: string;
   date: string;
   hkmcSection1Data: any;
   twSection1Data: any;
@@ -26,12 +27,8 @@ interface EntrySalesYoyPopupProps {
 const STORAGE_KEY = 'dashboard-entry-sales-yoy-popup-hidden-on';
 const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function getTodayKey() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getVisibilityKey(date: string) {
+  return date || 'unknown-date';
 }
 
 function parseLocalDate(date: string) {
@@ -138,6 +135,7 @@ function buildLabels(date: string) {
 }
 
 export default function EntrySalesYoyPopup({
+  brand,
   date,
   hkmcSection1Data,
   twSection1Data,
@@ -185,18 +183,18 @@ export default function EntrySalesYoyPopup({
   );
 
   useEffect(() => {
-    if (!isReady || visibilityChecked) return;
+    if (!isReady) return;
 
-    const todayKey = getTodayKey();
+    const visibilityKey = getVisibilityKey(date);
     const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
-    setOpen(hiddenOn !== todayKey);
+    setOpen(hiddenOn !== visibilityKey);
     setVisibilityChecked(true);
-  }, [isReady, visibilityChecked]);
+  }, [date, isReady]);
 
   if (!open || !isReady) return null;
 
   const handleCloseForToday = () => {
-    window.localStorage.setItem(STORAGE_KEY, getTodayKey());
+    window.localStorage.setItem(STORAGE_KEY, getVisibilityKey(date));
     setOpen(false);
   };
 
@@ -208,7 +206,8 @@ export default function EntrySalesYoyPopup({
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
             <h2 className="mt-0.5 text-lg font-bold text-gray-900">{labels.title}</h2>
-            <p className="text-xs text-gray-400">{labels.asOf}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">{brand === 'M' ? 'MLB' : brand}</p>
+            <p className="mt-0.5 text-xs text-gray-400">{labels.asOf}</p>
           </div>
           <button
             type="button"

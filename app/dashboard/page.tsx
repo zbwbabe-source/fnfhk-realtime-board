@@ -1381,6 +1381,7 @@ export default function DashboardPage() {
         )}
       </div>
       <EntrySalesYoyPopup
+        brand={brand}
         date={date}
         hkmcSection1Data={hkmcSection1Data}
         twSection1Data={twSection1Data}
