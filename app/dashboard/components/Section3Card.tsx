@@ -917,11 +917,7 @@ export default function Section3Card({
             {t(language, 'section3Title')}
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
-          {!simpleDetail && bottomCards.length > 0 && (
-            <p className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
-              {language === 'ko' ? '카드를 누르면 재고 상세가 열립니다.' : 'Tap a card to open stock detail.'}
-            </p>
-          )}
+          {!simpleDetail && <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>}
         </div>
 
         <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
@@ -1332,6 +1328,11 @@ export default function Section3Card({
 
       {!simpleDetail && bottomCards.length > 0 && (
         <div className={`border-t border-gray-100 ${fixedHeight ? 'mt-1 pt-2' : 'mt-1.5 pt-2.5'}`}>
+          <div className="mb-2 flex justify-start">
+            <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+              {language === 'ko' ? '아래 카드를 누르면 재고 상세가 열립니다.' : 'Tap the cards below to open stock detail.'}
+            </p>
+          </div>
           <div className={`grid grid-cols-1 md:grid-cols-5 ${fixedHeight ? 'gap-1.5' : 'gap-2'}`}>
             {bottomCards.map((card: any) => {
               const cardDiscountRate =
@@ -1480,9 +1481,7 @@ export default function Section3Card({
       )}
 
       {!simpleDetail && (
-        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
-          {currencyUnit} | {t(language, 'tagBasis')}
-        </div>
+        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{t(language, 'tagBasis')}</div>
       )}
     </article>
   );

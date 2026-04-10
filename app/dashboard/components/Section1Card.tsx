@@ -628,7 +628,7 @@ export default function Section1Card({
         }));
 
   return (
-    <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`${fixedHeight ? 'h-[468px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 pb-5 shadow-sm sm:p-5 sm:pb-6`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-2 sm:flex-row">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -683,11 +683,7 @@ export default function Section1Card({
             )}
           </div>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section1Subtitle')}</p>
-          {!simpleDetail && detailCards.length > 0 && (
-            <p className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
-              {language === 'ko' ? '카드를 누르면 상세 내역이 열립니다.' : 'Tap a card to open detail.'}
-            </p>
-          )}
+          {!simpleDetail && <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>}
         </div>
 
         {onYtdModeToggle && (
@@ -930,6 +926,11 @@ export default function Section1Card({
 
       {!simpleDetail && detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
+          <div className="mb-2 flex justify-start">
+            <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+              {language === 'ko' ? '아래 카드를 누르면 상세 내역이 열립니다.' : 'Tap the cards below to open detail.'}
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {detailCards.map((item) => {
               const yoyColor =
@@ -960,7 +961,7 @@ export default function Section1Card({
                   onClick={() => openStoreDetail((item as any).storeCode || '', storeFullName || item.title)}
                   className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
                 >
-                  <div className="relative min-h-[36px]">
+                  <div className="relative min-h-[52px]">
                     <p className="break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
                     <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
                       <p className="font-semibold">{storeFullName || item.title}</p>
@@ -989,7 +990,7 @@ export default function Section1Card({
                   className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
                 >
                   {item.apparelOnly ? (
-                    <div className="group relative block min-h-[36px]">
+                    <div className="group relative block min-h-[52px]">
                       <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
                         {item.title}
                       </p>
@@ -998,7 +999,7 @@ export default function Section1Card({
                       </div>
                     </div>
                   ) : (
-                    <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
+                    <p className="min-h-[52px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                   )}
                   <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
                   <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
@@ -1015,11 +1016,8 @@ export default function Section1Card({
               );
             })}
           </div>
+          {fixedHeight ? <div className="h-3" aria-hidden="true" /> : null}
         </div>
-      )}
-
-      {!simpleDetail && (
-        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{currencyUnit}</div>
       )}
 
       <Section1StoreDetailModal
