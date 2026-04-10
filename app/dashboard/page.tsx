@@ -1385,6 +1385,10 @@ export default function DashboardPage() {
         date={date}
         hkmcSection1Data={hkmcSection1Data}
         twSection1Data={twSection1Data}
+        hkmcSection2Data={hkmcSection2Data}
+        twSection2Data={twSection2Data}
+        hkmcSection3Data={hkmcSection3Data}
+        twSection3Data={twSection3Data}
       />
       <DataManagementModal open={isDataManagementOpen} onClose={() => setIsDataManagementOpen(false)} />
       <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} language={language} />
