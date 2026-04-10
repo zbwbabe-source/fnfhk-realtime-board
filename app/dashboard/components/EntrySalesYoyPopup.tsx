@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 type RegionSalesSnapshot = {
   daily_yoy: number | null;
@@ -8,6 +9,13 @@ type RegionSalesSnapshot = {
   yoy: number | null;
   projected_mtd_yoy: number | null;
   yoy_ytd: number | null;
+  daily_yoy_trend: Array<{
+    date: string;
+    label: string;
+    yoy: number | null;
+    sales_act: number;
+    sales_act_ly: number;
+  }>;
 };
 
 type MetricRow = {
@@ -84,6 +92,7 @@ function readRegionSnapshot(section1Data: any): RegionSalesSnapshot | null {
         : null,
     yoy_ytd:
       typeof total.yoy_ytd === 'number' && Number.isFinite(total.yoy_ytd) ? total.yoy_ytd : null,
+    daily_yoy_trend: Array.isArray(total.daily_yoy_trend) ? total.daily_yoy_trend : [],
   };
 }
 
@@ -91,9 +100,43 @@ function formatYoy(value: number | null) {
   return value === null ? '-' : `${Math.round(value)}%`;
 }
 
-function toneClass(value: number | null) {
-  if (value === null) return 'text-gray-400';
-  return value >= 100 ? 'text-emerald-600' : 'text-rose-600';
+const HKMC_ACCENT = {
+  softText: 'text-gray-700',
+  stroke: '#4B5563',
+};
+
+const TW_ACCENT = {
+  softText: 'text-violet-700',
+  stroke: '#A78BFA',
+};
+
+function formatTrendTooltipValue(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  return `${Math.round(value)}%`;
+}
+
+function getTrendDomain(rows: Array<{ hkmcYoy: number | null; twYoy: number | null }>) {
+  const values = rows.flatMap((row) => [row.hkmcYoy, row.twYoy]).filter((value): value is number => typeof value === 'number');
+  if (values.length === 0) return [80, 120] as const;
+
+  const min = Math.min(...values, 100);
+  const max = Math.max(...values, 100);
+  const paddedMin = Math.floor((min - 5) / 5) * 5;
+  const paddedMax = Math.ceil((max + 5) / 5) * 5;
+  return [paddedMin, paddedMax] as const;
+}
+
+function getTrendDescription(window: 'all' | '120d' | '30d' | '7d') {
+  if (window === '120d') {
+    return '최근 120일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 120-day start with 100% baseline';
+  }
+  if (window === '7d') {
+    return '최근 7일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 7-day start with 100% baseline';
+  }
+  if (window === '30d') {
+    return '최근 30일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 30-day start with 100% baseline';
+  }
+  return '1/1부터 각 날짜까지 누적 YoY 추이, 100% 기준선 / Cumulative YoY from Jan 1 with 100% baseline';
 }
 
 function buildLabels(date: string) {
@@ -156,6 +199,7 @@ export default function EntrySalesYoyPopup({
   twSection1Data,
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
+  const [trendWindow, setTrendWindow] = useState<'all' | '120d' | '30d' | '7d'>('all');
   const lastDateRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
 
@@ -206,12 +250,53 @@ export default function EntrySalesYoyPopup({
     [hkmcSnapshot, twSnapshot, labels.rows]
   );
 
+  const trendRows = useMemo(
+    () =>
+      (hkmcSnapshot?.daily_yoy_trend || []).map((item, index) => ({
+        label: item.label,
+        hkmcYoy: item.yoy,
+        hkmcCumSales: item.sales_act,
+        hkmcCumSalesLy: item.sales_act_ly,
+        twYoy: twSnapshot?.daily_yoy_trend?.[index]?.yoy ?? null,
+        twCumSales: twSnapshot?.daily_yoy_trend?.[index]?.sales_act ?? 0,
+        twCumSalesLy: twSnapshot?.daily_yoy_trend?.[index]?.sales_act_ly ?? 0,
+      })),
+    [hkmcSnapshot, twSnapshot]
+  );
+  const visibleTrendRows = useMemo(() => {
+    if (trendWindow === 'all') return trendRows;
+
+    const windowSize = trendWindow === '7d' ? 7 : trendWindow === '30d' ? 30 : 120;
+    const slicedRows = trendRows.slice(-windowSize);
+    const startIndex = Math.max(0, trendRows.length - windowSize);
+    const previousRow = startIndex > 0 ? trendRows[startIndex - 1] : null;
+    const hkmcBaseSales = previousRow?.hkmcCumSales ?? 0;
+    const hkmcBaseSalesLy = previousRow?.hkmcCumSalesLy ?? 0;
+    const twBaseSales = previousRow?.twCumSales ?? 0;
+    const twBaseSalesLy = previousRow?.twCumSalesLy ?? 0;
+
+    return slicedRows.map((row) => {
+      const hkmcWindowSales = row.hkmcCumSales - hkmcBaseSales;
+      const hkmcWindowSalesLy = row.hkmcCumSalesLy - hkmcBaseSalesLy;
+      const twWindowSales = row.twCumSales - twBaseSales;
+      const twWindowSalesLy = row.twCumSalesLy - twBaseSalesLy;
+
+      return {
+        ...row,
+        hkmcYoy: hkmcWindowSalesLy > 0 ? (hkmcWindowSales / hkmcWindowSalesLy) * 100 : null,
+        twYoy: twWindowSalesLy > 0 ? (twWindowSales / twWindowSalesLy) * 100 : null,
+      };
+    });
+  }, [trendRows, trendWindow]);
+  const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
+
   useEffect(() => {
     const previousDate = lastDateRef.current;
     lastDateRef.current = date;
 
     if (previousDate !== null && previousDate !== date) {
       setOpen(true);
+      setTrendWindow('all');
     }
   }, [date]);
 
@@ -232,7 +317,7 @@ export default function EntrySalesYoyPopup({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-4">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between px-5 pb-3 pt-4">
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
@@ -256,7 +341,7 @@ export default function EntrySalesYoyPopup({
               <tr className="border-b border-gray-200">
                 <th className="pb-2.5 text-left text-[11px] font-semibold text-gray-400">Metric</th>
                 <th className="w-[76px] pb-2.5">
-                  <div className="ml-auto w-fit rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-200/60">HKMC</div>
+                  <div className="ml-auto w-fit rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-bold text-gray-700 ring-1 ring-gray-300/70">HKMC</div>
                 </th>
                 <th className="w-[76px] pb-2.5">
                   <div className="ml-auto w-fit rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200/60">TW</div>
@@ -277,16 +362,129 @@ export default function EntrySalesYoyPopup({
                     </div>
                     <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
                   </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${toneClass(row.hkmcValue)}`}>
+                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {formatYoy(row.hkmcValue)}
                   </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${toneClass(row.twValue)}`}>
+                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {formatYoy(row.twValue)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {trendRows.length > 0 ? (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[12px] font-semibold text-gray-800">
+                    {brand === 'M' ? 'YTD YoY Trend' : 'YTD YoY Trend'}
+                  </p>
+                  <p className="text-[11px] leading-snug text-gray-400">
+                    {getTrendDescription(trendWindow)}
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-2 sm:items-end">
+                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setTrendWindow('all')}
+                      className={`px-2.5 py-1 transition-colors ${
+                        trendWindow === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      YTD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrendWindow('120d')}
+                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                        trendWindow === '120d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      120Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrendWindow('30d')}
+                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                        trendWindow === '30d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      30Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrendWindow('7d')}
+                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                        trendWindow === '7d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      7Days
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] font-medium">
+                    <span className={`inline-flex items-center gap-1 ${HKMC_ACCENT.softText}`}>
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: HKMC_ACCENT.stroke }} />
+                      HKMC
+                    </span>
+                    <span className={`inline-flex items-center gap-1 ${TW_ACCENT.softText}`}>
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: TW_ACCENT.stroke }} />
+                      TW
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={visibleTrendRows} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={16}
+                    />
+                    <YAxis
+                      domain={trendDomain as [number, number]}
+                      tick={{ fontSize: 11, fill: '#475569', fontWeight: 600 }}
+                      tickFormatter={(value) => `${Math.round(value)}%`}
+                      tickLine={false}
+                      axisLine={false}
+                      width={48}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => formatTrendTooltipValue(typeof value === 'number' ? value : null)}
+                      labelFormatter={(label) => `Date ${label}`}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid #e5e7eb',
+                        boxShadow: '0 10px 25px rgba(15, 23, 42, 0.08)',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <ReferenceLine y={100} stroke="#94a3b8" strokeDasharray="4 4" />
+                    <Line
+                      type="monotone"
+                      dataKey="hkmcYoy"
+                      stroke={HKMC_ACCENT.stroke}
+                      strokeWidth={2.5}
+                      dot={false}
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="twYoy"
+                      stroke={TW_ACCENT.stroke}
+                      strokeWidth={2.5}
+                      dot={false}
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3">

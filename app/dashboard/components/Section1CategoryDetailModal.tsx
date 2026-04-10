@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { t, type Language } from '@/lib/translations';
 import type { Section1CategoryDetailKey } from '@/lib/section1/category-detail';
+import type { Language } from '@/lib/translations';
 
 interface Section1CategoryDetailModalProps {
   open: boolean;
@@ -162,6 +162,31 @@ export default function Section1CategoryDetailModal({
     return 'text-gray-500';
   };
 
+  const getLocalizedCategoryTitle = () => {
+    if (language === 'ko') return data?.category_title || categoryTitle;
+
+    const rawTitle = String(data?.category_title || categoryTitle || '');
+    const suffixMatch = rawTitle.match(/\(([^)]+)\)/);
+    const suffix = suffixMatch ? ` ${suffixMatch[0]}` : '';
+
+    switch (categoryKey) {
+      case 'currentSeason':
+        return `Current Season${suffix}`;
+      case 'nextSeason':
+        return `Next Season${suffix}`;
+      case 'pastSeason':
+        return `Old Season${suffix}`;
+      case 'hat':
+        return 'Headwear';
+      case 'shoes':
+        return 'Shoes';
+      case 'bag':
+        return 'Bags';
+      default:
+        return rawTitle;
+    }
+  };
+
   const labels = {
     title: language === 'ko' ? '카테고리 판매 상세' : 'Category Sales Detail',
     salesAct: language === 'ko' ? '실판매출' : 'Actual Sales',
@@ -171,11 +196,11 @@ export default function Section1CategoryDetailModal({
     salesShare: language === 'ko' ? '비중' : 'Share',
     salesShareDiff: language === 'ko' ? '비중 증감' : 'Share vs LY',
     smallCategory: language === 'ko' ? '카테고리' : 'Category',
-    middleCategory: language === 'ko' ? '중분류' : 'Middle',
     close: language === 'ko' ? '닫기' : 'Close',
     loading: language === 'ko' ? '로딩 중...' : 'Loading...',
     empty: language === 'ko' ? '데이터가 없습니다.' : 'No data available.',
     asOf: language === 'ko' ? '기준' : 'As of',
+    total: language === 'ko' ? '전체' : 'Total',
   };
 
   if (!open) return null;
@@ -191,7 +216,7 @@ export default function Section1CategoryDetailModal({
             <div>
               <h2 className="text-[18px] font-bold text-gray-900">{labels.title}</h2>
               <p className="mt-1 text-lg font-bold tracking-tight text-gray-800 sm:text-xl">
-                {data?.category_title || categoryTitle}
+                {getLocalizedCategoryTitle()}
               </p>
               <p className="mt-1 text-xs text-gray-500">
                 {labels.asOf}:{' '}
@@ -281,7 +306,6 @@ export default function Section1CategoryDetailModal({
                     <thead className="bg-gray-50 text-gray-700">
                       <tr className="border-b border-gray-200">
                         <th className="px-4 py-3 text-left font-semibold">{labels.smallCategory}</th>
-                        <th className="px-4 py-3 text-left font-semibold">{labels.middleCategory}</th>
                         <th className="px-4 py-3 text-right font-semibold">{labels.salesAct}</th>
                         <th className="px-4 py-3 text-right font-semibold">{labels.salesYoy}</th>
                         <th className="px-4 py-3 text-right font-semibold">{labels.discount}</th>
@@ -294,7 +318,6 @@ export default function Section1CategoryDetailModal({
                       {data.rows.map((row) => (
                         <tr key={row.key} className="border-b border-gray-100 last:border-b-0">
                           <td className="px-4 py-3 font-medium text-gray-900">{row.category_label}</td>
-                          <td className="px-4 py-3 text-gray-600">{row.middle_category}</td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                             {formatCurrency(row.sales_act)}
                           </td>
@@ -316,8 +339,7 @@ export default function Section1CategoryDetailModal({
                         </tr>
                       ))}
                       <tr className="bg-gray-50/80">
-                        <td className="px-4 py-4 font-bold text-gray-900">{language === 'ko' ? '전체' : 'Total'}</td>
-                        <td className="px-4 py-4 text-gray-500">-</td>
+                        <td className="px-4 py-4 font-bold text-gray-900">{labels.total}</td>
                         <td className="px-4 py-4 text-right font-bold tabular-nums text-gray-900">
                           {formatCurrency(data.header.sales_act)}
                         </td>
@@ -337,10 +359,6 @@ export default function Section1CategoryDetailModal({
                   </table>
                 </div>
               </section>
-
-              <p className="text-[11px] text-gray-500">
-                {region === 'TW' ? `${language === 'ko' ? '단위' : 'Unit'}: ${currencyCode}` : t(language, 'cardUnit')}
-              </p>
             </div>
           )}
         </div>

@@ -49,6 +49,8 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof total.ytd_projection_basis === 'undefined' ||
     total.ytd_projection_basis !== 'current_month_end' ||
     typeof total.daily_yoy === 'undefined' ||
+    !Array.isArray(total.daily_yoy_trend) ||
+    total.daily_yoy_trend_basis !== 'ytd_cumulative' ||
     typeof total.recent_7d_yoy === 'undefined' ||
     typeof total.forecast_source === 'undefined' ||
     !Array.isArray(total.forecast_months) ||
