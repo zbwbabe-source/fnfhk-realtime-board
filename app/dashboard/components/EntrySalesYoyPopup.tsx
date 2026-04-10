@@ -152,6 +152,7 @@ export default function EntrySalesYoyPopup({
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
   const lastDateRef = useRef<string | null>(null);
+  const initializedRef = useRef(false);
 
   const currentDate = useMemo(() => parseLocalDate(date), [date]);
   const progress = useMemo(() => getSeasonProgressRate(date), [date]);
@@ -174,15 +175,17 @@ export default function EntrySalesYoyPopup({
     !!twSection3Data?.header;
 
   useEffect(() => {
-    if (!isReady) return;
     const previousDate = lastDateRef.current;
     lastDateRef.current = date;
 
     if (previousDate !== null && previousDate !== date) {
       setOpen(true);
-      return;
     }
+  }, [date]);
 
+  useEffect(() => {
+    if (!isReady || initializedRef.current) return;
+    initializedRef.current = true;
     const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
     setOpen(hiddenOn !== getVisibilityKey(date));
   }, [date, isReady]);
