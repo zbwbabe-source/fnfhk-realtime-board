@@ -128,15 +128,27 @@ function getTrendDomain(rows: Array<{ hkmcYoy: number | null; twYoy: number | nu
 
 function getTrendDescription(window: 'all' | '120d' | '30d' | '7d') {
   if (window === '120d') {
-    return '최근 120일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 120-day start with 100% baseline';
+    return {
+      ko: '최근 120일 시작일부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
+      en: 'Cumulative YoY from the last 120-day start with 100% baseline',
+    };
   }
   if (window === '7d') {
-    return '최근 7일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 7-day start with 100% baseline';
+    return {
+      ko: '최근 7일 시작일부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
+      en: 'Cumulative YoY from the last 7-day start with 100% baseline',
+    };
   }
   if (window === '30d') {
-    return '최근 30일 시작일부터 각 날짜까지 누적 YoY, 100% 기준선 / Cumulative YoY from the last 30-day start with 100% baseline';
+    return {
+      ko: '최근 30일 시작일부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
+      en: 'Cumulative YoY from the last 30-day start with 100% baseline',
+    };
   }
-  return '1/1부터 각 날짜까지 누적 YoY 추이, 100% 기준선 / Cumulative YoY from Jan 1 with 100% baseline';
+  return {
+    ko: '1/1부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
+    en: 'Cumulative YoY from Jan 1 with 100% baseline',
+  };
 }
 
 function buildLabels(date: string) {
@@ -200,12 +212,19 @@ export default function EntrySalesYoyPopup({
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
   const [trendWindow, setTrendWindow] = useState<'all' | '120d' | '30d' | '7d'>('all');
+  const [activeTrendPoint, setActiveTrendPoint] = useState<{
+    label: string;
+    hkmcYoy: number | null;
+    twYoy: number | null;
+  } | null>(null);
+  const [activeTrendPosition, setActiveTrendPosition] = useState<{ x: number; y: number } | null>(null);
   const lastDateRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
 
   const hkmcSnapshot = useMemo(() => readRegionSnapshot(hkmcSection1Data), [hkmcSection1Data]);
   const twSnapshot = useMemo(() => readRegionSnapshot(twSection1Data), [twSection1Data]);
   const labels = useMemo(() => buildLabels(date), [date]);
+  const trendDescription = useMemo(() => getTrendDescription(trendWindow), [trendWindow]);
   const isReady = !!hkmcSnapshot && !!twSnapshot;
 
   const rows = useMemo<MetricRow[]>(
@@ -291,6 +310,22 @@ export default function EntrySalesYoyPopup({
   const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
 
   useEffect(() => {
+    const lastPoint = visibleTrendRows[visibleTrendRows.length - 1];
+    if (!lastPoint) {
+      setActiveTrendPoint(null);
+      setActiveTrendPosition(null);
+      return;
+    }
+
+    setActiveTrendPoint({
+      label: lastPoint.label,
+      hkmcYoy: lastPoint.hkmcYoy,
+      twYoy: lastPoint.twYoy,
+    });
+    setActiveTrendPosition(null);
+  }, [visibleTrendRows]);
+
+  useEffect(() => {
     const previousDate = lastDateRef.current;
     lastDateRef.current = date;
 
@@ -317,8 +352,8 @@ export default function EntrySalesYoyPopup({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-3 sm:px-4">
-      <div className="relative w-full max-w-[960px] overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5">
+      <div className="relative w-full max-w-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
             <h2 className="mt-0.5 text-lg font-bold text-gray-900">{labels.title}</h2>
@@ -335,15 +370,15 @@ export default function EntrySalesYoyPopup({
           </button>
         </div>
 
-        <div className="px-4 pb-4 sm:px-5">
-          <table className="w-full border-collapse">
+        <div className="px-4 pb-4">
+          <table className="w-full table-auto border-collapse">
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="pb-2.5 text-left text-[11px] font-semibold text-gray-400">Metric</th>
-                <th className="w-[76px] pb-2.5">
+                <th className="w-[1%] pb-2.5 whitespace-nowrap">
                   <div className="ml-auto w-fit rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-bold text-gray-700 ring-1 ring-gray-300/70">HKMC</div>
                 </th>
-                <th className="w-[76px] pb-2.5">
+                <th className="w-[1%] pb-2.5 whitespace-nowrap">
                   <div className="ml-auto w-fit rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200/60">TW</div>
                 </th>
               </tr>
@@ -351,7 +386,7 @@ export default function EntrySalesYoyPopup({
             <tbody>
               {rows.map((row, i) => (
                 <tr key={row.key} className={i < rows.length - 1 ? 'border-b border-gray-50' : ''}>
-                  <td className="py-2.5 pr-3">
+                  <td className="py-2.5 pr-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
                       {row.isProjected ? (
@@ -362,10 +397,10 @@ export default function EntrySalesYoyPopup({
                     </div>
                     <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
                   </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <td className={`w-[1%] whitespace-nowrap py-2.5 pl-2 text-right text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {formatYoy(row.hkmcValue)}
                   </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <td className={`w-[1%] whitespace-nowrap py-2.5 pl-2 text-right text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {formatYoy(row.twValue)}
                   </td>
                 </tr>
@@ -374,15 +409,16 @@ export default function EntrySalesYoyPopup({
           </table>
 
           {trendRows.length > 0 ? (
-            <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
+            <div className="relative mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
               <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-[12px] font-semibold text-gray-800">
                     {brand === 'M' ? 'YTD YoY Trend' : 'YTD YoY Trend'}
                   </p>
-                  <p className="text-[11px] leading-snug text-gray-400">
-                    {getTrendDescription(trendWindow)}
-                  </p>
+                  <div className="space-y-0.5 text-[11px] leading-snug text-gray-400">
+                    <p>{trendDescription.ko}</p>
+                    <p>{trendDescription.en}</p>
+                  </div>
                 </div>
                 <div className="flex flex-col items-start gap-2 lg:items-end">
                   <div className="flex flex-wrap overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
@@ -437,7 +473,47 @@ export default function EntrySalesYoyPopup({
               </div>
               <div className="h-56 w-full sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={visibleTrendRows} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <LineChart
+                    data={visibleTrendRows}
+                    margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
+                    onMouseMove={(state: any) => {
+                      const point =
+                        state?.activePayload?.[0]?.payload ||
+                        (typeof state?.activeLabel === 'string'
+                          ? visibleTrendRows.find((row) => row.label === state.activeLabel)
+                          : null) ||
+                        (typeof state?.activeTooltipIndex === 'number' &&
+                        state.activeTooltipIndex >= 0 &&
+                        state.activeTooltipIndex < visibleTrendRows.length
+                          ? visibleTrendRows[state.activeTooltipIndex]
+                          : null);
+                      if (!point) return;
+                      setActiveTrendPoint({
+                        label: point.label,
+                        hkmcYoy: point.hkmcYoy ?? null,
+                        twYoy: point.twYoy ?? null,
+                      });
+                      if (
+                        typeof state?.activeCoordinate?.x === 'number' &&
+                        typeof state?.activeCoordinate?.y === 'number'
+                      ) {
+                        setActiveTrendPosition({
+                          x: state.activeCoordinate.x,
+                          y: state.activeCoordinate.y,
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      const lastPoint = visibleTrendRows[visibleTrendRows.length - 1];
+                      if (!lastPoint) return;
+                      setActiveTrendPoint({
+                        label: lastPoint.label,
+                        hkmcYoy: lastPoint.hkmcYoy,
+                        twYoy: lastPoint.twYoy,
+                      });
+                      setActiveTrendPosition(null);
+                    }}
+                  >
                     <XAxis
                       dataKey="label"
                       tick={{ fontSize: 10, fill: '#6b7280' }}
@@ -454,16 +530,7 @@ export default function EntrySalesYoyPopup({
                       axisLine={false}
                       width={48}
                     />
-                    <Tooltip
-                      formatter={(value: any) => formatTrendTooltipValue(typeof value === 'number' ? value : null)}
-                      labelFormatter={(label) => `Date ${label}`}
-                      contentStyle={{
-                        borderRadius: '12px',
-                        border: '1px solid #e5e7eb',
-                        boxShadow: '0 10px 25px rgba(15, 23, 42, 0.08)',
-                        fontSize: '12px',
-                      }}
-                    />
+                    <Tooltip content={() => null} cursor={{ stroke: '#cbd5e1', strokeDasharray: '4 4' }} />
                     <ReferenceLine y={100} stroke="#94a3b8" strokeDasharray="4 4" />
                     <Line
                       type="monotone"
@@ -484,6 +551,23 @@ export default function EntrySalesYoyPopup({
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              {activeTrendPoint ? (
+                <div
+                  className="pointer-events-none absolute rounded-2xl border border-gray-200 bg-white/95 px-3 py-2 text-[12px] shadow-lg backdrop-blur-sm transition-[left,top] duration-75"
+                  style={
+                    activeTrendPosition
+                      ? {
+                          left: `min(calc(100% - 132px), ${Math.max(12, activeTrendPosition.x + 18)}px)`,
+                          top: `${Math.max(72, activeTrendPosition.y + 18)}px`,
+                        }
+                      : { right: '16px', top: '94px' }
+                  }
+                >
+                  <p className="font-semibold text-gray-800">Date {activeTrendPoint.label}</p>
+                  <p className={`mt-1 ${HKMC_ACCENT.softText}`}>hkmcYoy : {formatTrendTooltipValue(activeTrendPoint.hkmcYoy)}</p>
+                  <p className={`mt-0.5 ${TW_ACCENT.softText}`}>twYoy : {formatTrendTooltipValue(activeTrendPoint.twYoy)}</p>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
