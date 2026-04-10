@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { t, type Language } from '@/lib/translations';
 import { getStoreShortCode } from '@/lib/store-name-utils';
 import { getStoreArea } from '@/lib/store-area-utils';
+import type { Section1CategoryDetailKey } from '@/lib/section1/category-detail';
 import Section1AllStoresTreemapModal, { type Section1AllStoresTreemapItem } from './Section1AllStoresTreemapModal';
+import Section1CategoryDetailModal from './Section1CategoryDetailModal';
 import Section1StoreDetailModal from './Section1StoreDetailModal';
 import Section1StoreCountMatrixModal from './Section1StoreCountMatrixModal';
 
@@ -65,6 +67,11 @@ type SelectedStore = {
   storeName: string;
 };
 
+type SelectedCategoryDetail = {
+  key: Section1CategoryDetailKey;
+  title: string;
+};
+
 type StoreCountMatrixItem = {
   shopCd: string;
   shopName: string;
@@ -105,6 +112,7 @@ export default function Section1Card({
 }: Section1CardProps) {
   const [detailView, setDetailView] = useState<DetailView>('season');
   const [selectedStore, setSelectedStore] = useState<SelectedStore | null>(null);
+  const [selectedCategoryDetail, setSelectedCategoryDetail] = useState<SelectedCategoryDetail | null>(null);
   const [allStoresOpen, setAllStoresOpen] = useState(false);
   const [storeCountMatrixOpen, setStoreCountMatrixOpen] = useState(false);
   const prevOpenAllStoresRequestKeyRef = useRef(openAllStoresRequestKey ?? 0);
@@ -573,6 +581,10 @@ export default function Section1Card({
     setSelectedStore({ shopCd: storeCode, storeName });
   };
 
+  const openCategoryDetail = (key: Section1CategoryDetailKey, title: string) => {
+    setSelectedCategoryDetail({ key, title });
+  };
+
   const hasNextSeasonSales =
     showSeasonCategory && seasonCategorySales?.metrics
       ? (() => {
@@ -825,14 +837,6 @@ export default function Section1Card({
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setStoreCountMatrixOpen(true)}
-            className="pt-1 text-center text-[10px] font-semibold leading-tight text-gray-600 transition-colors hover:text-purple-700"
-          >
-            <p className="underline decoration-dotted underline-offset-2">{(kpis.k2 as any).offlineStoreCountFlow}</p>
-            <p className="underline decoration-dotted underline-offset-2">{(kpis.k2 as any).onlineStoreCountFlow}</p>
-          </button>
         </div>
         <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
           <div className="grid grid-cols-2 gap-2.5">
@@ -944,8 +948,41 @@ export default function Section1Card({
               const shortCode = isStoreCard ? getStoreShortCode(storeFullName) : null;
               const storeArea = isStoreCard ? ((item as any).area as number | null | undefined) ?? null : null;
 
-              return (
-                <div key={item.key} className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 shadow-sm">
+              return isStoreCard ? (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => openStoreDetail((item as any).storeCode || '', storeFullName || item.title)}
+                  className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                >
+                  <div className="relative min-h-[36px]">
+                    <p className="break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
+                    <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
+                      <p className="font-semibold">{storeFullName || item.title}</p>
+                      <p className="mt-1 text-gray-300">
+                        {storeArea !== null ? `${storeArea}평` : language === 'ko' ? '면적 정보 없음' : 'No area data'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
+                  <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
+                    {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
+                  </p>
+                  <p className="mt-0.5 text-xs tabular-nums">
+                    <span className="text-gray-600">
+                      {t(language, 'discountRateLabel')}{' '}
+                      <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
+                    </span>{' '}
+                    <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
+                  </p>
+                </button>
+              ) : (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => openCategoryDetail(item.key as Section1CategoryDetailKey, item.title)}
+                  className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                >
                   {item.apparelOnly ? (
                     <div className="group relative block min-h-[36px]">
                       <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
@@ -955,20 +992,6 @@ export default function Section1Card({
                         {t(language, 'apparelOnly')}
                       </div>
                     </div>
-                  ) : isStoreCard ? (
-                    <button
-                      type="button"
-                      onClick={() => openStoreDetail((item as any).storeCode || '', storeFullName || item.title)}
-                      className="group relative block min-h-[36px] text-left"
-                    >
-                      <p className="cursor-pointer break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
-                      <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-max rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg group-hover:block">
-                        <p className="font-semibold">{storeFullName || item.title}</p>
-                        <p className="mt-1 text-gray-300">
-                          {storeArea !== null ? `${storeArea}평` : language === 'ko' ? '면적 정보 없음' : 'No area data'}
-                        </p>
-                      </div>
-                    </button>
                   ) : (
                     <p className="min-h-[36px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                   )}
@@ -983,7 +1006,7 @@ export default function Section1Card({
                     </span>{' '}
                     <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1007,6 +1030,20 @@ export default function Section1Card({
         date={date}
         shopCd={selectedStore?.shopCd || ''}
         storeName={selectedStore?.storeName || ''}
+        isYtdMode={isYtdMode}
+        currencyCode={currencyCode}
+        hkdToTwdRate={hkdToTwdRate}
+      />
+
+      <Section1CategoryDetailModal
+        open={!!selectedCategoryDetail}
+        onClose={() => setSelectedCategoryDetail(null)}
+        language={language}
+        region={region}
+        brand={brand}
+        date={date}
+        categoryKey={selectedCategoryDetail?.key || 'currentSeason'}
+        categoryTitle={selectedCategoryDetail?.title || ''}
         isYtdMode={isYtdMode}
         currencyCode={currencyCode}
         hkdToTwdRate={hkdToTwdRate}

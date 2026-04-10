@@ -37,6 +37,8 @@ export default function Section3Card({
     curr_stock_amt: number;
     ly_curr_stock_amt: number | null;
     yoy_pct: number | null;
+    sales_amt?: number | null;
+    sales_yoy_pct?: number | null;
     breakdown?: Array<{
       label_key: string;
       curr_stock_amt: number;
@@ -47,6 +49,13 @@ export default function Section3Card({
         curr_stock_amt: number;
         ly_curr_stock_amt?: number | null;
         yoy_pct?: number | null;
+        stock_share_pct?: number | null;
+        stock_share_diff_pct?: number | null;
+        period_tag_sales?: number;
+        ly_period_tag_sales?: number | null;
+        period_sales_yoy_pct?: number | null;
+        discount_rate?: number | null;
+        discount_rate_diff_pct?: number | null;
       }>;
     }>;
   };
@@ -139,6 +148,14 @@ export default function Section3Card({
     }
 
     return '';
+  };
+  const getInventorySalesBasisInfo = () => {
+    if (!section3Data?.asof_date) return '';
+    const endDate = String(section3Data.asof_date);
+    const startDate = `${endDate.slice(0, 4)}-01-01`;
+    return language === 'ko'
+      ? `소진액 기준: ${startDate}~${endDate}`
+      : `Depleted sales basis: ${startDate}~${endDate}`;
   };
 
   const getTargetModeLabel = () => {
@@ -552,29 +569,273 @@ export default function Section3Card({
     if (yoy >= 70) return '#86EFAC';
     return '#BFDBFE';
   };
-  const selectedInventoryTreemapData =
-    selectedInventoryNode
-      ? selectedInventoryNode.categoryNodes
-          .map((item) => ({
-            name: item.cat2,
-            value: Math.max(item.curr_stock_amt || 0, 1),
-            rawValue: item.curr_stock_amt || 0,
-            yoy: item.yoy_pct ?? null,
-            fill: getInventoryTreemapColor(item.yoy_pct ?? null),
-            categoryNodes: [],
-          }))
-          .sort((a, b) => (b.rawValue - a.rawValue) || a.name.localeCompare(b.name))
-      : selectedInventoryCard?.breakdown
-          ?.map((item) => ({
-            name: getInventoryBreakdownLabel(item.label_key),
-            value: Math.max(item.curr_stock_amt || 0, 1),
-            rawValue: item.curr_stock_amt || 0,
-            yoy: item.yoy_pct,
-            fill: getInventoryTreemapColor(item.yoy_pct),
-            categoryNodes: item.category_nodes || [],
-          }))
-          .sort((a, b) => (b.rawValue - a.rawValue) || a.name.localeCompare(b.name)) || [];
-  const InventoryTreemapTooltip = ({ active, payload }: any) => {
+  const aggregateCategoryNodes = (
+    groups: Array<
+      Array<{
+        cat2: string;
+        curr_stock_amt: number;
+        ly_curr_stock_amt?: number | null;
+        yoy_pct?: number | null;
+        stock_share_pct?: number | null;
+        stock_share_diff_pct?: number | null;
+        period_tag_sales?: number;
+        ly_period_tag_sales?: number | null;
+        period_sales_yoy_pct?: number | null;
+        discount_rate?: number | null;
+        discount_rate_diff_pct?: number | null;
+      }> | undefined
+    >
+  ) => {
+    const totals = new Map<
+      string,
+      {
+        cat2: string;
+        curr_stock_amt: number;
+        ly_curr_stock_amt: number;
+        period_tag_sales: number;
+        ly_period_tag_sales: number;
+      }
+    >();
+    groups.forEach((nodes) => {
+      (nodes || []).forEach((node) => {
+        const key = String(node.cat2 || '').trim().toUpperCase();
+        if (!key) return;
+        const existing = totals.get(key) || {
+          cat2: key,
+          curr_stock_amt: 0,
+          ly_curr_stock_amt: 0,
+          period_tag_sales: 0,
+          ly_period_tag_sales: 0,
+        };
+        existing.curr_stock_amt += Number(node.curr_stock_amt || 0);
+        existing.ly_curr_stock_amt += Number(node.ly_curr_stock_amt || 0);
+        existing.period_tag_sales += Number(node.period_tag_sales || 0);
+        existing.ly_period_tag_sales += Number(node.ly_period_tag_sales || 0);
+        totals.set(key, existing);
+      });
+    });
+
+    return [...totals.values()]
+      .map((item) => ({
+        cat2: item.cat2,
+        curr_stock_amt: item.curr_stock_amt,
+        ly_curr_stock_amt: item.ly_curr_stock_amt > 0 ? item.ly_curr_stock_amt : null,
+        yoy_pct: item.ly_curr_stock_amt > 0 ? (item.curr_stock_amt / item.ly_curr_stock_amt) * 100 : null,
+        period_tag_sales: item.period_tag_sales > 0 ? item.period_tag_sales : 0,
+        ly_period_tag_sales: item.ly_period_tag_sales > 0 ? item.ly_period_tag_sales : null,
+        period_sales_yoy_pct: item.ly_period_tag_sales > 0 ? (item.period_tag_sales / item.ly_period_tag_sales) * 100 : null,
+      }))
+      .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
+  };
+  const buildInventoryDetailCardMap = () => {
+    const map = new Map<string, InventorySegmentCard>();
+    const inventoryCardMap = new Map(orderedInventorySegmentCards.map((card) => [card.key, card]));
+    const pastS = inventoryCardMap.get('past_s');
+    const pastF = inventoryCardMap.get('past_f');
+    const activeSeasonType = String(section3Data?.season_type || '').toUpperCase().includes('SS') ? 'S' : 'F';
+    const findBreakdown = (card: InventorySegmentCard | undefined, labelKey: string) =>
+      card?.breakdown?.find((item) => item.label_key === labelKey);
+    const buildYearBucketDetailCard = (
+      rawKey: string,
+      labelKey: 'y1' | 'y2' | 'y3_plus',
+      fallbackTitle: string,
+      _stockAmt: number,
+      _salesAmt: number | null,
+      _salesYoyPct: number | null
+    ): InventorySegmentCard => {
+      const sItem = findBreakdown(pastS, labelKey);
+      const fItem = findBreakdown(pastF, labelKey);
+      const currentSeasonItem = activeSeasonType === 'S' ? sItem : fItem;
+      const currentSeasonLabel = activeSeasonType === 'S' ? 'past_s' : 'past_f';
+      const otherSeasonItem = activeSeasonType === 'S' ? fItem : sItem;
+      const otherSeasonLabel = activeSeasonType === 'S' ? 'past_f' : 'past_s';
+      const curr = Number(_stockAmt || 0);
+      const ly =
+        currentSeasonItem?.ly_curr_stock_amt && currentSeasonItem.ly_curr_stock_amt > 0
+          ? Number(currentSeasonItem.ly_curr_stock_amt)
+          : 0;
+      const categoryNodes = aggregateCategoryNodes([sItem?.category_nodes, fItem?.category_nodes]);
+      const activeCategoryNodes = activeSeasonType === 'S' ? (sItem?.category_nodes || []) : (fItem?.category_nodes || []);
+      const salesCurr = Number(_salesAmt || 0);
+      const salesLy = activeCategoryNodes.reduce((sum, item) => sum + Number(item.ly_period_tag_sales || 0), 0);
+      return {
+        key: rawKey,
+        label: fallbackTitle,
+        curr_stock_amt: curr,
+        ly_curr_stock_amt: ly > 0 ? ly : null,
+        yoy_pct: ly > 0 ? (curr / ly) * 100 : null,
+        sales_amt: salesCurr > 0 ? salesCurr : null,
+        sales_yoy_pct: _salesYoyPct ?? (salesLy > 0 ? (salesCurr / salesLy) * 100 : null),
+        breakdown: [
+          currentSeasonItem
+            ? {
+                label_key: currentSeasonLabel,
+                curr_stock_amt: curr,
+                ly_curr_stock_amt: ly > 0 ? ly : null,
+                yoy_pct: ly > 0 ? (curr / ly) * 100 : currentSeasonItem.yoy_pct,
+                period_tag_sales: salesCurr > 0 ? salesCurr : undefined,
+                period_sales_yoy_pct: _salesYoyPct ?? undefined,
+                category_nodes: activeCategoryNodes,
+              }
+            : null,
+          otherSeasonItem
+            ? {
+                label_key: otherSeasonLabel,
+                curr_stock_amt: otherSeasonItem.curr_stock_amt,
+                ly_curr_stock_amt: otherSeasonItem.ly_curr_stock_amt,
+                yoy_pct: otherSeasonItem.yoy_pct,
+                category_nodes: otherSeasonItem.category_nodes || [],
+              }
+            : null,
+        ].filter(Boolean) as InventorySegmentCard['breakdown'],
+      };
+    };
+
+    const totalYearBreakdown = [
+      { label_key: 'y1', s: findBreakdown(pastS, 'y1'), f: findBreakdown(pastF, 'y1') },
+      { label_key: 'y2', s: findBreakdown(pastS, 'y2'), f: findBreakdown(pastF, 'y2') },
+      { label_key: 'y3_plus', s: findBreakdown(pastS, 'y3_plus'), f: findBreakdown(pastF, 'y3_plus') },
+    ]
+      .map((item) => {
+        const curr = Number(item.s?.curr_stock_amt || 0) + Number(item.f?.curr_stock_amt || 0);
+        const ly = Number(item.s?.ly_curr_stock_amt || 0) + Number(item.f?.ly_curr_stock_amt || 0);
+        return {
+          label_key: item.label_key,
+          curr_stock_amt: curr,
+          ly_curr_stock_amt: ly > 0 ? ly : null,
+          yoy_pct: ly > 0 ? (curr / ly) * 100 : null,
+          category_nodes: aggregateCategoryNodes([item.s?.category_nodes, item.f?.category_nodes]),
+        };
+      })
+      .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
+
+    map.set('all', {
+      key: 'all',
+      label: language === 'ko' ? '전체' : 'Total',
+      curr_stock_amt: section3Data?.header?.curr_stock_amt || 0,
+      ly_curr_stock_amt: section3Data?.header?.ly_curr_stock_amt ?? null,
+      yoy_pct: section3Data?.header?.curr_stock_yoy_pct ?? null,
+      sales_amt: section3Data?.header?.period_tag_sales || 0,
+      sales_yoy_pct: section3Data?.header?.period_tag_sales_ly
+        ? ((section3Data.header.period_tag_sales / section3Data.header.period_tag_sales_ly) * 100)
+        : null,
+      breakdown: totalYearBreakdown,
+    });
+
+    normalizedYearCards.forEach((card: any) => {
+      const rank = getYearBucketRank(card.year_bucket);
+      if (rank === 1) {
+        map.set(
+          card.year_bucket,
+          buildYearBucketDetailCard(card.year_bucket, 'y1', getYearBucketLabel(card.year_bucket), card.curr_stock_amt, card.period_tag_sales, card.sales_yoy_pct)
+        );
+      } else if (rank === 2) {
+        map.set(
+          card.year_bucket,
+          buildYearBucketDetailCard(card.year_bucket, 'y2', getYearBucketLabel(card.year_bucket), card.curr_stock_amt, card.period_tag_sales, card.sales_yoy_pct)
+        );
+      } else if (rank === 3) {
+        map.set(
+          card.year_bucket,
+          buildYearBucketDetailCard(card.year_bucket, 'y3_plus', getYearBucketLabel(card.year_bucket), card.curr_stock_amt, card.period_tag_sales, card.sales_yoy_pct)
+        );
+      }
+    });
+
+    if (summaryCards?.stagnant_card) {
+      map.set('stagnant', {
+        key: 'stagnant',
+        label: language === 'ko' ? '정체재고' : 'Stagnant Stock',
+        curr_stock_amt: summaryCards.stagnant_card.stagnant_stock_amt,
+        ly_curr_stock_amt: null,
+        yoy_pct: null,
+        sales_amt: null,
+        sales_yoy_pct: null,
+        breakdown: normalizedYearCards.map((yearCard: any) => ({
+          label_key: String(yearCard.year_bucket || ''),
+          curr_stock_amt: Number(yearCard.stagnant_stock_amt || 0),
+          ly_curr_stock_amt: null,
+          yoy_pct: null,
+          category_nodes: [],
+        })),
+      });
+    }
+
+    orderedInventorySegmentCards.forEach((card) => {
+      map.set(card.key, {
+        ...card,
+        sales_amt: null,
+        sales_yoy_pct: null,
+      });
+    });
+
+    return map;
+  };
+  const inventoryDetailCardMap = buildInventoryDetailCardMap();
+  const selectedInventoryRows = [...(selectedInventoryCard?.breakdown || [])].sort(
+    (a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.label_key.localeCompare(b.label_key)
+  );
+  const selectedInventoryRowTotal = selectedInventoryRows.reduce((sum, row: any) => sum + Number(row.curr_stock_amt || 0), 0);
+  const selectedInventoryRowLyTotal = selectedInventoryRows.reduce((sum, row: any) => sum + Number(row.ly_curr_stock_amt || 0), 0);
+  const fallbackInventoryNode =
+    selectedInventoryCard
+      ? (() => {
+          const firstDetailRow = (selectedInventoryCard.breakdown || []).find(
+            (row) => Array.isArray(row.category_nodes) && row.category_nodes.length > 0
+          );
+          return firstDetailRow
+            ? {
+                name: getInventoryBreakdownLabel(firstDetailRow.label_key),
+                categoryNodes: firstDetailRow.category_nodes || [],
+              }
+            : null;
+        })()
+      : null;
+  const activeInventoryNode = selectedInventoryNode || fallbackInventoryNode;
+  const activeInventoryCategoryRows = activeInventoryNode
+    ? [...activeInventoryNode.categoryNodes].sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2))
+    : [];
+  const activeInventoryCategoryTotal = activeInventoryCategoryRows.reduce((sum, row: any) => sum + Number(row.curr_stock_amt || 0), 0);
+  const getBreakdownRowMetrics = (row: any) => {
+    const categoryNodes = Array.isArray(row?.category_nodes) ? row.category_nodes : [];
+    const currentTotal = categoryNodes.reduce((sum: number, item: any) => sum + Number(item.curr_stock_amt || 0), 0);
+    const lyTotal = categoryNodes.reduce((sum: number, item: any) => sum + Number(item.ly_curr_stock_amt || 0), 0);
+    const salesTotal = categoryNodes.reduce((sum: number, item: any) => sum + Number(item.period_tag_sales || 0), 0);
+    const lySalesTotal = categoryNodes.reduce((sum: number, item: any) => sum + Number(item.ly_period_tag_sales || 0), 0);
+    const weightedActSales = categoryNodes.reduce((sum: number, item: any) => {
+      const sales = Number(item.period_tag_sales || 0);
+      const discountRate = Number(item.discount_rate || 0);
+      return sum + sales * (1 - discountRate / 100);
+    }, 0);
+    const weightedLyActSales = categoryNodes.reduce((sum: number, item: any) => {
+      const sales = Number(item.ly_period_tag_sales || 0);
+      const diff = Number(item.discount_rate_diff_pct || 0);
+      const currentRate = Number(item.discount_rate || 0);
+      const lyRate = currentRate - diff;
+      return sum + sales * (1 - lyRate / 100);
+    }, 0);
+    const discountRate = salesTotal > 0 ? (1 - weightedActSales / salesTotal) * 100 : null;
+    const lyDiscountRate = lySalesTotal > 0 ? (1 - weightedLyActSales / lySalesTotal) * 100 : null;
+
+    return {
+      stockShareDiffPct:
+        row.stock_share_diff_pct ??
+        (selectedInventoryRowTotal > 0 && selectedInventoryRowLyTotal > 0
+          ? (currentTotal / selectedInventoryRowTotal) * 100 -
+            ((Number(row.ly_curr_stock_amt || 0) || lyTotal) / selectedInventoryRowLyTotal) * 100
+          : null),
+      periodTagSales: row.period_tag_sales ?? (salesTotal > 0 ? salesTotal : null),
+      periodSalesYoyPct:
+        row.period_sales_yoy_pct ?? (salesTotal > 0 || lySalesTotal > 0
+          ? (lySalesTotal > 0 ? (salesTotal / lySalesTotal) * 100 : null)
+          : null),
+      discountRate: row.discount_rate ?? discountRate,
+      discountRateDiffPct:
+        row.discount_rate_diff_pct ??
+        (discountRate !== null && lyDiscountRate !== null ? discountRate - lyDiscountRate : null),
+    };
+  };
+  /* const InventoryTreemapTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const datum = payload[0]?.payload;
     if (!datum) return null;
@@ -646,7 +907,7 @@ export default function Section3Card({
         ) : null}
       </g>
     );
-  };
+  }; */
 
   return (
     <article className={`relative ${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
@@ -802,21 +1063,20 @@ export default function Section3Card({
         </div>
       )}
 
-      {simpleDetail && selectedInventoryCard && Array.isArray(selectedInventoryCard.breakdown) && selectedInventoryCard.breakdown.length > 0 ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 px-4 backdrop-blur-[1px]" onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}>
-          <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      {selectedInventoryCard && Array.isArray(selectedInventoryCard.breakdown) && selectedInventoryCard.breakdown.length > 0 ? (
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/45 px-4 py-6 backdrop-blur-[1px] sm:px-6 sm:py-8" onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}>
+          <div className="max-h-[92vh] w-[min(1500px,96vw)] overflow-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">
-                  {selectedInventoryNode
-                    ? `${getInventoryCardLabel(selectedInventoryCard.key, selectedInventoryCard.label)} / ${selectedInventoryNode.name}`
-                    : getInventoryCardLabel(selectedInventoryCard.key, selectedInventoryCard.label)}
+                <h4 className="text-lg font-semibold text-gray-900">
+                  {getInventoryCardLabel(selectedInventoryCard.key, selectedInventoryCard.label)}
                 </h4>
                 <p className="mt-1 text-[11px] text-gray-500">
                   {selectedInventoryNode
                     ? (language === 'ko' ? '2글자 카테고리별 현재 재고입니다.' : 'Current stock by 2-letter category.')
-                    : (language === 'ko' ? '시즌별 현재 재고와 YoY입니다.' : 'Current stock and YoY by season bucket.')}
+                    : (language === 'ko' ? '재고(TAG), 재고 YoY와 세부 구성을 확인할 수 있습니다.' : 'Review stock (TAG), stock YoY, and detailed composition.')}
                 </p>
+                <p className="mt-1 text-[11px] text-gray-500">{getInventorySalesBasisInfo()}</p>
               </div>
               <button
                 type="button"
@@ -826,7 +1086,7 @@ export default function Section3Card({
                 {language === 'ko' ? '닫기' : 'Close'}
               </button>
             </div>
-            {selectedInventoryNode ? (
+            {false ? (
               <div className="mb-2">
                 <button
                   type="button"
@@ -837,20 +1097,217 @@ export default function Section3Card({
                 </button>
               </div>
             ) : null}
-            <div className="h-[320px] overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <Treemap
-                  data={selectedInventoryTreemapData}
-                  dataKey="value"
-                  aspectRatio={4 / 3}
-                  stroke="#fff"
-                  content={renderInventoryTreemapCell}
-                  isAnimationActive={false}
-                >
-                  <Tooltip content={<InventoryTreemapTooltip />} />
-                </Treemap>
-              </ResponsiveContainer>
+            {true ? (
+              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                    {formatCurrency(selectedInventoryCard.curr_stock_amt || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '재고 YoY' : 'Stock YoY'}</p>
+                  <p className={`mt-1 text-base font-bold tabular-nums ${getInventoryYoyTone(selectedInventoryCard.yoy_pct)}`}>
+                    {selectedInventoryCard.yoy_pct !== null && selectedInventoryCard.yoy_pct !== undefined
+                      ? `${selectedInventoryCard.yoy_pct.toFixed(0)}%`
+                      : '-'}
+                  </p>
+                </div>
+                {selectedInventoryCard.sales_amt !== null && selectedInventoryCard.sales_amt !== undefined ? (
+                  <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                    <p className="text-[11px] text-gray-500">{language === 'ko' ? '소진재고액' : 'Depleted Sales'}</p>
+                    <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                      {formatCurrency(selectedInventoryCard.sales_amt || 0)}
+                    </p>
+                  </div>
+                ) : null}
+                {selectedInventoryCard.sales_amt !== null && selectedInventoryCard.sales_amt !== undefined ? (
+                  <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                    <p className="text-[11px] text-gray-500">{language === 'ko' ? '소진 YoY' : 'Depleted YoY'}</p>
+                    <p className={`mt-1 text-base font-bold tabular-nums ${getInventoryYoyTone(selectedInventoryCard.sales_yoy_pct)}`}>
+                      {selectedInventoryCard.sales_yoy_pct !== null && selectedInventoryCard.sales_yoy_pct !== undefined
+                        ? `${selectedInventoryCard.sales_yoy_pct.toFixed(0)}%`
+                        : '-'}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h5 className="text-sm font-semibold text-gray-900">
+                  {selectedInventoryNode
+                    ? (language === 'ko' ? '카테고리 재고 상세' : 'Category Stock Detail')
+                    : (language === 'ko' ? '재고 상세' : 'Stock Detail')}
+                </h5>
+              </div>
+              <div className="max-h-[360px] overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-700">
+                    <tr className="border-b border-gray-200">
+                      <th className="px-4 py-3 text-left font-semibold">
+                        {selectedInventoryNode ? (language === 'ko' ? '카테고리' : 'Category') : (language === 'ko' ? '구분' : 'Segment')}
+                      </th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고 YoY' : 'Stock YoY'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중' : 'Share'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중 증감' : 'Share vs LY'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액' : 'Depleted Sales'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액 YoY' : 'Depleted YoY'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율' : 'Discount Rate'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율 증감' : 'Discount vs LY'}</th>
+            {true ? (
+                        <th className="px-4 py-3 text-center font-semibold">{language === 'ko' ? '상세' : 'Detail'}</th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {false
+                      ? selectedInventoryRows.map((row: any) => (
+                          <tr key={row.cat2} className="border-b border-gray-100 last:border-b-0">
+                            <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                              {formatCurrency(row.curr_stock_amt || 0)}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
+                              {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                              {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? (row.stock_share_diff_pct > 0 ? 'text-red-600' : row.stock_share_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                              {row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? formatSignedPercentPoint(row.stock_share_diff_pct) : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                              {row.period_tag_sales !== null && row.period_tag_sales !== undefined ? formatCurrency(row.period_tag_sales) : '-'}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.period_sales_yoy_pct)}`}>
+                              {row.period_sales_yoy_pct !== null && row.period_sales_yoy_pct !== undefined ? `${row.period_sales_yoy_pct.toFixed(0)}%` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
+                              {row.discount_rate !== null && row.discount_rate !== undefined ? formatPercent(row.discount_rate, 1) : '-'}
+                            </td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? (row.discount_rate_diff_pct > 0 ? 'text-red-600' : row.discount_rate_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                              {row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? formatSignedPercentPoint(row.discount_rate_diff_pct) : '-'}
+                            </td>
+                          </tr>
+                        ))
+                      : selectedInventoryRows.map((row: any) => {
+                          const hasCategoryNodes = Array.isArray(row.category_nodes) && row.category_nodes.length > 0;
+                          const derived = getBreakdownRowMetrics(row);
+                          return (
+                            <tr key={row.label_key} className="border-b border-gray-100 last:border-b-0">
+                              <td className="px-4 py-3 font-medium text-gray-900">{getInventoryBreakdownLabel(row.label_key)}</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.curr_stock_amt || 0)}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
+                                {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                                {selectedInventoryRowTotal > 0 ? `${((row.curr_stock_amt / selectedInventoryRowTotal) * 100).toFixed(1)}%` : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${derived.stockShareDiffPct !== null && derived.stockShareDiffPct !== undefined ? (derived.stockShareDiffPct > 0 ? 'text-red-600' : derived.stockShareDiffPct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                                {derived.stockShareDiffPct !== null && derived.stockShareDiffPct !== undefined ? formatSignedPercentPoint(derived.stockShareDiffPct) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {derived.periodTagSales !== null && derived.periodTagSales !== undefined ? formatCurrency(derived.periodTagSales) : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(derived.periodSalesYoyPct)}`}>
+                                {derived.periodSalesYoyPct !== null && derived.periodSalesYoyPct !== undefined ? `${derived.periodSalesYoyPct.toFixed(0)}%` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
+                                {derived.discountRate !== null && derived.discountRate !== undefined ? formatPercent(derived.discountRate, 1) : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${derived.discountRateDiffPct !== null && derived.discountRateDiffPct !== undefined ? (derived.discountRateDiffPct > 0 ? 'text-red-600' : derived.discountRateDiffPct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                                {derived.discountRateDiffPct !== null && derived.discountRateDiffPct !== undefined ? formatSignedPercentPoint(derived.discountRateDiffPct) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {hasCategoryNodes ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedInventoryNode({
+                                        name: getInventoryBreakdownLabel(row.label_key),
+                                        categoryNodes: row.category_nodes,
+                                      })
+                                    }
+                                    className={`rounded-md border px-2 py-1 text-xs font-medium transition ${
+                                      activeInventoryNode?.name === getInventoryBreakdownLabel(row.label_key)
+                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {language === 'ko' ? '보기' : 'Open'}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                  </tbody>
+                </table>
+              </div>
             </div>
+            {activeInventoryNode && activeInventoryCategoryRows.length > 0 ? (
+              <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h5 className="text-sm font-semibold text-gray-900">
+                    {language === 'ko' ? `소분류 카테고리 상세 · ${activeInventoryNode.name}` : `Subcategory Detail · ${activeInventoryNode.name}`}
+                  </h5>
+                </div>
+                <div className="max-h-[360px] overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-3 text-left font-semibold">{language === 'ko' ? '소분류' : 'Subcategory'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고 YoY' : 'Stock YoY'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중' : 'Share'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중 증감' : 'Share vs LY'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액' : 'Depleted Sales'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액 YoY' : 'Depleted YoY'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율' : 'Discount Rate'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율 증감' : 'Discount vs LY'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeInventoryCategoryRows.map((row: any) => (
+                        <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                            {formatCurrency(row.curr_stock_amt || 0)}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
+                            {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                            {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? (row.stock_share_diff_pct > 0 ? 'text-red-600' : row.stock_share_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                            {row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? formatSignedPercentPoint(row.stock_share_diff_pct) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                            {row.period_tag_sales !== null && row.period_tag_sales !== undefined ? formatCurrency(row.period_tag_sales) : '-'}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.period_sales_yoy_pct)}`}>
+                            {row.period_sales_yoy_pct !== null && row.period_sales_yoy_pct !== undefined ? `${row.period_sales_yoy_pct.toFixed(0)}%` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
+                            {row.discount_rate !== null && row.discount_rate !== undefined ? formatPercent(row.discount_rate, 1) : '-'}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? (row.discount_rate_diff_pct > 0 ? 'text-red-600' : row.discount_rate_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                            {row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? formatSignedPercentPoint(row.discount_rate_diff_pct) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             {getInventoryCardTooltip(selectedInventoryCard.key) ? (
               <p className="mt-3 border-t border-gray-100 pt-3 text-[11px] text-gray-400">
                 {getInventoryCardTooltip(selectedInventoryCard.key)}
@@ -889,7 +1346,17 @@ export default function Section3Card({
               const progressCardClassName = getBottomProgressCardClassName(card.key, progressPct, projectedPct);
 
               return (
-                <div key={card.key} className={`min-w-0 rounded-lg border ${fixedHeight ? 'p-2.5' : 'p-3'} ${progressCardClassName}`}>
+                <button
+                  key={card.key}
+                  type="button"
+                  onClick={() => {
+                    const detailCard = inventoryDetailCardMap.get(card.key);
+                    if (!detailCard) return;
+                    setSelectedInventoryCard(detailCard);
+                    setSelectedInventoryNode(null);
+                  }}
+                  className={`min-w-0 rounded-lg border ${fixedHeight ? 'p-2.5' : 'p-3'} ${progressCardClassName} text-left transition hover:border-gray-300 hover:shadow-md`}
+                >
                   <div className={fixedHeight ? 'mb-1.5' : 'mb-2'}>
                     <p className={`${fixedHeight ? 'text-[13px]' : 'text-sm'} font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
                       {card.title}
@@ -1000,7 +1467,7 @@ export default function Section3Card({
                       </>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

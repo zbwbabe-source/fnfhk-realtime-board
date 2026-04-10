@@ -204,6 +204,13 @@ export interface Section3Response {
         curr_stock_amt: number;
         ly_curr_stock_amt?: number | null;
         yoy_pct?: number | null;
+        stock_share_pct?: number | null;
+        stock_share_diff_pct?: number | null;
+        period_tag_sales?: number;
+        ly_period_tag_sales?: number | null;
+        period_sales_yoy_pct?: number | null;
+        discount_rate?: number | null;
+        discount_rate_diff_pct?: number | null;
       }>;
     }>;
   }>;
@@ -2123,84 +2130,87 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           };
         })
         .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
-    const sortCategoryNodes = (entries: Map<string, number>) =>
-      [...entries.entries()]
-        .map(([cat2, amount]) => ({ cat2, curr_stock_amt: amount }))
-        .filter((item) => item.curr_stock_amt > 0)
-        .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
-    const sortCategoryNodesWithYoy = (currentEntries: Map<string, number>, previousEntries: Map<string, number>) =>
-      [...new Set([...currentEntries.keys(), ...previousEntries.keys()])]
+    type CategoryNodeAgg = {
+      curr_stock_amt: number;
+      period_tag_sales: number;
+      period_act_sales: number;
+    };
+    const createCategoryNodeAgg = (): CategoryNodeAgg => ({
+      curr_stock_amt: 0,
+      period_tag_sales: 0,
+      period_act_sales: 0,
+    });
+    const sortCategoryNodesWithYoy = (
+      currentEntries: Map<string, CategoryNodeAgg>,
+      previousEntries: Map<string, CategoryNodeAgg>
+    ) => {
+      const totalCurrStock = [...currentEntries.values()].reduce((sum, item) => sum + item.curr_stock_amt, 0);
+      const totalLyStock = [...previousEntries.values()].reduce((sum, item) => sum + item.curr_stock_amt, 0);
+
+      return [...new Set([...currentEntries.keys(), ...previousEntries.keys()])]
         .map((cat2) => {
-          const curr = currentEntries.get(cat2) || 0;
-          const ly = previousEntries.get(cat2) || 0;
+          const curr = currentEntries.get(cat2) || createCategoryNodeAgg();
+          const ly = previousEntries.get(cat2) || createCategoryNodeAgg();
+          const currDiscountRate = curr.period_tag_sales > 0 ? 1 - curr.period_act_sales / curr.period_tag_sales : null;
+          const lyDiscountRate = ly.period_tag_sales > 0 ? 1 - ly.period_act_sales / ly.period_tag_sales : null;
+          const currShare = totalCurrStock > 0 ? (curr.curr_stock_amt / totalCurrStock) * 100 : null;
+          const lyShare = totalLyStock > 0 ? (ly.curr_stock_amt / totalLyStock) * 100 : null;
+
           return {
             cat2,
-            curr_stock_amt: curr,
-            ly_curr_stock_amt: ly > 0 ? ly : null,
-            yoy_pct: buildYoyPct(curr, ly),
+            curr_stock_amt: curr.curr_stock_amt,
+            ly_curr_stock_amt: ly.curr_stock_amt > 0 ? ly.curr_stock_amt : null,
+            yoy_pct: buildYoyPct(curr.curr_stock_amt, ly.curr_stock_amt),
+            stock_share_pct: currShare,
+            stock_share_diff_pct: currShare !== null && lyShare !== null ? currShare - lyShare : null,
+            period_tag_sales: curr.period_tag_sales,
+            ly_period_tag_sales: ly.period_tag_sales > 0 ? ly.period_tag_sales : null,
+            period_sales_yoy_pct: buildYoyPct(curr.period_tag_sales, ly.period_tag_sales),
+            discount_rate: currDiscountRate !== null ? currDiscountRate * 100 : null,
+            discount_rate_diff_pct:
+              currDiscountRate !== null && lyDiscountRate !== null ? (currDiscountRate - lyDiscountRate) * 100 : null,
           };
         })
-        .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0)
+        .filter(
+          (item) =>
+            item.curr_stock_amt > 0 ||
+            (item.ly_curr_stock_amt ?? 0) > 0 ||
+            (item.period_tag_sales ?? 0) > 0 ||
+            (item.ly_period_tag_sales ?? 0) > 0
+        )
         .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
-    const buildWearYearBucketCategoryNodes = (targetType: 'S' | 'F', bucket: 'y1' | 'y2' | 'y3_plus') => {
-      const totals = new Map<string, number>();
-      const currentSeasonYY = getSeasonYY(currentDate, targetType);
-      for (const row of skuRows || []) {
-        const sesn = String(row.SESN || '').trim().toUpperCase();
-        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-        if (!isWearCategory(cat2)) continue;
-        const match = sesn.match(/^(\d{2})([FS])$/);
-        if (!match || match[2] !== targetType) continue;
-        const seasonYY = Number(match[1]);
-        const diff = currentSeasonYY - seasonYY;
-        const isMatch = bucket === 'y1' ? diff === 1 : bucket === 'y2' ? diff === 2 : diff >= 3;
-        if (!isMatch) continue;
-        const amount = applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0) || 0) || 0;
-        if (!amount) continue;
-        totals.set(cat2, (totals.get(cat2) || 0) + amount);
-      }
-      return sortCategoryNodes(totals);
     };
-    const buildGroupedCategoryNodes = (
-      rows: any[],
-      targetDate: string,
-      targetKey: 'hat' | 'shoes' | 'bag' | 'acc' | 'wear',
-      labelKey: 'current_s' | 'current_f' | 'past_s' | 'past_f'
-    ) => {
-      const totals = new Map<string, number>();
-      const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
-      const applyRateForDate = (amount: number) => {
-        if (region !== 'TW') return amount;
-        return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+    const buildWearYearBucketCategoryNodes = (targetType: 'S' | 'F', bucket: 'y1' | 'y2' | 'y3_plus') => {
+      const buildTotals = (rows: any[], targetDate: string) => {
+        const totals = new Map<string, CategoryNodeAgg>();
+        const currentSeasonYY = getSeasonYY(targetDate, targetType);
+        const applyRateForDate = (amount: number) => {
+          if (region !== 'TW') return amount;
+          return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
+        };
+        for (const row of rows) {
+          const sesn = String(row.SESN || '').trim().toUpperCase();
+          const cat2 = String(row.CAT2 || '').trim().toUpperCase();
+          if (!isWearCategory(cat2)) continue;
+          const match = sesn.match(/^(\d{2})([FS])$/);
+          if (!match || match[2] !== targetType) continue;
+          const seasonYY = Number(match[1]);
+          const diff = currentSeasonYY - seasonYY;
+          const isMatch = bucket === 'y1' ? diff === 1 : bucket === 'y2' ? diff === 2 : diff >= 3;
+          if (!isMatch) continue;
+          const existing = totals.get(cat2) || createCategoryNodeAgg();
+          existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+          existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
+          totals.set(cat2, existing);
+        }
+        return totals;
       };
 
-      for (const row of rows) {
-        const sesn = String(row.SESN || '').trim().toUpperCase();
-        const cat2 = String(row.CAT2 || '').trim().toUpperCase();
-        const mapping = getCategoryMapping(cat2);
-        const matchesTarget =
-          targetKey === 'wear'
-            ? isWearCategory(cat2)
-            : (targetKey === 'hat' && mapping.middle === 'Headwear') ||
-              (targetKey === 'shoes' && mapping.middle === 'Shoes') ||
-              (targetKey === 'bag' && mapping.middle === 'BAG') ||
-              (targetKey === 'acc' && mapping.large === '기타ACC');
-        if (!matchesTarget) continue;
-        const match = sesn.match(/^(\d{2})([FS])$/);
-        if (!match) continue;
-        const seasonYY = Number(match[1]);
-        const seasonType = match[2] as 'S' | 'F';
-        const groupedLabel =
-          seasonType === 'S'
-            ? seasonYY >= currentSYear ? 'current_s' : 'past_s'
-            : seasonYY >= currentFYear ? 'current_f' : 'past_f';
-        if (groupedLabel !== labelKey) continue;
-        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
-        if (!amount) continue;
-        totals.set(cat2, (totals.get(cat2) || 0) + amount);
-      }
-
-      return sortCategoryNodes(totals);
+      return sortCategoryNodesWithYoy(
+        buildTotals(currentRows, currentDate),
+        buildTotals(previousRows, previousDate)
+      );
     };
     const buildGroupedCategoryNodesWithYoy = (
       currentRowsSource: any[],
@@ -2211,7 +2221,7 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
       labelKey: 'current_s' | 'current_f' | 'past_s' | 'past_f'
     ) => {
       const buildTotals = (rows: any[], targetDate: string) => {
-        const totals = new Map<string, number>();
+        const totals = new Map<string, CategoryNodeAgg>();
         const { currentSYear, currentFYear } = getSeasonThresholds(targetDate);
         const applyRateForDate = (amount: number) => {
           if (region !== 'TW') return amount;
@@ -2239,9 +2249,11 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
               ? seasonYY >= currentSYear ? 'current_s' : 'past_s'
               : seasonYY >= currentFYear ? 'current_f' : 'past_f';
           if (groupedLabel !== labelKey) continue;
-          const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
-          if (!amount) continue;
-          totals.set(cat2, (totals.get(cat2) || 0) + amount);
+          const existing = totals.get(cat2) || createCategoryNodeAgg();
+          existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+          existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
+          totals.set(cat2, existing);
         }
 
         return totals;
@@ -2258,7 +2270,7 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
       targetKey: 'hat' | 'shoes' | 'bag' | 'acc',
       seasonLabel: string
     ) => {
-      const totals = new Map<string, number>();
+      const totals = new Map<string, CategoryNodeAgg>();
       const applyRateForDate = (amount: number) => {
         if (region !== 'TW') return amount;
         return convertTwdToHkd(amount, getPeriodFromDateString(targetDate)) || 0;
@@ -2274,12 +2286,14 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           (targetKey === 'bag' && mapping.middle === 'BAG') ||
           (targetKey === 'acc' && mapping.large === '기타ACC');
         if (!matchesTarget || sesn !== seasonLabel) continue;
-        const amount = applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
-        if (!amount) continue;
-        totals.set(cat2, (totals.get(cat2) || 0) + amount);
+        const existing = totals.get(cat2) || createCategoryNodeAgg();
+        existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+        existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
+        totals.set(cat2, existing);
       }
 
-      return sortCategoryNodes(totals);
+      return sortCategoryNodesWithYoy(totals, new Map());
     };
     const currentPastSBreakdown = aggregateWearYearBucketBreakdown(currentRows, currentDate, 'S');
     const currentPastFBreakdown = aggregateWearYearBucketBreakdown(currentRows, currentDate, 'F');
@@ -2443,6 +2457,9 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
     }
 
     const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const escapedSalesStoreCodes =
+      salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+    const yearToDateStart = `${targetDate.slice(0, 4)}-01-01`;
     const currentQuery = `
 WITH latest_stock_date AS (
   SELECT MAX(STOCK_DT) AS stock_dt
@@ -2450,26 +2467,53 @@ WITH latest_stock_date AS (
   WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
     AND LOCAL_SHOP_CD IN (${escapedStoreCodes})
     AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+),
+stock_by_cat AS (
+  SELECT
+    s.SESN,
+    SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
+    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+  CROSS JOIN latest_stock_date l
+  WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+    AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND s.STOCK_DT = l.stock_dt
+  GROUP BY s.SESN, SUBSTR(s.PRDT_CD, 7, 2)
+),
+sales_by_cat AS (
+  SELECT
+    S.SESN,
+    SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
+    COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
 )
 SELECT
-  s.SESN,
-  s.PRDT_CD,
-  SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
-  COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
-FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
-CROSS JOIN latest_stock_date l
-WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
-  AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
-  AND s.STOCK_DT = l.stock_dt
-GROUP BY s.SESN, s.PRDT_CD, SUBSTR(s.PRDT_CD, 7, 2)
+  st.SESN,
+  CONCAT('XX', st.CAT2) AS PRDT_CD,
+  st.CAT2,
+  st.CURR_STOCK_AMT,
+  COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
+  COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
+FROM stock_by_cat st
+LEFT JOIN sales_by_cat sa
+  ON sa.SESN = st.SESN
+ AND sa.CAT2 = st.CAT2
 `;
 
-    return executeSnowflakeQuery(currentQuery, [normalizedBrand, targetDate, normalizedBrand]);
+    return executeSnowflakeQuery(currentQuery, [normalizedBrand, targetDate, normalizedBrand, yearToDateStart, targetDate]);
   };
 
   const fetchLegacyInventorySegmentRows = async (targetDate: string): Promise<any[]> => {
     const yyyymm = targetDate.slice(0, 7).replace('-', '');
     const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const escapedSalesStoreCodes =
+      salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+    const yearToDateStart = `${targetDate.slice(0, 4)}-01-01`;
     const legacyQuery = `
 WITH latest_month AS (
   SELECT MAX(YYYYMM) AS yyyymm
@@ -2477,21 +2521,45 @@ WITH latest_month AS (
   WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
     AND LOCAL_SHOP_CD IN (${escapedStoreCodes})
     AND TO_NUMBER(YYYYMM) <= TO_NUMBER(?)
+),
+stock_by_cat AS (
+  SELECT
+    s.SESN,
+    s.SUB_CTGR AS CAT2,
+    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+  FROM SAP_FNF.PREP_HMD_STOCK s
+  CROSS JOIN latest_month m
+  WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+    AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND s.YYYYMM = m.yyyymm
+  GROUP BY s.SESN, s.SUB_CTGR
+),
+sales_by_cat AS (
+  SELECT
+    S.SESN,
+    SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
+    COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
 )
 SELECT
-  s.SESN,
-  CONCAT('XX', s.SUB_CTGR) AS PRDT_CD,
-  s.SUB_CTGR AS CAT2,
-  COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
-FROM SAP_FNF.PREP_HMD_STOCK s
-CROSS JOIN latest_month m
-WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
-  AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
-  AND s.YYYYMM = m.yyyymm
-GROUP BY s.SESN, s.SUB_CTGR
+  st.SESN,
+  CONCAT('XX', st.CAT2) AS PRDT_CD,
+  st.CAT2,
+  st.CURR_STOCK_AMT,
+  COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
+  COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
+FROM stock_by_cat st
+LEFT JOIN sales_by_cat sa
+  ON sa.SESN = st.SESN
+ AND sa.CAT2 = st.CAT2
 `;
 
-    return executeSnowflakeQuery(legacyQuery, [normalizedBrand, yyyymm, normalizedBrand]);
+    return executeSnowflakeQuery(legacyQuery, [normalizedBrand, yyyymm, normalizedBrand, yearToDateStart, targetDate]);
   };
 
   try {
