@@ -316,9 +316,9 @@ export default function EntrySalesYoyPopup({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-4">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between px-5 pb-3 pt-4">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-3 sm:px-4">
+      <div className="relative w-full max-w-[960px] overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4 sm:px-5">
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
             <h2 className="mt-0.5 text-lg font-bold text-gray-900">{labels.title}</h2>
@@ -335,7 +335,7 @@ export default function EntrySalesYoyPopup({
           </button>
         </div>
 
-        <div className="px-5 pb-4">
+        <div className="px-4 pb-4 sm:px-5">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-gray-200">
@@ -375,7 +375,7 @@ export default function EntrySalesYoyPopup({
 
           {trendRows.length > 0 ? (
             <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
-              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-[12px] font-semibold text-gray-800">
                     {brand === 'M' ? 'YTD YoY Trend' : 'YTD YoY Trend'}
@@ -384,8 +384,8 @@ export default function EntrySalesYoyPopup({
                     {getTrendDescription(trendWindow)}
                   </p>
                 </div>
-                <div className="flex flex-col items-start gap-2 sm:items-end">
-                  <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
+                <div className="flex flex-col items-start gap-2 lg:items-end">
+                  <div className="flex flex-wrap overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
                     <button
                       type="button"
                       onClick={() => setTrendWindow('all')}
@@ -435,7 +435,7 @@ export default function EntrySalesYoyPopup({
                   </div>
                 </div>
               </div>
-              <div className="h-48 w-full">
+              <div className="h-56 w-full sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={visibleTrendRows} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                     <XAxis
@@ -443,7 +443,8 @@ export default function EntrySalesYoyPopup({
                       tick={{ fontSize: 10, fill: '#6b7280' }}
                       tickLine={false}
                       axisLine={false}
-                      minTickGap={16}
+                      minTickGap={24}
+                      interval="preserveStartEnd"
                     />
                     <YAxis
                       domain={trendDomain as [number, number]}
