@@ -172,6 +172,18 @@ function getMonthEndDate(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function shiftYears(date: Date, years: number): Date {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + years);
+  return next;
+}
+
 function normalizeChannel(channel: string): string {
   return channel === '정상' ? '리테일' : channel;
 }
@@ -531,6 +543,14 @@ export async function fetchSection1StoreSales({
     [brand, resolvedDate, resolvedDate]
   );
 
+  const rollingTrendStartDate = addDays(asofDate, -119);
+  const ytdTrendStartDate = new Date(year, 0, 1);
+  const trendStartDate =
+    rollingTrendStartDate.getTime() < ytdTrendStartDate.getTime() ? rollingTrendStartDate : ytdTrendStartDate;
+  const previousYearTrendStartDate = shiftYears(trendStartDate, -1);
+  const trendStartDateString = formatDateToYmd(trendStartDate);
+  const previousYearTrendStartDateString = formatDateToYmd(previousYearTrendStartDate);
+
   const dailyTrendRows = await executeSnowflakeQuery(
     `
       SELECT
@@ -541,13 +561,13 @@ export async function fetchSection1StoreSales({
         (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
         AND LOCAL_SHOP_CD IN (${storeCodes})
         AND (
-          TO_DATE(SALE_DT) BETWEEN DATE_TRUNC('YEAR', TO_DATE(?)) AND TO_DATE(?)
-          OR TO_DATE(SALE_DT) BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          TO_DATE(SALE_DT) BETWEEN TO_DATE(?) AND TO_DATE(?)
+          OR TO_DATE(SALE_DT) BETWEEN TO_DATE(?) AND TO_DATE(?)
         )
       GROUP BY TO_DATE(SALE_DT)
       ORDER BY TO_DATE(SALE_DT)
     `,
-    [brand, resolvedDate, resolvedDate, resolvedDate, resolvedDate]
+    [brand, trendStartDateString, resolvedDate, previousYearTrendStartDateString, previousYearDateString]
   );
 
   const dailyComparableRows = await executeSnowflakeQuery(
@@ -634,8 +654,7 @@ export async function fetchSection1StoreSales({
     positiveSalesDayCountMap.set(shopCd, (positiveSalesDayCountMap.get(shopCd) || 0) + 1);
   });
 
-  const dailyTrendCurrentMap = new Map<string, number>();
-  const dailyTrendLyMap = new Map<string, number>();
+  const dailyTrendMap = new Map<string, number>();
 
   dailyTrendRows.forEach((row: any) => {
     const rawSaleDate = row.SALE_DT;
@@ -643,41 +662,36 @@ export async function fetchSection1StoreSales({
     if (Number.isNaN(parsedDate.getTime())) return;
 
     const amount = applyExchangeRate(parseFloat(row.SALES_AMT || 0));
-    const yyyy = parsedDate.getFullYear();
-    const mm = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(parsedDate.getDate()).padStart(2, '0');
-    const key = `${mm}-${dd}`;
-
-    if (yyyy === year) {
-      dailyTrendCurrentMap.set(key, amount);
-    } else if (yyyy === year - 1) {
-      dailyTrendLyMap.set(key, amount);
-    }
+    dailyTrendMap.set(formatDateToYmd(parsedDate), amount);
   });
 
   let cumulativeCurrentSales = 0;
   let cumulativeLySales = 0;
-  const startOfYear = new Date(year, 0, 1);
   const trendDays =
-    Math.floor((asofDate.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    Math.floor((asofDate.getTime() - trendStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
 
   const daily_yoy_trend = Array.from({ length: trendDays }, (_, index) => {
-    const currentDate = new Date(year, 0, index + 1);
-    const monthDayKey = `${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(
-      currentDate.getDate()
-    ).padStart(2, '0')}`;
-    const currentSales = dailyTrendCurrentMap.get(monthDayKey) || 0;
-    const lySales = dailyTrendLyMap.get(monthDayKey) || 0;
+    const currentDate = addDays(trendStartDate, index);
+    const currentDateKey = formatDateToYmd(currentDate);
+    const comparableDate = shiftYears(currentDate, -1);
+    const comparableDateKey = formatDateToYmd(comparableDate);
+    const currentSales = dailyTrendMap.get(currentDateKey) || 0;
+    const lySales = dailyTrendMap.get(comparableDateKey) || 0;
+    const isYtdDate = currentDate.getFullYear() === year;
 
-    cumulativeCurrentSales += currentSales;
-    cumulativeLySales += lySales;
+    if (isYtdDate) {
+      cumulativeCurrentSales += currentSales;
+      cumulativeLySales += lySales;
+    }
 
     return {
-      date: formatDateToYmd(currentDate),
+      date: currentDateKey,
       label: `${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
-      yoy: cumulativeLySales > 0 ? (cumulativeCurrentSales / cumulativeLySales) * 100 : null,
-      sales_act: cumulativeCurrentSales,
-      sales_act_ly: cumulativeLySales,
+      yoy: isYtdDate && cumulativeLySales > 0 ? (cumulativeCurrentSales / cumulativeLySales) * 100 : null,
+      sales_act: isYtdDate ? cumulativeCurrentSales : 0,
+      sales_act_ly: isYtdDate ? cumulativeLySales : 0,
+      daily_sales: currentSales,
+      daily_sales_ly: lySales,
     };
   });
 
@@ -1407,7 +1421,7 @@ export async function fetchSection1StoreSales({
 
   if (total_subtotal) {
     (total_subtotal as any).daily_yoy_trend = daily_yoy_trend;
-    (total_subtotal as any).daily_yoy_trend_basis = 'ytd_cumulative';
+    (total_subtotal as any).daily_yoy_trend_basis = 'rolling_daily_with_ytd';
   }
 
   return {

@@ -15,6 +15,8 @@ type RegionSalesSnapshot = {
     yoy: number | null;
     sales_act: number;
     sales_act_ly: number;
+    daily_sales?: number;
+    daily_sales_ly?: number;
   }>;
 };
 
@@ -68,6 +70,14 @@ function shiftDays(date: Date, days: number) {
   const shifted = new Date(date);
   shifted.setDate(shifted.getDate() + days);
   return shifted;
+}
+
+function formatDateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 function formatMonthDay(date: Date) {
@@ -269,44 +279,59 @@ export default function EntrySalesYoyPopup({
     [hkmcSnapshot, twSnapshot, labels.rows]
   );
 
-  const trendRows = useMemo(
-    () =>
-      (hkmcSnapshot?.daily_yoy_trend || []).map((item, index) => ({
+  const trendRows = useMemo(() => {
+    const hkmcTrend = hkmcSnapshot?.daily_yoy_trend || [];
+    const twTrendMap = new Map((twSnapshot?.daily_yoy_trend || []).map((item) => [item.date, item]));
+
+    return hkmcTrend.map((item) => {
+      const twItem = twTrendMap.get(item.date);
+      return {
+        date: item.date,
         label: item.label,
-        hkmcYoy: item.yoy,
-        hkmcCumSales: item.sales_act,
-        hkmcCumSalesLy: item.sales_act_ly,
-        twYoy: twSnapshot?.daily_yoy_trend?.[index]?.yoy ?? null,
-        twCumSales: twSnapshot?.daily_yoy_trend?.[index]?.sales_act ?? 0,
-        twCumSalesLy: twSnapshot?.daily_yoy_trend?.[index]?.sales_act_ly ?? 0,
-      })),
-    [hkmcSnapshot, twSnapshot]
-  );
+        hkmcYtdYoy: item.yoy,
+        hkmcDailySales: item.daily_sales ?? 0,
+        hkmcDailySalesLy: item.daily_sales_ly ?? 0,
+        twYtdYoy: twItem?.yoy ?? null,
+        twDailySales: twItem?.daily_sales ?? 0,
+        twDailySalesLy: twItem?.daily_sales_ly ?? 0,
+      };
+    });
+  }, [hkmcSnapshot, twSnapshot]);
   const visibleTrendRows = useMemo(() => {
-    if (trendWindow === 'all') return trendRows;
+    if (trendRows.length === 0) return [];
+
+    if (trendWindow === 'all') {
+      const parsedAsOfDate = parseLocalDate(date);
+      const ytdStartKey = parsedAsOfDate ? formatDateKey(new Date(parsedAsOfDate.getFullYear(), 0, 1)) : null;
+      const ytdRows = ytdStartKey ? trendRows.filter((row) => row.date >= ytdStartKey) : trendRows;
+
+      return ytdRows.map((row) => ({
+        label: row.label,
+        hkmcYoy: row.hkmcYtdYoy ?? null,
+        twYoy: row.twYtdYoy ?? null,
+      }));
+    }
 
     const windowSize = trendWindow === '7d' ? 7 : trendWindow === '30d' ? 30 : 120;
     const slicedRows = trendRows.slice(-windowSize);
-    const startIndex = Math.max(0, trendRows.length - windowSize);
-    const previousRow = startIndex > 0 ? trendRows[startIndex - 1] : null;
-    const hkmcBaseSales = previousRow?.hkmcCumSales ?? 0;
-    const hkmcBaseSalesLy = previousRow?.hkmcCumSalesLy ?? 0;
-    const twBaseSales = previousRow?.twCumSales ?? 0;
-    const twBaseSalesLy = previousRow?.twCumSalesLy ?? 0;
+    let hkmcWindowSales = 0;
+    let hkmcWindowSalesLy = 0;
+    let twWindowSales = 0;
+    let twWindowSalesLy = 0;
 
     return slicedRows.map((row) => {
-      const hkmcWindowSales = row.hkmcCumSales - hkmcBaseSales;
-      const hkmcWindowSalesLy = row.hkmcCumSalesLy - hkmcBaseSalesLy;
-      const twWindowSales = row.twCumSales - twBaseSales;
-      const twWindowSalesLy = row.twCumSalesLy - twBaseSalesLy;
+      hkmcWindowSales += row.hkmcDailySales;
+      hkmcWindowSalesLy += row.hkmcDailySalesLy;
+      twWindowSales += row.twDailySales;
+      twWindowSalesLy += row.twDailySalesLy;
 
       return {
-        ...row,
+        label: row.label,
         hkmcYoy: hkmcWindowSalesLy > 0 ? (hkmcWindowSales / hkmcWindowSalesLy) * 100 : null,
         twYoy: twWindowSalesLy > 0 ? (twWindowSales / twWindowSalesLy) * 100 : null,
       };
     });
-  }, [trendRows, trendWindow]);
+  }, [date, trendRows, trendWindow]);
   const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
 
   useEffect(() => {
