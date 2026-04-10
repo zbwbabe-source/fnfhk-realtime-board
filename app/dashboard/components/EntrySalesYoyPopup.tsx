@@ -1,259 +1,311 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-
-type RegionSalesSnapshot = {
-  daily_yoy: number | null;
-  recent_7d_yoy: number | null;
-  yoy: number | null;
-  yoy_ytd: number | null;
-};
-
-type MetricRow = {
-  key: string;
-  metric: string;
-  period: string;
-  hkmcValue: number | null;
-  twValue: number | null;
-};
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface EntrySalesYoyPopupProps {
   brand: string;
   date: string;
   hkmcSection1Data: any;
   twSection1Data: any;
+  hkmcSection2Data: any;
+  twSection2Data: any;
+  hkmcSection3Data: any;
+  twSection3Data: any;
 }
 
 const STORAGE_KEY = 'dashboard-entry-sales-yoy-popup-hidden-on';
-const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function parseLocalDate(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const parsed = new Date(y, m - 1, d);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function getVisibilityKey(date: string) {
   return date || 'unknown-date';
 }
 
-function parseLocalDate(date: string) {
-  const [yearText, monthText, dayText] = date.split('-');
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  if (!year || !month || !day) return null;
-
-  const parsed = new Date(year, month - 1, day);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
-function shiftYears(date: Date, years: number) {
-  const shifted = new Date(date);
-  shifted.setFullYear(shifted.getFullYear() + years);
-  return shifted;
-}
-
-function shiftDays(date: Date, days: number) {
-  const shifted = new Date(date);
-  shifted.setDate(shifted.getDate() + days);
-  return shifted;
-}
-
-const MONTH_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function formatMonthDay(date: Date) {
+function fmtMonthDay(date: Date) {
   return `${MONTH_EN[date.getMonth()]} ${date.getDate()}`;
 }
 
-function readRegionSnapshot(section1Data: any): RegionSalesSnapshot | null {
-  const total = section1Data?.total_subtotal;
-  if (!total) return null;
+function fmtPct(v: number | null | undefined, digits = 0): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '-';
+  return `${v.toFixed(digits)}%`;
+}
 
+function fmtPp(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '-';
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}pp`;
+}
+
+// ─── Data extraction ───
+
+function getSalesYoy(s1: any) {
+  const t = s1?.total_subtotal;
   return {
-    daily_yoy:
-      typeof total.daily_yoy === 'number' && Number.isFinite(total.daily_yoy) ? total.daily_yoy : null,
-    recent_7d_yoy:
-      typeof total.recent_7d_yoy === 'number' && Number.isFinite(total.recent_7d_yoy)
-        ? total.recent_7d_yoy
-        : null,
-    yoy: typeof total.yoy === 'number' && Number.isFinite(total.yoy) ? total.yoy : null,
-    yoy_ytd:
-      typeof total.yoy_ytd === 'number' && Number.isFinite(total.yoy_ytd) ? total.yoy_ytd : null,
+    recent7d: typeof t?.recent_7d_yoy === 'number' ? t.recent_7d_yoy : null,
+    mtd: typeof t?.yoy === 'number' ? t.yoy : null,
   };
 }
 
-function formatYoy(value: number | null) {
-  return value === null ? '-' : `${Math.round(value)}%`;
+function getDiscountDiff(s3: any): number | null {
+  const h = s3?.header;
+  const curTag = typeof h?.period_tag_sales === 'number' ? h.period_tag_sales : 0;
+  const curAct = typeof h?.period_act_sales === 'number' ? h.period_act_sales : 0;
+  const lyTag = typeof h?.period_tag_sales_ly === 'number' ? h.period_tag_sales_ly : 0;
+  const lyAct = typeof h?.period_act_sales_ly === 'number' ? h.period_act_sales_ly : 0;
+  if (curTag <= 0 || lyTag <= 0) return null;
+  return (1 - curAct / curTag) * 100 - (1 - lyAct / lyTag) * 100;
 }
 
-function toneClass(value: number | null) {
-  if (value === null) return 'text-gray-400';
-  return value >= 100 ? 'text-emerald-600' : 'text-rose-600';
+function getSellthrough(s2: any): number | null {
+  const v = s2?.header?.overall_sellthrough;
+  return typeof v === 'number' ? v : null;
 }
 
-function buildLabels(date: string) {
-  const currentDate = parseLocalDate(date);
+function getOldStockYoy(s3: any): number | null {
+  const v = s3?.header?.curr_stock_yoy_pct;
+  return typeof v === 'number' ? v : null;
+}
 
-  if (!currentDate) {
-    return {
-      title: 'Highlights',
-      asOf: date || '-',
-      rows: [
-        { key: 'daily', metric: 'Daily YoY', period: '-' },
-        { key: 'recent7d', metric: 'Last 7 Days YoY', period: '-' },
-        { key: 'mtd', metric: 'MTD YoY', period: '-' },
-        { key: 'ytd', metric: 'YTD YoY', period: '-' },
-      ],
-    };
+// ─── Signal logic ───
+
+type Signal = 'pos' | 'neg' | 'flat';
+
+function salesSig(v: number | null): Signal {
+  if (v === null) return 'flat';
+  return v >= 100 ? 'pos' : 'neg';
+}
+
+function discountSig(v: number | null): Signal {
+  if (v === null) return 'flat';
+  if (v <= 0) return 'pos';   // discount rate decreased = good
+  if (v < 1.5) return 'flat';
+  return 'neg';               // discount expanding = bad
+}
+
+function sellthroughSig(v: number | null, progress: number | null): Signal {
+  if (v === null || progress === null) return 'flat';
+  const gap = v - progress;
+  if (gap >= 0) return 'pos';
+  if (gap >= -5) return 'flat';
+  return 'neg';
+}
+
+function oldStockSig(v: number | null): Signal {
+  if (v === null) return 'flat';
+  if (v <= 100) return 'pos';  // balance shrinking = good
+  if (v <= 110) return 'flat';
+  return 'neg';                // balance growing = bad
+}
+
+function sigColor(s: Signal) {
+  if (s === 'pos') return 'text-emerald-600';
+  if (s === 'neg') return 'text-rose-600';
+  return 'text-gray-700';
+}
+
+function sigDot(s: Signal) {
+  if (s === 'pos') return 'bg-emerald-500';
+  if (s === 'neg') return 'bg-rose-500';
+  return 'bg-gray-300';
+}
+
+function getSeasonProgressRate(asOfDate: string): number | null {
+  const d = parseLocalDate(asOfDate);
+  if (!d) return null;
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  let start: Date;
+  let end: Date;
+  if (month >= 3 && month <= 8) {
+    start = new Date(year, 2, 1);
+    end = new Date(year, 7, 31);
+  } else if (month >= 9) {
+    start = new Date(year, 8, 1);
+    end = new Date(year + 1, 1, new Date(year + 1, 2, 0).getDate());
+  } else {
+    start = new Date(year - 1, 8, 1);
+    end = new Date(year, 1, new Date(year, 2, 0).getDate());
   }
-
-  const previousYearDate = shiftYears(currentDate, -1);
-  const recent7dStart = shiftDays(currentDate, -6);
-
-  return {
-    title: `${formatMonthDay(currentDate)} Highlights`,
-    asOf: `As of ${currentDate.getFullYear()}. ${currentDate.getMonth() + 1}. ${currentDate.getDate()}`,
-    rows: [
-      {
-        key: 'daily',
-        metric: 'Daily YoY',
-        period: `This ${WEEKDAY_EN[currentDate.getDay()]} vs Last ${WEEKDAY_EN[previousYearDate.getDay()]}`,
-      },
-      {
-        key: 'recent7d',
-        metric: 'Last 7 Days YoY',
-        period: `${formatMonthDay(recent7dStart)} - ${formatMonthDay(currentDate)}`,
-      },
-      {
-        key: 'mtd',
-        metric: 'MTD YoY',
-        period: `${MONTH_EN[currentDate.getMonth()]} 1 - ${formatMonthDay(currentDate)}`,
-      },
-      {
-        key: 'ytd',
-        metric: 'YTD YoY',
-        period: `Jan 1 - ${formatMonthDay(currentDate)}`,
-      },
-    ],
-  };
+  const msDay = 86400000;
+  const total = Math.floor((end.getTime() - start.getTime()) / msDay) + 1;
+  const elapsed = Math.max(0, Math.min(total, Math.floor((d.getTime() - start.getTime()) / msDay) + 1));
+  return total > 0 ? (elapsed / total) * 100 : null;
 }
+
+// ─── Component ───
 
 export default function EntrySalesYoyPopup({
   brand,
   date,
   hkmcSection1Data,
   twSection1Data,
+  hkmcSection2Data,
+  twSection2Data,
+  hkmcSection3Data,
+  twSection3Data,
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
-  const [visibilityChecked, setVisibilityChecked] = useState(false);
+  const lastDateRef = useRef<string | null>(null);
 
-  const hkmcSnapshot = useMemo(() => readRegionSnapshot(hkmcSection1Data), [hkmcSection1Data]);
-  const twSnapshot = useMemo(() => readRegionSnapshot(twSection1Data), [twSection1Data]);
-  const labels = useMemo(() => buildLabels(date), [date]);
-  const isReady = !!hkmcSnapshot && !!twSnapshot;
+  const currentDate = useMemo(() => parseLocalDate(date), [date]);
+  const progress = useMemo(() => getSeasonProgressRate(date), [date]);
 
-  const rows = useMemo<MetricRow[]>(
-    () => [
-      {
-        key: 'daily',
-        metric: labels.rows[0].metric,
-        period: labels.rows[0].period,
-        hkmcValue: hkmcSnapshot?.daily_yoy ?? null,
-        twValue: twSnapshot?.daily_yoy ?? null,
-      },
-      {
-        key: 'recent7d',
-        metric: labels.rows[1].metric,
-        period: labels.rows[1].period,
-        hkmcValue: hkmcSnapshot?.recent_7d_yoy ?? null,
-        twValue: twSnapshot?.recent_7d_yoy ?? null,
-      },
-      {
-        key: 'mtd',
-        metric: labels.rows[2].metric,
-        period: labels.rows[2].period,
-        hkmcValue: hkmcSnapshot?.yoy ?? null,
-        twValue: twSnapshot?.yoy ?? null,
-      },
-      {
-        key: 'ytd',
-        metric: labels.rows[3].metric,
-        period: labels.rows[3].period,
-        hkmcValue: hkmcSnapshot?.yoy_ytd ?? null,
-        twValue: twSnapshot?.yoy_ytd ?? null,
-      },
-    ],
-    [hkmcSnapshot, twSnapshot, labels.rows]
-  );
+  const hkmcSales = useMemo(() => getSalesYoy(hkmcSection1Data), [hkmcSection1Data]);
+  const twSales = useMemo(() => getSalesYoy(twSection1Data), [twSection1Data]);
+  const hkmcDiscDiff = useMemo(() => getDiscountDiff(hkmcSection3Data), [hkmcSection3Data]);
+  const twDiscDiff = useMemo(() => getDiscountDiff(twSection3Data), [twSection3Data]);
+  const hkmcST = useMemo(() => getSellthrough(hkmcSection2Data), [hkmcSection2Data]);
+  const twST = useMemo(() => getSellthrough(twSection2Data), [twSection2Data]);
+  const hkmcOldYoy = useMemo(() => getOldStockYoy(hkmcSection3Data), [hkmcSection3Data]);
+  const twOldYoy = useMemo(() => getOldStockYoy(twSection3Data), [twSection3Data]);
+
+  const isReady =
+    !!hkmcSection1Data?.total_subtotal &&
+    !!twSection1Data?.total_subtotal &&
+    !!hkmcSection2Data?.header &&
+    !!twSection2Data?.header &&
+    !!hkmcSection3Data?.header &&
+    !!twSection3Data?.header;
 
   useEffect(() => {
     if (!isReady) return;
+    const previousDate = lastDateRef.current;
+    lastDateRef.current = date;
 
-    const visibilityKey = getVisibilityKey(date);
+    if (previousDate !== null && previousDate !== date) {
+      setOpen(true);
+      return;
+    }
+
     const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
-    setOpen(hiddenOn !== visibilityKey);
-    setVisibilityChecked(true);
+    setOpen(hiddenOn !== getVisibilityKey(date));
   }, [date, isReady]);
 
-  if (!open || !isReady) return null;
+  if (!open || !isReady || !currentDate) return null;
 
   const handleCloseForToday = () => {
     window.localStorage.setItem(STORAGE_KEY, getVisibilityKey(date));
     setOpen(false);
   };
 
+  type Row = {
+    key: string;
+    label: string;
+    sub: string;
+    hkmc: string;
+    tw: string;
+    hkmcSig: Signal;
+    twSig: Signal;
+    hkmcSub?: string;
+    twSub?: string;
+  };
+
+  const rows: Row[] = [
+    {
+      key: 'sales',
+      label: 'Sales YoY',
+      sub: 'Last 7 days',
+      hkmc: fmtPct(hkmcSales.recent7d),
+      tw: fmtPct(twSales.recent7d),
+      hkmcSig: salesSig(hkmcSales.recent7d),
+      twSig: salesSig(twSales.recent7d),
+      hkmcSub: `MTD ${fmtPct(hkmcSales.mtd)}`,
+      twSub: `MTD ${fmtPct(twSales.mtd)}`,
+    },
+    {
+      key: 'discount',
+      label: 'Discount Rate',
+      sub: 'YoY change',
+      hkmc: fmtPp(hkmcDiscDiff),
+      tw: fmtPp(twDiscDiff),
+      hkmcSig: discountSig(hkmcDiscDiff),
+      twSig: discountSig(twDiscDiff),
+    },
+    {
+      key: 'sellthrough',
+      label: 'In-Season Sell-through',
+      sub: `vs ${progress !== null ? progress.toFixed(0) : '-'}% season elapsed`,
+      hkmc: fmtPct(hkmcST, 1),
+      tw: fmtPct(twST, 1),
+      hkmcSig: sellthroughSig(hkmcST, progress),
+      twSig: sellthroughSig(twST, progress),
+    },
+    {
+      key: 'oldstock',
+      label: 'Old-Season Balance',
+      sub: 'YoY',
+      hkmc: fmtPct(hkmcOldYoy),
+      tw: fmtPct(twOldYoy),
+      hkmcSig: oldStockSig(hkmcOldYoy),
+      twSig: oldStockSig(twOldYoy),
+    },
+  ];
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-4">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pb-3 pt-4">
+        <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div>
-            <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
-            <h2 className="mt-0.5 text-lg font-bold text-gray-900">{labels.title}</h2>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">{brand === 'M' ? 'MLB' : brand}</p>
-            <p className="mt-0.5 text-xs text-gray-400">{labels.asOf}</p>
+            <p className="text-[10px] font-bold tracking-[0.15em] text-emerald-600">DAILY BRIEF</p>
+            <h2 className="mt-0.5 text-base font-bold text-gray-900">{fmtMonthDay(currentDate)}</h2>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400">{brand === 'M' ? 'MLB' : brand}</p>
           </div>
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="팝업 닫기"
-            className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Close"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
-        {/* Table */}
-        <div className="px-5 pb-4">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="pb-2.5 text-left text-[11px] font-semibold text-gray-400">Metric</th>
-                <th className="pb-2.5 w-[76px]">
-                  <div className="ml-auto w-fit rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-200/60">HKMC</div>
-                </th>
-                <th className="pb-2.5 w-[76px]">
-                  <div className="ml-auto w-fit rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200/60">TW</div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.key} className={i < rows.length - 1 ? 'border-b border-gray-50' : ''}>
-                  <td className="py-2.5 pr-3">
-                    <div className="text-[13px] font-semibold text-gray-800 leading-tight">{row.metric}</div>
-                    <div className="text-[11px] text-gray-400 leading-snug">{row.period}</div>
-                  </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${toneClass(row.hkmcValue)}`}>
-                    {formatYoy(row.hkmcValue)}
-                  </td>
-                  <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${toneClass(row.twValue)}`}>
-                    {formatYoy(row.twValue)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Column Headers */}
+        <div className="grid grid-cols-[1fr_64px_64px] items-end gap-1 px-5 pb-1.5">
+          <div />
+          <div className="text-center">
+            <span className="inline-block rounded-full bg-blue-50 px-2 py-px text-[10px] font-bold text-blue-700 ring-1 ring-blue-200/60">HKMC</span>
+          </div>
+          <div className="text-center">
+            <span className="inline-block rounded-full bg-violet-50 px-2 py-px text-[10px] font-bold text-violet-700 ring-1 ring-violet-200/60">TW</span>
+          </div>
+        </div>
+
+        {/* Rows */}
+        <div className="px-4 pb-3 space-y-0.5">
+          {rows.map((row) => (
+            <div key={row.key} className="grid grid-cols-[1fr_64px_64px] items-center gap-1 rounded-lg px-1.5 py-2">
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-gray-800 leading-tight">{row.label}</div>
+                <div className="text-[10px] text-gray-400 leading-snug">{row.sub}</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${sigDot(row.hkmcSig)}`} />
+                  <span className={`text-[17px] font-bold tabular-nums leading-none ${sigColor(row.hkmcSig)}`}>{row.hkmc}</span>
+                </div>
+                {row.hkmcSub && <div className="text-[9px] text-gray-400 mt-0.5">{row.hkmcSub}</div>}
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${sigDot(row.twSig)}`} />
+                  <span className={`text-[17px] font-bold tabular-nums leading-none ${sigColor(row.twSig)}`}>{row.tw}</span>
+                </div>
+                {row.twSub && <div className="text-[9px] text-gray-400 mt-0.5">{row.twSub}</div>}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-2.5">
           <button
             type="button"
             onClick={handleCloseForToday}
