@@ -6,6 +6,7 @@ type RegionSalesSnapshot = {
   daily_yoy: number | null;
   recent_7d_yoy: number | null;
   yoy: number | null;
+  projected_mtd_yoy: number | null;
   yoy_ytd: number | null;
 };
 
@@ -15,6 +16,7 @@ type MetricRow = {
   period: string;
   hkmcValue: number | null;
   twValue: number | null;
+  isProjected?: boolean;
 };
 
 interface EntrySalesYoyPopupProps {
@@ -76,6 +78,10 @@ function readRegionSnapshot(section1Data: any): RegionSalesSnapshot | null {
         ? total.recent_7d_yoy
         : null,
     yoy: typeof total.yoy === 'number' && Number.isFinite(total.yoy) ? total.yoy : null,
+    projected_mtd_yoy:
+      typeof total.projectedYoY === 'number' && Number.isFinite(total.projectedYoY)
+        ? total.projectedYoY
+        : null,
     yoy_ytd:
       typeof total.yoy_ytd === 'number' && Number.isFinite(total.yoy_ytd) ? total.yoy_ytd : null,
   };
@@ -101,6 +107,7 @@ function buildLabels(date: string) {
         { key: 'daily', metric: 'Daily YoY', period: '-' },
         { key: 'recent7d', metric: 'Last 7 Days YoY', period: '-' },
         { key: 'mtd', metric: 'MTD YoY', period: '-' },
+        { key: 'projectedMtd', metric: 'Projected MTD YoY', period: '-' },
         { key: 'ytd', metric: 'YTD YoY', period: '-' },
       ],
     };
@@ -127,6 +134,11 @@ function buildLabels(date: string) {
         key: 'mtd',
         metric: 'MTD YoY',
         period: `${MONTH_EN[currentDate.getMonth()]} 1 - ${formatMonthDay(currentDate)}`,
+      },
+      {
+        key: 'projectedMtd',
+        metric: 'Projected MTD YoY',
+        period: `Projected ${MONTH_EN[currentDate.getMonth()]} End`,
       },
       {
         key: 'ytd',
@@ -176,9 +188,17 @@ export default function EntrySalesYoyPopup({
         twValue: twSnapshot?.yoy ?? null,
       },
       {
-        key: 'ytd',
+        key: 'projectedMtd',
         metric: labels.rows[3].metric,
         period: labels.rows[3].period,
+        hkmcValue: hkmcSnapshot?.projected_mtd_yoy ?? null,
+        twValue: twSnapshot?.projected_mtd_yoy ?? null,
+        isProjected: true,
+      },
+      {
+        key: 'ytd',
+        metric: labels.rows[4].metric,
+        period: labels.rows[4].period,
         hkmcValue: hkmcSnapshot?.yoy_ytd ?? null,
         twValue: twSnapshot?.yoy_ytd ?? null,
       },
@@ -247,7 +267,14 @@ export default function EntrySalesYoyPopup({
               {rows.map((row, i) => (
                 <tr key={row.key} className={i < rows.length - 1 ? 'border-b border-gray-50' : ''}>
                   <td className="py-2.5 pr-3">
-                    <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
+                      {row.isProjected ? (
+                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700 ring-1 ring-amber-200/70">
+                          Forecast
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
                   </td>
                   <td className={`py-2.5 text-right text-xl font-bold tabular-nums ${toneClass(row.hkmcValue)}`}>

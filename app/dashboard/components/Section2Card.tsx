@@ -190,7 +190,7 @@ export default function Section2Card({
   }, [section2Data, periodView]);
 
   return (
-    <article className={`${fixedHeight ? 'h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+    <article className={`${fixedHeight ? 'sm:h-[452px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
           <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
@@ -222,7 +222,7 @@ export default function Section2Card({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         <div className="min-w-0 space-y-2 rounded-xl border border-green-100 bg-gradient-to-br from-green-50 to-emerald-50 p-2.5 sm:p-3">
           <p className="text-xs font-medium text-gray-600">{getMetricLabel('sellthrough')}</p>
           <p className={`${compactMainMetric ? 'text-xl sm:text-2xl' : 'text-[2rem] sm:text-4xl'} font-bold leading-tight tabular-nums text-gray-900`}>{sellthrough.toFixed(1)}%</p>
@@ -284,8 +284,8 @@ export default function Section2Card({
 
       {showCategoryRanking && categoryRankingCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-medium text-gray-600">
                 {language === 'ko'
                   ? `당시즌${season ? `(${season}) ` : ' '}카테고리별 택매출`

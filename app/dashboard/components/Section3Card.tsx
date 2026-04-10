@@ -917,6 +917,11 @@ export default function Section3Card({
             {t(language, 'section3Title')}
             {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
           </h3>
+          {!simpleDetail && bottomCards.length > 0 && (
+            <p className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+              {language === 'ko' ? '카드를 누르면 재고 상세가 열립니다.' : 'Tap a card to open stock detail.'}
+            </p>
+          )}
         </div>
 
         <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">

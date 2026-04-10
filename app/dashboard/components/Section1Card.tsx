@@ -683,6 +683,11 @@ export default function Section1Card({
             )}
           </div>
           <p className="mt-0.5 text-xs text-gray-500">{t(language, 'section1Subtitle')}</p>
+          {!simpleDetail && detailCards.length > 0 && (
+            <p className="mt-1 inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+              {language === 'ko' ? '카드를 누르면 상세 내역이 열립니다.' : 'Tap a card to open detail.'}
+            </p>
+          )}
         </div>
 
         {onYtdModeToggle && (
