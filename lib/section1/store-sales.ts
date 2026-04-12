@@ -554,7 +554,6 @@ export async function fetchSection1StoreSales({
   const dailyTrendRows = await executeSnowflakeQuery(
     `
       SELECT
-        LOCAL_SHOP_CD AS shop_cd,
         TO_DATE(SALE_DT) AS sale_dt,
         SUM(ACT_SALE_AMT) AS sales_amt
       FROM SAP_FNF.DW_HMD_SALE_D
@@ -565,8 +564,8 @@ export async function fetchSection1StoreSales({
           TO_DATE(SALE_DT) BETWEEN TO_DATE(?) AND TO_DATE(?)
           OR TO_DATE(SALE_DT) BETWEEN TO_DATE(?) AND TO_DATE(?)
         )
-      GROUP BY LOCAL_SHOP_CD, TO_DATE(SALE_DT)
-      ORDER BY LOCAL_SHOP_CD, TO_DATE(SALE_DT)
+      GROUP BY TO_DATE(SALE_DT)
+      ORDER BY TO_DATE(SALE_DT)
     `,
     [brand, trendStartDateString, resolvedDate, previousYearTrendStartDateString, previousYearDateString]
   );
@@ -656,70 +655,45 @@ export async function fetchSection1StoreSales({
   });
 
   const dailyTrendMap = new Map<string, number>();
-  const dailyTrendStoreMap = new Map<string, number>();
 
   dailyTrendRows.forEach((row: any) => {
-    const shopCd = String(row.SHOP_CD || row.shop_cd || '');
     const rawSaleDate = row.SALE_DT;
     const parsedDate = rawSaleDate instanceof Date ? rawSaleDate : new Date(rawSaleDate);
     if (Number.isNaN(parsedDate.getTime())) return;
 
     const amount = applyExchangeRate(parseFloat(row.SALES_AMT || 0));
-    const dateKey = formatDateToYmd(parsedDate);
-    dailyTrendMap.set(dateKey, (dailyTrendMap.get(dateKey) || 0) + amount);
-    if (shopCd) {
-      dailyTrendStoreMap.set(`${shopCd}:${dateKey}`, amount);
-    }
+    dailyTrendMap.set(formatDateToYmd(parsedDate), amount);
   });
 
+  let cumulativeCurrentSales = 0;
+  let cumulativeLySales = 0;
   const trendDays =
     Math.floor((asofDate.getTime() - trendStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
 
-  const buildDailyYoyTrend = (shopCodes: string[]) => {
-    let cumulativeCurrentSales = 0;
-    let cumulativeLySales = 0;
+  const daily_yoy_trend = Array.from({ length: trendDays }, (_, index) => {
+    const currentDate = addDays(trendStartDate, index);
+    const currentDateKey = formatDateToYmd(currentDate);
+    const comparableDate = shiftYears(currentDate, -1);
+    const comparableDateKey = formatDateToYmd(comparableDate);
+    const currentSales = dailyTrendMap.get(currentDateKey) || 0;
+    const lySales = dailyTrendMap.get(comparableDateKey) || 0;
+    const isYtdDate = currentDate.getFullYear() === year;
 
-    return Array.from({ length: trendDays }, (_, index) => {
-      const currentDate = addDays(trendStartDate, index);
-      const currentDateKey = formatDateToYmd(currentDate);
-      const comparableDate = shiftYears(currentDate, -1);
-      const comparableDateKey = formatDateToYmd(comparableDate);
-      const currentSales = shopCodes.reduce(
-        (sum, shopCd) => sum + (dailyTrendStoreMap.get(`${shopCd}:${currentDateKey}`) || 0),
-        0
-      );
-      const lySales = shopCodes.reduce(
-        (sum, shopCd) => sum + (dailyTrendStoreMap.get(`${shopCd}:${comparableDateKey}`) || 0),
-        0
-      );
-      const isYtdDate = currentDate.getFullYear() === year;
-
-      if (isYtdDate) {
-        cumulativeCurrentSales += currentSales;
-        cumulativeLySales += lySales;
-      }
-
-      return {
-        date: currentDateKey,
-        label: `${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
-        yoy: isYtdDate && cumulativeLySales > 0 ? (cumulativeCurrentSales / cumulativeLySales) * 100 : null,
-        sales_act: isYtdDate ? cumulativeCurrentSales : 0,
-        sales_act_ly: isYtdDate ? cumulativeLySales : 0,
-        daily_sales: currentSales,
-        daily_sales_ly: lySales,
-      };
-    });
-  };
-
-  const daily_yoy_trend = buildDailyYoyTrend(targetStores.map((store) => store.store_code));
-
-  const sumStoreSalesBetween = (shopCd: string, startDate: Date, endDate: Date) => {
-    let sum = 0;
-    for (let current = new Date(startDate); current <= endDate; current = addDays(current, 1)) {
-      sum += dailyTrendStoreMap.get(`${shopCd}:${formatDateToYmd(current)}`) || 0;
+    if (isYtdDate) {
+      cumulativeCurrentSales += currentSales;
+      cumulativeLySales += lySales;
     }
-    return sum;
-  };
+
+    return {
+      date: currentDateKey,
+      label: `${currentDate.getMonth() + 1}/${currentDate.getDate()}`,
+      yoy: isYtdDate && cumulativeLySales > 0 ? (cumulativeCurrentSales / cumulativeLySales) * 100 : null,
+      sales_act: isYtdDate ? cumulativeCurrentSales : 0,
+      sales_act_ly: isYtdDate ? cumulativeLySales : 0,
+      daily_sales: currentSales,
+      daily_sales_ly: lySales,
+    };
+  });
 
   dailyComparableRows.forEach((row: any) => {
     const shopCd = String(row.SHOP_CD || '');
@@ -859,7 +833,6 @@ export async function fetchSection1StoreSales({
       recent_7d_act_py,
       recent_7d_yoy,
       monthEndProjection,
-      current_month_full_py: currentMonthFullPy,
       projected_progress,
       projectedYoY,
       discount_rate_mtd,
@@ -1212,36 +1185,6 @@ export async function fetchSection1StoreSales({
     total_subtotal = calculateSubtotal(all_stores, 'HKMC 전체', 'HKMC', '전체');
   }
 
-  const getSameStoreTrendShopCodes = (window: 'all' | '120d' | '30d' | '7d') => {
-    if (window === 'all') {
-      return all_stores
-        .filter((store: any) => Number(store?.ytd_act || 0) > 0 && Number(store?.ytd_act_py || 0) > 0)
-        .map((store: any) => String(store.shop_cd || ''))
-        .filter(Boolean);
-    }
-
-    const days = window === '7d' ? 7 : window === '30d' ? 30 : 120;
-    const currentStartDate = addDays(asofDate, -(days - 1));
-    const previousStartDate = shiftYears(currentStartDate, -1);
-    const previousEndDate = shiftYears(asofDate, -1);
-
-    return all_stores
-      .filter((store: any) => {
-        const shopCd = String(store?.shop_cd || '');
-        if (!shopCd) return false;
-        const currentWindowSales = sumStoreSalesBetween(shopCd, currentStartDate, asofDate);
-        const previousWindowSales = sumStoreSalesBetween(shopCd, previousStartDate, previousEndDate);
-        return currentWindowSales > 0 && previousWindowSales > 0;
-      })
-      .map((store: any) => String(store.shop_cd || ''))
-      .filter(Boolean);
-  };
-
-  const same_store_daily_yoy_trend = buildDailyYoyTrend(getSameStoreTrendShopCodes('all'));
-  const same_store_daily_yoy_trend_120d = buildDailyYoyTrend(getSameStoreTrendShopCodes('120d'));
-  const same_store_daily_yoy_trend_30d = buildDailyYoyTrend(getSameStoreTrendShopCodes('30d'));
-  const same_store_daily_yoy_trend_7d = buildDailyYoyTrend(getSameStoreTrendShopCodes('7d'));
-
   const seasonCategoryQuery = `
     SELECT
       SESN AS sesn,
@@ -1508,10 +1451,6 @@ export async function fetchSection1StoreSales({
 
   if (total_subtotal) {
     (total_subtotal as any).daily_yoy_trend = daily_yoy_trend;
-    (total_subtotal as any).same_store_daily_yoy_trend = same_store_daily_yoy_trend;
-    (total_subtotal as any).same_store_daily_yoy_trend_120d = same_store_daily_yoy_trend_120d;
-    (total_subtotal as any).same_store_daily_yoy_trend_30d = same_store_daily_yoy_trend_30d;
-    (total_subtotal as any).same_store_daily_yoy_trend_7d = same_store_daily_yoy_trend_7d;
     (total_subtotal as any).daily_yoy_trend_basis = 'rolling_daily_with_ytd';
   }
 

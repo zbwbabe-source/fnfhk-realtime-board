@@ -50,13 +50,6 @@ function isLegacySnapshotPayload(payload: any): boolean {
     total.ytd_projection_basis !== 'current_month_end' ||
     typeof total.daily_yoy === 'undefined' ||
     !Array.isArray(total.daily_yoy_trend) ||
-    typeof total.same_store_daily_yoy === 'undefined' ||
-    typeof total.same_store_recent_7d_yoy === 'undefined' ||
-    typeof total.same_store_projected_yoy === 'undefined' ||
-    !Array.isArray(total.same_store_daily_yoy_trend) ||
-    !Array.isArray(total.same_store_daily_yoy_trend_120d) ||
-    !Array.isArray(total.same_store_daily_yoy_trend_30d) ||
-    !Array.isArray(total.same_store_daily_yoy_trend_7d) ||
     total.daily_yoy_trend_basis !== 'rolling_daily_with_ytd' ||
     typeof total.recent_7d_yoy === 'undefined' ||
     typeof total.forecast_source === 'undefined' ||

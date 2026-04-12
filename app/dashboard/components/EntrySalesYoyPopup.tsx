@@ -303,6 +303,9 @@ export default function EntrySalesYoyPopup({
   const [open, setOpen] = useState(false);
   const [yoyBasis, setYoyBasis] = useState<'sameStore' | 'overall'>('overall');
   const [trendWindow, setTrendWindow] = useState<'all' | '120d' | '30d' | '7d'>('all');
+  const [sameStoreTrendRows, setSameStoreTrendRows] = useState<
+    Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
+  >([]);
   const [activeTrendPoint, setActiveTrendPoint] = useState<{
     label: string;
     hkmcYoy: number | null;
@@ -377,29 +380,77 @@ export default function EntrySalesYoyPopup({
     [rows]
   );
 
+  useEffect(() => {
+    if (!open || yoyBasis !== 'sameStore') {
+      setSameStoreTrendRows([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchRegionTrend = async (region: 'HKMC' | 'TW') => {
+      const query = new URLSearchParams({
+        region,
+        brand,
+        date,
+        window: trendWindow,
+      });
+      const response = await fetch(`/api/section1/same-store-yoy-trend?${query.toString()}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Failed to load ${region} same-store trend`);
+      return response.json();
+    };
+
+    const load = async () => {
+      try {
+        const [hkmcResult, twResult] = await Promise.all([fetchRegionTrend('HKMC'), fetchRegionTrend('TW')]);
+        if (cancelled) return;
+
+        const twMap = new Map(
+          Array.isArray(twResult?.rows) ? twResult.rows.map((row: any) => [String(row.label || ''), row]) : []
+        );
+        const mergedRows = Array.isArray(hkmcResult?.rows)
+          ? hkmcResult.rows.map((row: any) => {
+              const twRow: any = twMap.get(String(row.label || ''));
+              return {
+                label: String(row.label || ''),
+                hkmcYoy: typeof row?.yoy === 'number' ? row.yoy : null,
+                twYoy: typeof twRow?.yoy === 'number' ? twRow.yoy : null,
+              };
+            })
+          : [];
+        setSameStoreTrendRows(mergedRows);
+      } catch {
+        if (!cancelled) {
+          setSameStoreTrendRows([]);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, yoyBasis, trendWindow, brand, date]);
+
   const trendRows = useMemo(() => {
+    if (yoyBasis === 'sameStore') {
+      return sameStoreTrendRows.map((row) => ({
+        date: row.label,
+        label: row.label,
+        hkmcYtdYoy: row.hkmcYoy,
+        hkmcDailySales: 0,
+        hkmcDailySalesLy: 0,
+        twYtdYoy: row.twYoy,
+        twDailySales: 0,
+        twDailySalesLy: 0,
+      }));
+    }
+
     const hkmcTrend =
-      yoyBasis === 'sameStore'
-        ? trendWindow === '7d'
-          ? hkmcSnapshot?.same_store_daily_yoy_trend_7d || []
-          : trendWindow === '30d'
-            ? hkmcSnapshot?.same_store_daily_yoy_trend_30d || []
-            : trendWindow === '120d'
-              ? hkmcSnapshot?.same_store_daily_yoy_trend_120d || []
-              : hkmcSnapshot?.same_store_daily_yoy_trend || []
-        : hkmcSnapshot?.daily_yoy_trend || [];
+      hkmcSnapshot?.daily_yoy_trend || [];
     const twTrendMap = new Map(
-      (
-        yoyBasis === 'sameStore'
-          ? trendWindow === '7d'
-            ? twSnapshot?.same_store_daily_yoy_trend_7d || []
-            : trendWindow === '30d'
-              ? twSnapshot?.same_store_daily_yoy_trend_30d || []
-              : trendWindow === '120d'
-                ? twSnapshot?.same_store_daily_yoy_trend_120d || []
-                : twSnapshot?.same_store_daily_yoy_trend || []
-          : twSnapshot?.daily_yoy_trend || []
-      ).map((item) => [item.date, item])
+      (twSnapshot?.daily_yoy_trend || []).map((item) => [item.date, item])
     );
 
     return hkmcTrend.map((item) => {
@@ -415,9 +466,17 @@ export default function EntrySalesYoyPopup({
         twDailySalesLy: twItem?.daily_sales_ly ?? 0,
       };
     });
-  }, [hkmcSnapshot, twSnapshot, yoyBasis, trendWindow]);
+  }, [hkmcSnapshot, twSnapshot, yoyBasis, sameStoreTrendRows]);
   const visibleTrendRows = useMemo(() => {
     if (trendRows.length === 0) return [];
+
+    if (yoyBasis === 'sameStore') {
+      return trendRows.map((row) => ({
+        label: row.label,
+        hkmcYoy: row.hkmcYtdYoy ?? null,
+        twYoy: row.twYtdYoy ?? null,
+      }));
+    }
 
     if (trendWindow === 'all') {
       const parsedAsOfDate = parseLocalDate(date);
@@ -450,7 +509,7 @@ export default function EntrySalesYoyPopup({
         twYoy: twWindowSalesLy > 0 ? (twWindowSales / twWindowSalesLy) * 100 : null,
       };
     });
-  }, [date, trendRows, trendWindow]);
+  }, [date, trendRows, trendWindow, yoyBasis]);
   const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
 
   useEffect(() => {
