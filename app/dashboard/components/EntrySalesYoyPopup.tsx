@@ -227,7 +227,11 @@ export default function EntrySalesYoyPopup({
     hkmcYoy: number | null;
     twYoy: number | null;
   } | null>(null);
-  const [activeTrendPosition, setActiveTrendPosition] = useState<{ x: number; y: number } | null>(null);
+  const [activeTrendPosition, setActiveTrendPosition] = useState<{
+    x: number;
+    y: number;
+    placement: 'above' | 'below';
+  } | null>(null);
   const lastDateRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
 
@@ -496,7 +500,8 @@ export default function EntrySalesYoyPopup({
                   </div>
                 </div>
               </div>
-              <div className="h-56 w-full sm:h-52">
+              <div className="relative w-full">
+                <div className="h-56 w-full sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={visibleTrendRows}
@@ -525,6 +530,7 @@ export default function EntrySalesYoyPopup({
                         setActiveTrendPosition({
                           x: state.activeCoordinate.x,
                           y: state.activeCoordinate.y,
+                          placement: state.activeCoordinate.y > 92 ? 'above' : 'below',
                         });
                       }
                     }}
@@ -575,24 +581,31 @@ export default function EntrySalesYoyPopup({
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-              {activeTrendPoint ? (
-                <div
-                  className="pointer-events-none absolute rounded-2xl border border-gray-200 bg-white/95 px-3 py-2 text-[12px] shadow-lg backdrop-blur-sm transition-[left,top] duration-75"
-                  style={
-                    activeTrendPosition
-                      ? {
-                          left: `min(calc(100% - 132px), ${Math.max(12, activeTrendPosition.x + 18)}px)`,
-                          top: `${Math.max(72, activeTrendPosition.y + 18)}px`,
-                        }
-                      : { right: '16px', top: '94px' }
-                  }
-                >
-                  <p className="font-semibold text-gray-800">Date {activeTrendPoint.label}</p>
-                  <p className={`mt-1 ${HKMC_ACCENT.softText}`}>hkmcYoy : {formatTrendTooltipValue(activeTrendPoint.hkmcYoy)}</p>
-                  <p className={`mt-0.5 ${TW_ACCENT.softText}`}>twYoy : {formatTrendTooltipValue(activeTrendPoint.twYoy)}</p>
                 </div>
-              ) : null}
+                {activeTrendPoint ? (
+                  <div
+                    className={`pointer-events-none absolute z-10 -translate-x-1/2 ${
+                      activeTrendPosition?.placement === 'below' ? 'translate-y-0' : '-translate-y-full'
+                    }`}
+                    style={{
+                      left: activeTrendPosition
+                        ? `clamp(76px, ${activeTrendPosition.x}px, calc(100% - 76px))`
+                        : 'calc(100% - 76px)',
+                      top: activeTrendPosition
+                        ? activeTrendPosition.placement === 'below'
+                          ? `${Math.min(160, activeTrendPosition.y + 12)}px`
+                          : `${Math.max(46, activeTrendPosition.y - 12)}px`
+                        : '56px',
+                    }}
+                  >
+                    <div className="inline-flex min-w-[132px] flex-col rounded-2xl border border-white/60 bg-white/68 px-3 py-2 text-[12px] shadow-lg backdrop-blur-[3px]">
+                      <p className="font-semibold text-gray-800">Date {activeTrendPoint.label}</p>
+                      <p className={`mt-1 ${HKMC_ACCENT.softText}`}>hkmcYoy : {formatTrendTooltipValue(activeTrendPoint.hkmcYoy)}</p>
+                      <p className={`mt-0.5 ${TW_ACCENT.softText}`}>twYoy : {formatTrendTooltipValue(activeTrendPoint.twYoy)}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
