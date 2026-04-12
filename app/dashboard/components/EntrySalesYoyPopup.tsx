@@ -5,11 +5,52 @@ import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YA
 
 type RegionSalesSnapshot = {
   daily_yoy: number | null;
+  same_store_daily_yoy: number | null;
   recent_7d_yoy: number | null;
+  same_store_recent_7d_yoy: number | null;
   yoy: number | null;
+  same_store_yoy: number | null;
   projected_mtd_yoy: number | null;
+  same_store_projected_yoy: number | null;
   yoy_ytd: number | null;
+  same_store_yoy_ytd: number | null;
   daily_yoy_trend: Array<{
+    date: string;
+    label: string;
+    yoy: number | null;
+    sales_act: number;
+    sales_act_ly: number;
+    daily_sales?: number;
+    daily_sales_ly?: number;
+  }>;
+  same_store_daily_yoy_trend: Array<{
+    date: string;
+    label: string;
+    yoy: number | null;
+    sales_act: number;
+    sales_act_ly: number;
+    daily_sales?: number;
+    daily_sales_ly?: number;
+  }>;
+  same_store_daily_yoy_trend_120d: Array<{
+    date: string;
+    label: string;
+    yoy: number | null;
+    sales_act: number;
+    sales_act_ly: number;
+    daily_sales?: number;
+    daily_sales_ly?: number;
+  }>;
+  same_store_daily_yoy_trend_30d: Array<{
+    date: string;
+    label: string;
+    yoy: number | null;
+    sales_act: number;
+    sales_act_ly: number;
+    daily_sales?: number;
+    daily_sales_ly?: number;
+  }>;
+  same_store_daily_yoy_trend_7d: Array<{
     date: string;
     label: string;
     yoy: number | null;
@@ -91,18 +132,50 @@ function readRegionSnapshot(section1Data: any): RegionSalesSnapshot | null {
   return {
     daily_yoy:
       typeof total.daily_yoy === 'number' && Number.isFinite(total.daily_yoy) ? total.daily_yoy : null,
+    same_store_daily_yoy:
+      typeof total.same_store_daily_yoy === 'number' && Number.isFinite(total.same_store_daily_yoy)
+        ? total.same_store_daily_yoy
+        : null,
     recent_7d_yoy:
       typeof total.recent_7d_yoy === 'number' && Number.isFinite(total.recent_7d_yoy)
         ? total.recent_7d_yoy
         : null,
+    same_store_recent_7d_yoy:
+      typeof total.same_store_recent_7d_yoy === 'number' && Number.isFinite(total.same_store_recent_7d_yoy)
+        ? total.same_store_recent_7d_yoy
+        : null,
     yoy: typeof total.yoy === 'number' && Number.isFinite(total.yoy) ? total.yoy : null,
+    same_store_yoy:
+      typeof total.same_store_yoy === 'number' && Number.isFinite(total.same_store_yoy)
+        ? total.same_store_yoy
+        : null,
     projected_mtd_yoy:
       typeof total.projectedYoY === 'number' && Number.isFinite(total.projectedYoY)
         ? total.projectedYoY
         : null,
+    same_store_projected_yoy:
+      typeof total.same_store_projected_yoy === 'number' && Number.isFinite(total.same_store_projected_yoy)
+        ? total.same_store_projected_yoy
+        : null,
     yoy_ytd:
       typeof total.yoy_ytd === 'number' && Number.isFinite(total.yoy_ytd) ? total.yoy_ytd : null,
+    same_store_yoy_ytd:
+      typeof total.same_store_yoy_ytd === 'number' && Number.isFinite(total.same_store_yoy_ytd)
+        ? total.same_store_yoy_ytd
+        : null,
     daily_yoy_trend: Array.isArray(total.daily_yoy_trend) ? total.daily_yoy_trend : [],
+    same_store_daily_yoy_trend: Array.isArray(total.same_store_daily_yoy_trend)
+      ? total.same_store_daily_yoy_trend
+      : [],
+    same_store_daily_yoy_trend_120d: Array.isArray(total.same_store_daily_yoy_trend_120d)
+      ? total.same_store_daily_yoy_trend_120d
+      : [],
+    same_store_daily_yoy_trend_30d: Array.isArray(total.same_store_daily_yoy_trend_30d)
+      ? total.same_store_daily_yoy_trend_30d
+      : [],
+    same_store_daily_yoy_trend_7d: Array.isArray(total.same_store_daily_yoy_trend_7d)
+      ? total.same_store_daily_yoy_trend_7d
+      : [],
   };
 }
 
@@ -159,6 +232,13 @@ function getTrendDescription(window: 'all' | '120d' | '30d' | '7d') {
     ko: '1/1부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
     en: 'Cumulative YoY from Jan 1 with 100% baseline',
   };
+}
+
+function getTrendTitle(window: 'all' | '120d' | '30d' | '7d') {
+  if (window === '120d') return '120 Days YoY Trend';
+  if (window === '30d') return '30 Days YoY Trend';
+  if (window === '7d') return '7 Days YoY Trend';
+  return 'YTD YoY Trend';
 }
 
 function buildLabels(date: string) {
@@ -221,6 +301,7 @@ export default function EntrySalesYoyPopup({
   twSection1Data,
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
+  const [yoyBasis, setYoyBasis] = useState<'sameStore' | 'overall'>('overall');
   const [trendWindow, setTrendWindow] = useState<'all' | '120d' | '30d' | '7d'>('all');
   const [activeTrendPoint, setActiveTrendPoint] = useState<{
     label: string;
@@ -239,6 +320,7 @@ export default function EntrySalesYoyPopup({
   const twSnapshot = useMemo(() => readRegionSnapshot(twSection1Data), [twSection1Data]);
   const labels = useMemo(() => buildLabels(date), [date]);
   const trendDescription = useMemo(() => getTrendDescription(trendWindow), [trendWindow]);
+  const trendTitle = useMemo(() => getTrendTitle(trendWindow), [trendWindow]);
   const isReady = !!hkmcSnapshot && !!twSnapshot;
 
   const rows = useMemo<MetricRow[]>(
@@ -247,40 +329,44 @@ export default function EntrySalesYoyPopup({
         key: 'daily',
         metric: labels.rows[0].metric,
         period: labels.rows[0].period,
-        hkmcValue: hkmcSnapshot?.daily_yoy ?? null,
-        twValue: twSnapshot?.daily_yoy ?? null,
+        hkmcValue: yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_daily_yoy ?? null : hkmcSnapshot?.daily_yoy ?? null,
+        twValue: yoyBasis === 'sameStore' ? twSnapshot?.same_store_daily_yoy ?? null : twSnapshot?.daily_yoy ?? null,
       },
       {
         key: 'recent7d',
         metric: labels.rows[1].metric,
         period: labels.rows[1].period,
-        hkmcValue: hkmcSnapshot?.recent_7d_yoy ?? null,
-        twValue: twSnapshot?.recent_7d_yoy ?? null,
+        hkmcValue:
+          yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_recent_7d_yoy ?? null : hkmcSnapshot?.recent_7d_yoy ?? null,
+        twValue:
+          yoyBasis === 'sameStore' ? twSnapshot?.same_store_recent_7d_yoy ?? null : twSnapshot?.recent_7d_yoy ?? null,
       },
       {
         key: 'mtd',
         metric: labels.rows[2].metric,
         period: labels.rows[2].period,
-        hkmcValue: hkmcSnapshot?.yoy ?? null,
-        twValue: twSnapshot?.yoy ?? null,
+        hkmcValue: yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_yoy ?? null : hkmcSnapshot?.yoy ?? null,
+        twValue: yoyBasis === 'sameStore' ? twSnapshot?.same_store_yoy ?? null : twSnapshot?.yoy ?? null,
       },
       {
         key: 'projectedMtd',
         metric: labels.rows[3].metric,
         period: labels.rows[3].period,
-        hkmcValue: hkmcSnapshot?.projected_mtd_yoy ?? null,
-        twValue: twSnapshot?.projected_mtd_yoy ?? null,
+        hkmcValue:
+          yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_projected_yoy ?? null : hkmcSnapshot?.projected_mtd_yoy ?? null,
+        twValue:
+          yoyBasis === 'sameStore' ? twSnapshot?.same_store_projected_yoy ?? null : twSnapshot?.projected_mtd_yoy ?? null,
         isProjected: true,
       },
       {
         key: 'ytd',
         metric: labels.rows[4].metric,
         period: labels.rows[4].period,
-        hkmcValue: hkmcSnapshot?.yoy_ytd ?? null,
-        twValue: twSnapshot?.yoy_ytd ?? null,
+        hkmcValue: yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_yoy_ytd ?? null : hkmcSnapshot?.yoy_ytd ?? null,
+        twValue: yoyBasis === 'sameStore' ? twSnapshot?.same_store_yoy_ytd ?? null : twSnapshot?.yoy_ytd ?? null,
       },
     ],
-    [hkmcSnapshot, twSnapshot, labels.rows]
+    [hkmcSnapshot, twSnapshot, labels.rows, yoyBasis]
   );
   const groupedRows = useMemo(
     () => [
@@ -292,8 +378,29 @@ export default function EntrySalesYoyPopup({
   );
 
   const trendRows = useMemo(() => {
-    const hkmcTrend = hkmcSnapshot?.daily_yoy_trend || [];
-    const twTrendMap = new Map((twSnapshot?.daily_yoy_trend || []).map((item) => [item.date, item]));
+    const hkmcTrend =
+      yoyBasis === 'sameStore'
+        ? trendWindow === '7d'
+          ? hkmcSnapshot?.same_store_daily_yoy_trend_7d || []
+          : trendWindow === '30d'
+            ? hkmcSnapshot?.same_store_daily_yoy_trend_30d || []
+            : trendWindow === '120d'
+              ? hkmcSnapshot?.same_store_daily_yoy_trend_120d || []
+              : hkmcSnapshot?.same_store_daily_yoy_trend || []
+        : hkmcSnapshot?.daily_yoy_trend || [];
+    const twTrendMap = new Map(
+      (
+        yoyBasis === 'sameStore'
+          ? trendWindow === '7d'
+            ? twSnapshot?.same_store_daily_yoy_trend_7d || []
+            : trendWindow === '30d'
+              ? twSnapshot?.same_store_daily_yoy_trend_30d || []
+              : trendWindow === '120d'
+                ? twSnapshot?.same_store_daily_yoy_trend_120d || []
+                : twSnapshot?.same_store_daily_yoy_trend || []
+          : twSnapshot?.daily_yoy_trend || []
+      ).map((item) => [item.date, item])
+    );
 
     return hkmcTrend.map((item) => {
       const twItem = twTrendMap.get(item.date);
@@ -308,7 +415,7 @@ export default function EntrySalesYoyPopup({
         twDailySalesLy: twItem?.daily_sales_ly ?? 0,
       };
     });
-  }, [hkmcSnapshot, twSnapshot]);
+  }, [hkmcSnapshot, twSnapshot, yoyBasis, trendWindow]);
   const visibleTrendRows = useMemo(() => {
     if (trendRows.length === 0) return [];
 
@@ -357,6 +464,7 @@ export default function EntrySalesYoyPopup({
 
     if (previousDate !== null && previousDate !== date) {
       setOpen(true);
+      setYoyBasis('overall');
       setTrendWindow('all');
     }
   }, [date]);
@@ -397,8 +505,34 @@ export default function EntrySalesYoyPopup({
         </div>
 
         <div className="px-4 pb-4">
+          <div className="mb-2 flex items-center justify-end">
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
+              <button
+                type="button"
+                onClick={() => setYoyBasis('overall')}
+                className={`px-3 py-1 transition-colors ${
+                  yoyBasis === 'overall' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Overall
+              </button>
+              <button
+                type="button"
+                onClick={() => setYoyBasis('sameStore')}
+                className={`border-l border-gray-200 px-3 py-1 transition-colors ${
+                  yoyBasis === 'sameStore' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Same Store
+              </button>
+            </div>
+          </div>
           <div className="mb-2.5 grid grid-cols-[minmax(0,1fr)_92px_92px] items-center gap-x-3 px-1">
-            <div className="text-left text-[11px] font-semibold text-gray-400">Metric</div>
+            <div className="text-left text-[11px] font-semibold text-gray-400">
+              Metric
+              <span className="ml-2 font-medium text-gray-300">|</span>
+              <span className="ml-2 font-medium text-gray-500">{yoyBasis === 'sameStore' ? '동매장 기준' : '전체 기준'}</span>
+            </div>
             <div className="flex h-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-bold text-gray-700 ring-1 ring-gray-300/70 sm:text-xl">HKMC</div>
             <div className="flex h-10 items-center justify-center rounded-xl bg-violet-50 text-lg font-bold text-violet-700 ring-1 ring-violet-200/60 sm:text-xl">TW</div>
           </div>
@@ -444,9 +578,12 @@ export default function EntrySalesYoyPopup({
             <div className="relative mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
               <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-[12px] font-semibold text-gray-800">
-                    {brand === 'M' ? 'YTD YoY Trend' : 'YTD YoY Trend'}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[12px] font-semibold text-gray-800">{trendTitle}</p>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600 ring-1 ring-gray-200">
+                      {yoyBasis === 'sameStore' ? '동매장 기준' : '전체 기준'}
+                    </span>
+                  </div>
                   <div className="space-y-0.5 text-[11px] leading-snug text-gray-400">
                     <p>{trendDescription.ko}</p>
                     <p>{trendDescription.en}</p>
