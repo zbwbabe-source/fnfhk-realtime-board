@@ -241,6 +241,12 @@ function getTrendTitle(window: 'all' | '120d' | '30d' | '7d') {
   return 'YTD YoY Trend';
 }
 
+function getTrendWindowForMetric(metricKey: string): 'all' | '30d' | '7d' {
+  if (metricKey === 'ytd') return 'all';
+  if (metricKey === 'mtd' || metricKey === 'projectedMtd') return '30d';
+  return '7d';
+}
+
 function buildLabels(date: string) {
   const currentDate = parseLocalDate(date);
 
@@ -544,8 +550,14 @@ export default function EntrySalesYoyPopup({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-3 sm:px-4">
-      <div className="relative w-full max-w-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-gray-950/50 px-3 sm:px-4"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        className="relative w-full max-w-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
@@ -600,10 +612,14 @@ export default function EntrySalesYoyPopup({
             {groupedRows.map((group) => (
               <div key={group.key} className="rounded-2xl bg-slate-50/85 px-3 py-1.5 ring-1 ring-slate-200/80">
                 {group.rows.map((row, index) => (
-                  <div
+                  <button
                     key={row.key}
-                    className={`grid grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 py-2 ${
+                    type="button"
+                    onClick={() => setTrendWindow(getTrendWindowForMetric(row.key))}
+                    className={`grid w-full grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 rounded-xl py-2 text-left transition-colors ${
                       index < group.rows.length - 1 ? 'border-b border-white/80' : ''
+                    } ${
+                      getTrendWindowForMetric(row.key) === trendWindow ? 'bg-white/65' : 'hover:bg-white/45'
                     }`}
                   >
                     <div className="pr-1">
@@ -627,7 +643,7 @@ export default function EntrySalesYoyPopup({
                         {formatYoy(row.twValue)}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ))}
