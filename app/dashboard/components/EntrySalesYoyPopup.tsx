@@ -282,6 +282,14 @@ export default function EntrySalesYoyPopup({
     ],
     [hkmcSnapshot, twSnapshot, labels.rows]
   );
+  const groupedRows = useMemo(
+    () => [
+      { key: 'dailyGroup', rows: rows.slice(0, 2) },
+      { key: 'mtdGroup', rows: rows.slice(2, 4) },
+      { key: 'ytdGroup', rows: rows.slice(4, 5) },
+    ],
+    [rows]
+  );
 
   const trendRows = useMemo(() => {
     const hkmcTrend = hkmcSnapshot?.daily_yoy_trend || [];
@@ -339,18 +347,7 @@ export default function EntrySalesYoyPopup({
   const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
 
   useEffect(() => {
-    const lastPoint = visibleTrendRows[visibleTrendRows.length - 1];
-    if (!lastPoint) {
-      setActiveTrendPoint(null);
-      setActiveTrendPosition(null);
-      return;
-    }
-
-    setActiveTrendPoint({
-      label: lastPoint.label,
-      hkmcYoy: lastPoint.hkmcYoy,
-      twYoy: lastPoint.twYoy,
-    });
+    setActiveTrendPoint(null);
     setActiveTrendPosition(null);
   }, [visibleTrendRows]);
 
@@ -400,42 +397,48 @@ export default function EntrySalesYoyPopup({
         </div>
 
         <div className="px-4 pb-4">
-          <table className="w-full table-auto border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="pb-2.5 text-left text-[11px] font-semibold text-gray-400">Metric</th>
-                <th className="w-[1%] pb-2.5 whitespace-nowrap">
-                  <div className="ml-auto w-fit rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-bold text-gray-700 ring-1 ring-gray-300/70">HKMC</div>
-                </th>
-                <th className="w-[1%] pb-2.5 whitespace-nowrap">
-                  <div className="ml-auto w-fit rounded-full bg-violet-50 px-2.5 py-0.5 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200/60">TW</div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.key} className={i < rows.length - 1 ? 'border-b border-gray-50' : ''}>
-                  <td className="py-2.5 pr-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
-                      {row.isProjected ? (
-                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700 ring-1 ring-amber-200/70">
-                          Forecast
-                        </span>
-                      ) : null}
+          <div className="mb-2.5 grid grid-cols-[minmax(0,1fr)_92px_92px] items-center gap-x-3 px-1">
+            <div className="text-left text-[11px] font-semibold text-gray-400">Metric</div>
+            <div className="flex h-10 items-center justify-center rounded-xl bg-gray-100 text-lg font-bold text-gray-700 ring-1 ring-gray-300/70 sm:text-xl">HKMC</div>
+            <div className="flex h-10 items-center justify-center rounded-xl bg-violet-50 text-lg font-bold text-violet-700 ring-1 ring-violet-200/60 sm:text-xl">TW</div>
+          </div>
+
+          <div className="space-y-2.5">
+            {groupedRows.map((group) => (
+              <div key={group.key} className="rounded-2xl bg-slate-50/85 px-3 py-1.5 ring-1 ring-slate-200/80">
+                {group.rows.map((row, index) => (
+                  <div
+                    key={row.key}
+                    className={`grid grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 py-2 ${
+                      index < group.rows.length - 1 ? 'border-b border-white/80' : ''
+                    }`}
+                  >
+                    <div className="pr-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
+                        {row.isProjected ? (
+                          <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700 ring-1 ring-amber-200/70">
+                            Forecast
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
                     </div>
-                    <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
-                  </td>
-                  <td className={`w-[1%] whitespace-nowrap py-2.5 pl-2 text-right text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {formatYoy(row.hkmcValue)}
-                  </td>
-                  <td className={`w-[1%] whitespace-nowrap py-2.5 pl-2 text-right text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {formatYoy(row.twValue)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="flex items-center justify-center rounded-xl bg-white/85 ring-1 ring-slate-200/80">
+                      <div className={`whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {formatYoy(row.hkmcValue)}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center rounded-xl bg-violet-50/55 ring-1 ring-violet-100">
+                      <div className={`whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {formatYoy(row.twValue)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
 
           {trendRows.length > 0 ? (
             <div className="relative mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-white px-3 py-3">
@@ -535,13 +538,7 @@ export default function EntrySalesYoyPopup({
                       }
                     }}
                     onMouseLeave={() => {
-                      const lastPoint = visibleTrendRows[visibleTrendRows.length - 1];
-                      if (!lastPoint) return;
-                      setActiveTrendPoint({
-                        label: lastPoint.label,
-                        hkmcYoy: lastPoint.hkmcYoy,
-                        twYoy: lastPoint.twYoy,
-                      });
+                      setActiveTrendPoint(null);
                       setActiveTrendPosition(null);
                     }}
                   >
@@ -582,20 +579,17 @@ export default function EntrySalesYoyPopup({
                   </LineChart>
                 </ResponsiveContainer>
                 </div>
-                {activeTrendPoint ? (
+                {activeTrendPoint && activeTrendPosition ? (
                   <div
                     className={`pointer-events-none absolute z-10 -translate-x-1/2 ${
                       activeTrendPosition?.placement === 'below' ? 'translate-y-0' : '-translate-y-full'
                     }`}
                     style={{
-                      left: activeTrendPosition
-                        ? `clamp(76px, ${activeTrendPosition.x}px, calc(100% - 76px))`
-                        : 'calc(100% - 76px)',
-                      top: activeTrendPosition
-                        ? activeTrendPosition.placement === 'below'
-                          ? `${Math.min(160, activeTrendPosition.y + 12)}px`
-                          : `${Math.max(46, activeTrendPosition.y - 12)}px`
-                        : '56px',
+                      left: `clamp(76px, ${activeTrendPosition.x}px, calc(100% - 76px))`,
+                      top:
+                        activeTrendPosition.placement === 'below'
+                          ? `${Math.min(170, activeTrendPosition.y + 22)}px`
+                          : `${Math.max(28, activeTrendPosition.y - 18)}px`,
                     }}
                   >
                     <div className="inline-flex min-w-[132px] flex-col rounded-2xl border border-white/60 bg-white/68 px-3 py-2 text-[12px] shadow-lg backdrop-blur-[3px]">
