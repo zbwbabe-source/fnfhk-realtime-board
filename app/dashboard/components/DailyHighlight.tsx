@@ -297,10 +297,10 @@ export default function DailyHighlight({
   }, [inputPayload, date, brand, isInsightInputReady]);
 
   const toneClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
-    if (tone === 'positive') return 'text-emerald-700 bg-emerald-50';
-    if (tone === 'warning') return 'text-amber-700 bg-amber-50';
-    if (tone === 'critical') return 'text-rose-700 bg-rose-50';
-    return 'text-gray-600 bg-gray-100';
+    if (tone === 'positive') return 'text-gray-700 bg-gray-200';
+    if (tone === 'warning') return 'text-gray-700 bg-gray-200';
+    if (tone === 'critical') return 'text-gray-700 bg-gray-200';
+    return 'text-gray-700 bg-gray-200';
   };
 
   const toneTextClass = (tone: ExecutiveInsightResponse['blocks'][number]['tone']) => {
@@ -311,9 +311,9 @@ export default function DailyHighlight({
   };
 
   const insightBlockContainerClass = (id: ExecutiveInsightResponse['blocks'][number]['id']) => {
-    if (id === 'sales') return 'border-rose-100 bg-rose-50/70';
-    if (id === 'season') return 'border-amber-100 bg-amber-50/70';
-    return 'border-teal-100 bg-teal-50/70';
+    if (id === 'sales') return 'border-gray-200 bg-gray-50';
+    if (id === 'season') return 'border-gray-200 bg-gray-50';
+    return 'border-gray-200 bg-gray-50';
   };
   const salesYoyClass = (value: number) => (value >= 100 ? 'text-emerald-600' : 'text-rose-600');
   const oldBalanceYoyClass = (value: number) => (value < 100 ? 'text-emerald-600' : 'text-rose-600');
