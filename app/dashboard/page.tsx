@@ -962,6 +962,11 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-100 bg-white/95 backdrop-blur">
+        <div className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-center text-[11px] font-medium text-amber-800 md:hidden">
+          {language === 'ko'
+            ? '모바일에서는 가로화면으로 확인해주세요.'
+            : 'Please view in landscape mode on mobile.'}
+        </div>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -981,7 +986,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => setDetailExportDataType('sales')}
                       className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                        detailExportDataType === 'sales' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        detailExportDataType === 'sales' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       {language === 'ko' ? '매출데이터 저장' : 'Sales Export'}
@@ -989,7 +994,7 @@ export default function DashboardPage() {
                     <button
                       onClick={() => setDetailExportDataType('inventory')}
                       className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                        detailExportDataType === 'inventory' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        detailExportDataType === 'inventory' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       {language === 'ko' ? '재고데이터 저장' : 'Inventory Export'}
@@ -1000,7 +1005,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => setDetailExportMode('mtd')}
                         className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                          detailExportMode === 'mtd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                          detailExportMode === 'mtd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                         }`}
                       >
                         MTD
@@ -1008,7 +1013,7 @@ export default function DashboardPage() {
                       <button
                         onClick={() => setDetailExportMode('ytd')}
                         className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
-                          detailExportMode === 'ytd' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                          detailExportMode === 'ytd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                         }`}
                       >
                         YTD
@@ -1048,7 +1053,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setLanguage('ko')}
                   className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    language === 'ko' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                    language === 'ko' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   KR
@@ -1056,7 +1061,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setLanguage('en')}
                   className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors ${
-                    language === 'en' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                    language === 'en' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   EN
@@ -1118,7 +1123,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setTwCurrency('HKD')}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
-                    twCurrency === 'HKD' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                    twCurrency === 'HKD' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   HKD
@@ -1126,7 +1131,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setTwCurrency('TWD')}
                   className={`border-l border-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                    twCurrency === 'TWD' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                    twCurrency === 'TWD' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   TWD
@@ -1395,4 +1400,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

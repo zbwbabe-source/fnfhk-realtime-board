@@ -675,7 +675,9 @@ export default function Section1Card({
                 <button
                   onClick={() => setActiveDetailView('season')}
                   className={`flex min-h-[46px] items-center justify-center px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'season' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'season'
+                      ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                      : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? '시즌' : 'Season'}
@@ -683,7 +685,9 @@ export default function Section1Card({
                 <button
                   onClick={() => setActiveDetailView('top5')}
                   className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'top5' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'top5'
+                      ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                      : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? (
@@ -695,7 +699,9 @@ export default function Section1Card({
                 <button
                   onClick={() => setActiveDetailView('worst5')}
                   className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'worst5' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
+                    activeDetailView === 'worst5'
+                      ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                      : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? (
@@ -719,7 +725,9 @@ export default function Section1Card({
                   if (isYtdMode) onYtdModeToggle();
                 }}
                 className={`flex min-h-[46px] items-center justify-center px-2 py-2 text-xs font-medium transition-colors sm:px-3 ${
-                  !isYtdMode ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
+                  !isYtdMode
+                    ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                    : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'mtdToggle')}
@@ -729,7 +737,9 @@ export default function Section1Card({
                   if (!isYtdMode) onYtdModeToggle();
                 }}
                 className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-2 text-xs font-medium transition-colors sm:px-3 ${
-                  isYtdMode ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
+                  isYtdMode
+                    ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                    : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'ytdToggle')}

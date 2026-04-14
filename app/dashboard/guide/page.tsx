@@ -134,7 +134,7 @@ export default async function DashboardGuidePage({ searchParams }: GuidePageProp
               <a
                 href="/dashboard/guide?lang=ko"
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'ko' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  language === 'ko' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 KR
@@ -142,7 +142,7 @@ export default async function DashboardGuidePage({ searchParams }: GuidePageProp
               <a
                 href="/dashboard/guide?lang=en"
                 className={`border-l border-gray-200 px-4 py-2 text-sm font-medium transition-colors ${
-                  language === 'en' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  language === 'en' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 EN

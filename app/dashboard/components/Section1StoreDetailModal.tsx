@@ -307,7 +307,7 @@ export default function Section1StoreDetailModal({
                   type="button"
                   onClick={() => setMode('mtd')}
                   className={`px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === 'mtd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    mode === 'mtd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   MTD
@@ -316,7 +316,7 @@ export default function Section1StoreDetailModal({
                   type="button"
                   onClick={() => setMode('ytd')}
                   className={`border-l border-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                    mode === 'ytd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    mode === 'ytd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   YTD

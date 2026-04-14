@@ -925,7 +925,7 @@ export default function Section3Card({
             <button
               onClick={() => onCategoryFilterChange('clothes')}
               className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'clothes' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'clothesOnly')}
@@ -933,7 +933,7 @@ export default function Section3Card({
             <button
               onClick={() => onCategoryFilterChange('all')}
               className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'allCategory')}

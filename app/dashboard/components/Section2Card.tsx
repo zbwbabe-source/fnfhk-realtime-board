@@ -96,6 +96,16 @@ export default function Section2Card({
     if (v === null || v === undefined) return 'YoY N/A';
     return `YoY ${v.toFixed(0)}%`;
   };
+
+  const getYoyCardTone = (value: number | null | undefined) => {
+    if (value === null || value === undefined || !Number.isFinite(value)) {
+      return 'border-gray-200 bg-gradient-to-br from-gray-50 to-white';
+    }
+    if (value >= 100) {
+      return 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white';
+    }
+    return 'border-rose-200 bg-gradient-to-br from-rose-50 to-white';
+  };
   const getHeaderTitle = () => {
     if (!isCompactEnglish) {
       return categoryFilter === 'clothes' ? t(language, 'section2HeaderClothes') : t(language, 'section2HeaderAll');
@@ -205,7 +215,7 @@ export default function Section2Card({
             <button
               onClick={() => onCategoryFilterChange('clothes')}
               className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'clothes' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'clothes' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'clothesOnly')}
@@ -213,7 +223,7 @@ export default function Section2Card({
             <button
               onClick={() => onCategoryFilterChange('all')}
               className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                categoryFilter === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               {t(language, 'allCategory')}
@@ -295,7 +305,7 @@ export default function Section2Card({
                 <button
                   onClick={() => setPeriodView('mtd')}
                   className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    periodView === 'mtd' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    periodView === 'mtd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? '당월' : 'MTD'}
@@ -303,7 +313,7 @@ export default function Section2Card({
                 <button
                   onClick={() => setPeriodView('cum')}
                   className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    periodView === 'cum' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                    periodView === 'cum' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? '누적' : 'Cum'}
@@ -315,7 +325,7 @@ export default function Section2Card({
               <button
                 onClick={() => setRankingView('top5')}
                 className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  rankingView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  rankingView === 'top5' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {language === 'ko' ? '상위' : 'Top'}
@@ -323,7 +333,7 @@ export default function Section2Card({
               <button
                 onClick={() => setRankingView('worst5')}
                 className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  rankingView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  rankingView === 'worst5' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {language === 'ko' ? '하위' : 'Bottom'}
@@ -332,10 +342,12 @@ export default function Section2Card({
           </div>
 
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-            {categoryRankingCards.map((item, idx) => (
+            {categoryRankingCards.map((item, idx) => {
+              const yoyValue = periodView === 'cum' ? item.salesYoyPct : item.mtdSalesYoyPct;
+              return (
               <div
                 key={item.key}
-                className="group relative rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 shadow-sm"
+                className={`group relative rounded-lg border p-2.5 shadow-sm ${getYoyCardTone(yoyValue)}`}
                 title={getCategoryTooltipText(item.category)}
               >
                 {renderCategoryTooltip(item.category)}
@@ -386,7 +398,7 @@ export default function Section2Card({
                   </p>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}

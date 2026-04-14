@@ -582,7 +582,7 @@ export default function EntrySalesYoyPopup({
                 type="button"
                 onClick={() => setYoyBasis('overall')}
                 className={`px-3 py-1 transition-colors ${
-                  yoyBasis === 'overall' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  yoyBasis === 'overall' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 Overall
@@ -591,7 +591,7 @@ export default function EntrySalesYoyPopup({
                 type="button"
                 onClick={() => setYoyBasis('sameStore')}
                 className={`border-l border-gray-200 px-3 py-1 transition-colors ${
-                  yoyBasis === 'sameStore' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  yoyBasis === 'sameStore' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 Same Store
@@ -670,7 +670,7 @@ export default function EntrySalesYoyPopup({
                       type="button"
                       onClick={() => setTrendWindow('all')}
                       className={`px-2.5 py-1 transition-colors ${
-                        trendWindow === 'all' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                        trendWindow === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       YTD
@@ -679,7 +679,7 @@ export default function EntrySalesYoyPopup({
                       type="button"
                       onClick={() => setTrendWindow('120d')}
                       className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
-                        trendWindow === '120d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                        trendWindow === '120d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       120Days
@@ -688,7 +688,7 @@ export default function EntrySalesYoyPopup({
                       type="button"
                       onClick={() => setTrendWindow('30d')}
                       className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
-                        trendWindow === '30d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                        trendWindow === '30d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       30Days
@@ -697,7 +697,7 @@ export default function EntrySalesYoyPopup({
                       type="button"
                       onClick={() => setTrendWindow('7d')}
                       className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
-                        trendWindow === '7d' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                        trendWindow === '7d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       7Days
