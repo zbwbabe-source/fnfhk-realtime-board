@@ -386,6 +386,12 @@ export default function Section1Card({
     return 'text-red-700';
   };
 
+  const getYoyCardTone = (yoy: number | null) => {
+    if (yoy === null) return 'border-gray-200 bg-gradient-to-br from-gray-50 to-white hover:border-purple-200 hover:bg-purple-50/40';
+    if (yoy >= 100) return 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white hover:border-emerald-300 hover:bg-emerald-50';
+    return 'border-rose-200 bg-gradient-to-br from-rose-50 to-white hover:border-rose-300 hover:bg-rose-50';
+  };
+
   const titleBadgeClass =
     'inline-flex max-w-full items-center rounded-md bg-white/85 px-2 py-0.5 text-[11px] font-medium leading-tight whitespace-normal break-words text-gray-600 ring-1 ring-inset ring-gray-200';
 
@@ -990,7 +996,7 @@ export default function Section1Card({
               {modePeriodLabel}
             </span>
           </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+          <div className="grid w-full min-w-0 grid-cols-5 gap-1.5">
             {detailCards.map((item) => {
               const yoyColor =
                 item.yoy !== null && typeof item.yoy === 'number' && isFinite(item.yoy)
@@ -1018,7 +1024,7 @@ export default function Section1Card({
                   key={item.key}
                   type="button"
                   onClick={() => openStoreDetail((item as any).storeCode || '', storeFullName || item.title)}
-                  className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                  className={`group min-w-0 rounded-lg border p-2.5 text-left shadow-sm transition-colors ${getYoyCardTone(item.yoy)}`}
                 >
                   <div className="relative min-h-[52px]">
                     <p className="break-keep text-sm font-bold leading-snug text-gray-800">{shortCode || item.title}</p>
@@ -1029,7 +1035,7 @@ export default function Section1Card({
                       </p>
                     </div>
                   </div>
-                  <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
+                  <p className="mt-1 truncate text-[1.2rem] font-bold leading-tight tabular-nums text-gray-900 xl:text-[1.3rem]">{formatCurrency(item.sales || 0)}</p>
                   <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
                     {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
                   </p>
@@ -1046,10 +1052,10 @@ export default function Section1Card({
                   key={item.key}
                   type="button"
                   onClick={() => openCategoryDetail(item.key as Section1CategoryDetailKey, item.title)}
-                  className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                  className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left shadow-sm transition-colors ${getYoyCardTone(item.yoy)}`}
                 >
                   {item.apparelOnly ? (
-                    <div className="group relative flex min-h-[58px] items-start">
+                    <div className="group relative flex min-h-[60px] items-start">
                       <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
                         {item.title}
                       </p>
@@ -1058,25 +1064,25 @@ export default function Section1Card({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex min-h-[58px] items-start">
+                    <div className="flex min-h-[60px] items-start">
                       <p className="break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                     </div>
                   )}
-                  {(
-                    <div className="mt-1">
-                      <p className="text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
-                      <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
-                        {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
-                      </p>
-                      <p className="mt-0.5 text-xs tabular-nums">
-                        <span className="text-gray-600">
-                          {t(language, 'discountRateLabel')}{' '}
-                          <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
-                        </span>{' '}
-                        <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
-                      </p>
-                    </div>
-                  )}
+                  <div className="mt-auto min-w-0">
+                    <p className="truncate text-[1.2rem] font-bold leading-tight tabular-nums text-gray-900 xl:text-[1.3rem]">
+                      {formatCurrency(item.sales || 0)}
+                    </p>
+                    <p className={`mt-1 text-xs font-semibold leading-tight tabular-nums ${yoyColor}`}>
+                      {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
+                    </p>
+                    <p className="mt-1 text-xs leading-tight tabular-nums">
+                      <span className="text-gray-600">
+                        {t(language, 'discountRateLabel')}{' '}
+                        <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
+                      </span>{' '}
+                      <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
+                    </p>
+                  </div>
                 </button>
               );
             })}
