@@ -1006,9 +1006,14 @@ export default function Section3Card({
 
       {simpleDetail && orderedInventorySegmentCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <p className="mb-2 text-[11px] text-gray-500">
-            {language === 'ko' ? '현재 재고 (TAG기준)' : isCompactEnglish ? 'Current stock (TAG)' : 'Based on current stock (TAG)'}
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-[11px] text-gray-500">
+              {language === 'ko' ? '현재 재고 (TAG기준)' : isCompactEnglish ? 'Current stock (TAG)' : 'Based on current stock (TAG)'}
+            </p>
+            <span className="inline-flex shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 ring-1 ring-gray-200">
+              {`Total ${formatCurrency(section3Data?.header?.curr_stock_amt || 0)}`}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             {orderedInventorySegmentCards.map((card) => (
               <button

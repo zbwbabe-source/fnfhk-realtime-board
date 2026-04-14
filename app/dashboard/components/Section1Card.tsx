@@ -137,7 +137,10 @@ export default function Section1Card({
     setDetailView(view);
   };
   const isTwRegion = region === 'TW';
-  const salesLabel = language === 'ko' ? '실판매출' : 'Actual Sales';
+  const salesLabel = language === 'ko' ? '실판매출' : 'Sales';
+  const discountRateLabel = language === 'ko' ? t(language, 'discountRateLabel') : 'Disc.';
+  const shortSameStoreLabel = language === 'ko' ? '동매장 YoY' : 'SS YoY';
+  const projectedLabel = language === 'ko' ? '월말예상' : 'M-end Est.';
   const salesLabelTooltip = isTwRegion
     ? language === 'ko'
       ? 'TW 실판매출은 V+ 기준입니다.'
@@ -195,7 +198,7 @@ export default function Section1Card({
     k3: {
       label: t(language, 'progress'),
       value: '-',
-      projectedLabel: language === 'ko' ? '월말예상' : 'Month-end Projection',
+      projectedLabel,
       projectedValue: '-',
       projectedTooltip:
         language === 'ko'
@@ -303,7 +306,7 @@ export default function Section1Card({
           language === 'ko'
             ? `전체 YoY는 전년 동일기간 활성매장 매출 대비 올해 활성매장 전체 매출 기준. 활성매장 수는 ${formatStoreCount(previousActiveStoreCount)} → ${formatStoreCount(currentActiveStoreCount)}.`
             : `Overall YoY compares current active-store sales against sales from active stores in the same period last year. Active store count is ${formatStoreCount(previousActiveStoreCount)} -> ${formatStoreCount(currentActiveStoreCount)}.`,
-        sameStoreLabel: language === 'ko' ? '동매장 YoY' : 'Same-store YoY',
+        sameStoreLabel: shortSameStoreLabel,
         sameStoreValue: hasSameStoreCompareRate ? `${sameStoreCompareRate.toFixed(0)}%` : '-',
         sameStoreRawValue: hasSameStoreCompareRate ? sameStoreCompareRate : null,
         sameStoreTooltip:
@@ -322,7 +325,7 @@ export default function Section1Card({
         label: t(language, 'progress'),
         value: `${progress.toFixed(1)}%`,
         rawValue: typeof progress === 'number' && isFinite(progress) ? progress : null,
-        projectedLabel: language === 'ko' ? '월말예상' : 'Month-end Projection',
+        projectedLabel,
         projectedValue: hasProjectedProgress ? `${projectedProgress.toFixed(1)}%` : '-',
         projectedTooltip:
           isYtdMode
@@ -358,11 +361,11 @@ export default function Section1Card({
   const targetModeBadgeLabel =
     language === 'ko'
       ? isYtdMode
-        ? '누적 목표대비'
-        : '당월 목표대비'
+        ? '누적\n목표대비'
+        : '당월\n목표대비'
       : isYtdMode
-        ? 'YTD vs Target'
-        : 'MTD vs Target';
+        ? 'YTD\nvs Tgt'
+        : 'MTD\nvs Tgt';
   const modePeriodLabel = isYtdMode
     ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
     : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`;
@@ -622,14 +625,14 @@ export default function Section1Card({
   const detailMetrics =
     showSeasonCategory && seasonCategorySales?.metrics
       ? [
-          { key: 'currentSeason', title: `${t(language, 'currentSeason')}(${seasonLabels.current || '-'})`, apparelOnly: true },
+          { key: 'currentSeason', title: `${language === 'ko' ? t(language, 'currentSeason') : 'Current'}(${seasonLabels.current || '-'})`, apparelOnly: true },
           ...(hasNextSeasonSales
-            ? [{ key: 'nextSeason', title: `${t(language, 'nextSeason')}(${seasonLabels.next || '-'})`, apparelOnly: true } as const]
+            ? [{ key: 'nextSeason', title: `${language === 'ko' ? t(language, 'nextSeason') : 'Next'}(${seasonLabels.next || '-'})`, apparelOnly: true } as const]
             : []),
-          { key: 'pastSeason', title: `${t(language, 'pastSeason')}(${seasonLabels.past || '-'})`, apparelOnly: true },
-          { key: 'hat', title: t(language, 'hat') },
+          { key: 'pastSeason', title: `${language === 'ko' ? t(language, 'pastSeason') : 'Old'}(${seasonLabels.past || '-'})`, apparelOnly: true },
+          { key: 'hat', title: language === 'ko' ? t(language, 'hat') : 'Hats' },
           { key: 'shoes', title: t(language, 'shoes') },
-          ...(!hasNextSeasonSales ? [{ key: 'bag', title: t(language, 'bag') } as const] : []),
+          ...(!hasNextSeasonSales ? [{ key: 'bag', title: language === 'ko' ? t(language, 'bag') : 'Bags' } as const] : []),
         ]
       : [];
 
@@ -651,6 +654,7 @@ export default function Section1Card({
           ...item,
           apparelOnly: false,
         }));
+  const seasonCardTitleMinHeightClass = language === 'ko' ? 'min-h-[60px]' : 'min-h-[30px]';
 
   return (
     <article className={`${fixedHeight ? 'h-[468px]' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 pb-5 shadow-sm sm:p-5 sm:pb-6`}>
@@ -772,7 +776,7 @@ export default function Section1Card({
             </div>
             <div className="relative rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 pt-5 sm:min-h-[116px]">
               <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+                <span className="inline-flex whitespace-pre-line rounded-full bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
                   {targetModeBadgeLabel}
                 </span>
               </div>
@@ -804,7 +808,7 @@ export default function Section1Card({
               )}
             </div>
             <div className="min-h-[24px] min-w-0">
-              <p className={titleBadgeClass}>{t(language, 'discountRateLabel')}</p>
+              <p className={titleBadgeClass}>{discountRateLabel}</p>
             </div>
           </div>
           <div className="grid grid-cols-[1fr_0.9fr] items-center gap-2.5">
@@ -905,7 +909,7 @@ export default function Section1Card({
         </div>
         <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
           <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-            <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+            <span className="inline-flex whitespace-pre-line rounded-full bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
               {targetModeBadgeLabel}
             </span>
           </div>
@@ -1065,7 +1069,7 @@ export default function Section1Card({
                   className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-lg border p-2.5 text-left shadow-sm transition-colors ${getYoyCardTone(item.yoy)}`}
                 >
                   {item.apparelOnly ? (
-                    <div className="group relative flex min-h-[60px] items-start">
+                    <div className={`group relative flex items-start ${seasonCardTitleMinHeightClass}`}>
                       <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
                         {item.title}
                       </p>
@@ -1074,11 +1078,11 @@ export default function Section1Card({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex min-h-[60px] items-start">
+                    <div className={`flex items-start ${seasonCardTitleMinHeightClass}`}>
                       <p className="break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
                     </div>
                   )}
-                  <div className="mt-auto min-w-0">
+                  <div className="min-w-0">
                     <p className="truncate text-[1.2rem] font-bold leading-tight tabular-nums text-gray-900 xl:text-[1.3rem]">
                       {formatCurrency(item.sales || 0)}
                     </p>
