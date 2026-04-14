@@ -195,7 +195,7 @@ export default function Section1Card({
     k3: {
       label: t(language, 'progress'),
       value: '-',
-      projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
+      projectedLabel: language === 'ko' ? '월말예상' : 'Month-end Projection',
       projectedValue: '-',
       projectedTooltip:
         language === 'ko'
@@ -322,7 +322,7 @@ export default function Section1Card({
         label: t(language, 'progress'),
         value: `${progress.toFixed(1)}%`,
         rawValue: typeof progress === 'number' && isFinite(progress) ? progress : null,
-        projectedLabel: language === 'ko' ? '월말환산' : 'Projected Progress',
+        projectedLabel: language === 'ko' ? '월말예상' : 'Month-end Projection',
         projectedValue: hasProjectedProgress ? `${projectedProgress.toFixed(1)}%` : '-',
         projectedTooltip:
           isYtdMode
@@ -347,6 +347,25 @@ export default function Section1Card({
   };
 
   const kpis = calculateKPIs();
+  const modeBadgeLabel =
+    language === 'ko'
+      ? isYtdMode
+        ? '누적'
+        : '당월'
+      : isYtdMode
+        ? 'YTD'
+        : 'MTD';
+  const targetModeBadgeLabel =
+    language === 'ko'
+      ? isYtdMode
+        ? '누적 목표대비'
+        : '당월 목표대비'
+      : isYtdMode
+        ? 'YTD vs Target'
+        : 'MTD vs Target';
+  const modePeriodLabel = isYtdMode
+    ? `${date.slice(0, 4)}/01/01~${date.slice(5).replace('-', '/')}`
+    : `${date.slice(0, 4)}/${date.slice(5, 7)}/01~${date.slice(5).replace('-', '/')}`;
 
   const getYoyColor = (yoy: number | null) => {
     if (yoy === null) return 'text-gray-600 bg-gray-100';
@@ -646,19 +665,19 @@ export default function Section1Card({
               </div>
             )}
             {showSeasonCategory && (
-              <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="inline-flex min-h-[46px] overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <button
                   onClick={() => setActiveDetailView('season')}
-                  className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'season' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  className={`flex min-h-[46px] items-center justify-center px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                    activeDetailView === 'season' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? '시즌' : 'Season'}
                 </button>
                 <button
                   onClick={() => setActiveDetailView('top5')}
-                  className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'top5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                    activeDetailView === 'top5' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? (
@@ -669,8 +688,8 @@ export default function Section1Card({
                 </button>
                 <button
                   onClick={() => setActiveDetailView('worst5')}
-                  className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                    activeDetailView === 'worst5' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                  className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                    activeDetailView === 'worst5' ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {language === 'ko' ? (
@@ -688,13 +707,13 @@ export default function Section1Card({
 
         {onYtdModeToggle && (
           <div className="w-full shrink-0 sm:w-auto">
-            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="inline-flex min-h-[46px] overflow-hidden rounded-lg border border-gray-200 bg-white">
               <button
                 onClick={() => {
                   if (isYtdMode) onYtdModeToggle();
                 }}
-                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  !isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                className={`flex min-h-[46px] items-center justify-center px-2 py-2 text-xs font-medium transition-colors sm:px-3 ${
+                  !isYtdMode ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'mtdToggle')}
@@ -703,8 +722,8 @@ export default function Section1Card({
                 onClick={() => {
                   if (!isYtdMode) onYtdModeToggle();
                 }}
-                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                  isYtdMode ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50'
+                className={`flex min-h-[46px] items-center justify-center border-l border-gray-200 px-2 py-2 text-xs font-medium transition-colors sm:px-3 ${
+                  isYtdMode ? 'bg-purple-100 font-bold text-purple-900' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {t(language, 'ytdToggle')}
@@ -717,22 +736,42 @@ export default function Section1Card({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
         {simpleDetail ? (
           <>
-            <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-3 sm:min-h-[116px]">
+            <div className="relative rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-3 pt-5 sm:min-h-[116px]">
+              <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+                <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+                  {modeBadgeLabel}
+                </span>
+              </div>
               <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k1.label}</p>
               <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k1.value}</p>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 sm:min-h-[116px]">
+            <div className="relative rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 pt-5 sm:min-h-[116px]">
+              <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+                <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+                  {modeBadgeLabel}
+                </span>
+              </div>
               <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k2.label}</p>
               <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k2.value}</p>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 sm:min-h-[116px]">
+            <div className="relative rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 pt-5 sm:min-h-[116px]">
+              <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+                <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+                  {targetModeBadgeLabel}
+                </span>
+              </div>
               <p className={`${titleBadgeClass} min-h-[20px]`}>{kpis.k3.label}</p>
               <p className="mt-3 text-2xl font-bold leading-tight tabular-nums text-gray-900">{kpis.k3.value}</p>
             </div>
           </>
         ) : (
           <>
-        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 sm:min-h-[132px] sm:p-3">
+        <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+            <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+              {modeBadgeLabel}
+            </span>
+          </div>
           <div className="grid grid-cols-[1fr_0.9fr] gap-2.5">
             <div className="min-h-[24px] min-w-0 border-r border-blue-100 pr-2.5">
               {salesLabelTooltip ? (
@@ -795,7 +834,12 @@ export default function Section1Card({
             </div>
           </div>
         </div>
-        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
+        <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+            <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+              {modeBadgeLabel}
+            </span>
+          </div>
           <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
             <div className="min-h-[24px] min-w-0 border-r border-gray-200 pr-2.5">
               <div className="group relative inline-block">
@@ -820,10 +864,14 @@ export default function Section1Card({
           </div>
           <div className="grid grid-cols-[0.92fr_1.08fr] items-center gap-2.5">
             <div className="min-w-0 border-r border-gray-200 pr-2.5">
-              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{kpis.k2.value}</p>
+              <p className={`text-lg font-bold leading-tight tabular-nums sm:text-xl ${getYoyTextColor((kpis.k2 as any).rawValue)}`}>
+                {kpis.k2.value}
+              </p>
             </div>
             <div className="min-w-0">
-              <p className="text-lg font-bold leading-tight tabular-nums text-gray-900 sm:text-xl">{(kpis.k2 as any).sameStoreValue}</p>
+              <p className={`text-lg font-bold leading-tight tabular-nums sm:text-xl ${getYoyTextColor((kpis.k2 as any).sameStoreRawValue)}`}>
+                {(kpis.k2 as any).sameStoreValue}
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-[0.92fr_1.08fr] gap-2.5">
@@ -839,7 +887,12 @@ export default function Section1Card({
             </div>
           </div>
         </div>
-        <div className="grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 sm:min-h-[132px] sm:p-3">
+        <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+            <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+              {targetModeBadgeLabel}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-2.5">
             <div className="min-h-[24px] min-w-0 border-r border-gray-200 pr-2.5">
               <div className="group relative inline-block">
@@ -926,10 +979,16 @@ export default function Section1Card({
 
       {!simpleDetail && detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <div className="mb-2 flex justify-start">
+          <div className="mb-2 flex items-center justify-start gap-2">
             <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '아래 카드를 누르면 상세 내역이 열립니다.' : 'Tap the cards below to open detail.'}
             </p>
+            <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-violet-700 ring-1 ring-violet-100">
+              {modeBadgeLabel}
+            </span>
+            <span className="text-[10px] font-medium leading-tight text-gray-500">
+              {modePeriodLabel}
+            </span>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
             {detailCards.map((item) => {
@@ -990,7 +1049,7 @@ export default function Section1Card({
                   className="group rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
                 >
                   {item.apparelOnly ? (
-                    <div className="group relative block min-h-[52px]">
+                    <div className="group relative flex min-h-[58px] items-start">
                       <p className="cursor-help break-keep text-sm font-bold leading-snug text-gray-800 underline decoration-dotted underline-offset-2">
                         {item.title}
                       </p>
@@ -999,19 +1058,25 @@ export default function Section1Card({
                       </div>
                     </div>
                   ) : (
-                    <p className="min-h-[52px] break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
+                    <div className="flex min-h-[58px] items-start">
+                      <p className="break-keep text-sm font-bold leading-snug text-gray-800">{item.title}</p>
+                    </div>
                   )}
-                  <p className="mt-1 text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
-                  <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
-                    {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
-                  </p>
-                  <p className="mt-0.5 text-xs tabular-nums">
-                    <span className="text-gray-600">
-                      {t(language, 'discountRateLabel')}{' '}
-                      <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
-                    </span>{' '}
-                    <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
-                  </p>
+                  {(
+                    <div className="mt-1">
+                      <p className="text-lg font-bold tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
+                      <p className={`mt-0.5 text-xs font-semibold tabular-nums ${yoyColor}`}>
+                        {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : '-'}
+                      </p>
+                      <p className="mt-0.5 text-xs tabular-nums">
+                        <span className="text-gray-600">
+                          {t(language, 'discountRateLabel')}{' '}
+                          <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>
+                        </span>{' '}
+                        <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
+                      </p>
+                    </div>
+                  )}
                 </button>
               );
             })}
