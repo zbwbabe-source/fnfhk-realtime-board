@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useRef, useState } from 'react';
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 import { t, type Language } from '@/lib/translations';
 
 interface Section3CardProps {
@@ -104,7 +105,7 @@ export default function Section3Card({
   });
   const inventorySkuSectionRef = useRef<HTMLDivElement | null>(null);
   const [salesPushModalOpen, setSalesPushModalOpen] = useState(false);
-  const [excludeUnder10Pcs, setExcludeUnder10Pcs] = useState(false);
+  const [excludeUnder10Pcs, setExcludeUnder10Pcs] = useState(true);
   const [selectedSalesPushYear, setSelectedSalesPushYear] = useState<string | null>(null);
   const [selectedSalesPushCategory, setSelectedSalesPushCategory] = useState<string | null>(null);
   const [salesPushYearSort, setSalesPushYearSort] = useState<{
@@ -125,7 +126,7 @@ export default function Section3Card({
     key: 'prdt_cd' | 'sales_push_stagnant_amt' | 'current_stock_amt' | 'ly_push_30d_tag_sales' | 'sales_rate_pct';
     direction: 'asc' | 'desc';
   }>({
-    key: 'sales_rate_pct',
+    key: 'sales_push_stagnant_amt',
     direction: 'desc',
   });
 
@@ -496,12 +497,19 @@ export default function Section3Card({
     const totalAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_amt, 0);
     const totalSkuCount = salesPushSkuRows.length;
     const totalLySales = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.ly_push_30d_tag_sales, 0);
+    const totalCurrentStockAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.current_stock_amt, 0);
+    const totalCurrentStockQty = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.current_stock_qty, 0);
+    const totalStagnantQty = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_qty, 0);
     const stagnantTotal = Number(section3Data?.header?.stagnant_stock_amt || 0);
     return {
       totalAmt,
       totalSkuCount,
       totalLySales,
+      totalCurrentStockAmt,
+      totalCurrentStockQty,
+      totalStagnantQty,
       shareOfStagnantPct: stagnantTotal > 0 ? (totalAmt / stagnantTotal) * 100 : null,
+      totalSalesRatePct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
     };
   })();
   const salesPushYearRows = ['1년차', '2년차', '3년차 이상']
@@ -1846,7 +1854,9 @@ export default function Section3Card({
                       {isStagnantDetail
                         ? sortedActiveInventoryCategoryRows.map((row: any) => (
                             <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
-                              <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                              <td className="px-4 py-3 font-medium text-gray-900" title={getCategoryTooltipText(row.cat2)}>
+                                {row.cat2}
+                              </td>
                               <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                                 {formatCurrency(row.curr_stock_amt || 0)}
                               </td>
@@ -1884,7 +1894,9 @@ export default function Section3Card({
                           ))
                         : sortedActiveInventoryCategoryRows.map((row: any) => (
                             <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
-                              <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                              <td className="px-4 py-3 font-medium text-gray-900" title={getCategoryTooltipText(row.cat2)}>
+                                {row.cat2}
+                              </td>
                               <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                                 {formatCurrency(row.curr_stock_amt || 0)}
                               </td>
@@ -2019,7 +2031,9 @@ export default function Section3Card({
                       : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  {language === 'ko' ? '10pcs 미만 제외' : 'Exclude Under 10 pcs'}
+                  {excludeUnder10Pcs
+                    ? (language === 'ko' ? '재고 10pcs미만 표시' : 'Show Stock Under 10 pcs')
+                    : (language === 'ko' ? '10pcs 미만 제외' : 'Exclude Under 10 pcs')}
                 </button>
               </div>
             </div>
@@ -2056,7 +2070,11 @@ export default function Section3Card({
                       <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100">
                         {language === 'ko' ? '10pcs 이상만 표시' : '10+ pcs only'}
                       </span>
-                    ) : null}
+                    ) : (
+                      <span className="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-[10px] font-semibold text-gray-600 ring-1 ring-gray-200">
+                        {language === 'ko' ? '10pcs 미만 포함' : 'Including under 10 pcs'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="max-h-[320px] overflow-auto">
@@ -2107,7 +2125,9 @@ export default function Section3Card({
                         <tr key={`push-all-${row.year_bucket}-${row.cat2}-${row.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
                           <td className="px-4 py-3 font-medium text-gray-900">{row.prdt_cd}</td>
                           <td className="px-4 py-3 text-gray-700">{row.year_bucket}</td>
-                          <td className="px-4 py-3 text-gray-700">{row.cat2}</td>
+                          <td className="px-4 py-3 text-gray-700" title={getCategoryTooltipText(row.cat2)}>
+                            {row.cat2}
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.current_stock_amt || 0)}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-700">{typeof row.current_stock_qty === 'number' && Number.isFinite(row.current_stock_qty) ? `${row.current_stock_qty.toFixed(0)} pcs` : '-'}</td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.sales_push_stagnant_amt || 0)}</td>
@@ -2116,6 +2136,37 @@ export default function Section3Card({
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">{row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="sticky bottom-0 border-t border-gray-200 bg-amber-50/95 backdrop-blur">
+                  <table className="min-w-full table-fixed text-sm">
+                    <tbody>
+                      <tr>
+                        <td className="w-[120px] px-4 py-3 font-semibold text-gray-900">
+                          {language === 'ko' ? 'Total' : 'Total'}
+                        </td>
+                        <td className="w-[120px] px-4 py-3 text-gray-500">-</td>
+                        <td className="w-[100px] px-4 py-3 text-gray-500">-</td>
+                        <td className="w-[150px] px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                          {formatCurrency(salesPushSummary.totalCurrentStockAmt || 0)}
+                        </td>
+                        <td className="w-[100px] px-4 py-3 text-right font-semibold tabular-nums text-gray-700">
+                          {`${Number(salesPushSummary.totalCurrentStockQty || 0).toFixed(0)} pcs`}
+                        </td>
+                        <td className="w-[170px] px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                          {formatCurrency(salesPushSummary.totalAmt || 0)}
+                        </td>
+                        <td className="w-[110px] px-4 py-3 text-right font-semibold tabular-nums text-gray-700">
+                          {`${Number(salesPushSummary.totalStagnantQty || 0).toFixed(0)} pcs`}
+                        </td>
+                        <td className="w-[190px] px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                          {formatCurrency(salesPushSummary.totalLySales || 0)}
+                        </td>
+                        <td className="w-[110px] px-4 py-3 text-right font-semibold tabular-nums text-rose-700">
+                          {salesPushSummary.totalSalesRatePct !== null ? formatPercent(salesPushSummary.totalSalesRatePct, 2) : '-'}
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -2252,7 +2303,9 @@ export default function Section3Card({
                             selectedSalesPushCategory === row.cat2 ? 'bg-purple-50/70' : 'cursor-pointer bg-white hover:bg-purple-50/40'
                           }`}
                         >
-                          <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900" title={getCategoryTooltipText(row.cat2)}>
+                            {row.cat2}
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.current_stock_amt || 0)}</td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.amount || 0)}</td>
                           <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.share_pct !== null && row.share_pct !== undefined ? formatPercent(row.share_pct, 1) : '-'}</td>
