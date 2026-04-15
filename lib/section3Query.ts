@@ -121,6 +121,10 @@ export interface Section3Response {
     depleted_stock_amt: number;
     period_tag_sales: number;
     period_act_sales: number;
+    ly_push_30d_tag_sales?: number;
+    sales_push_stagnant_amt?: number;
+    sales_push_stagnant_qty?: number;
+    sales_push_flag?: boolean;
   }>;
   summary_cards?: {
     year_cards: Array<{
@@ -1667,6 +1671,63 @@ ORDER BY
       period_act_sales: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES || 0)) || 0,
     })),
   };
+
+  const lyPushStartDateObj = parseDateAtLocalMidnight(date);
+  lyPushStartDateObj.setFullYear(lyPushStartDateObj.getFullYear() - 1);
+  const lyPushStartDate = formatDateYYYYMMDD(lyPushStartDateObj);
+  const lyPushEndDateObj = new Date(`${lyPushStartDate}T00:00:00`);
+  lyPushEndDateObj.setDate(lyPushEndDateObj.getDate() + 29);
+  const lyPushEndDate = formatDateYYYYMMDD(lyPushEndDateObj);
+
+  if (response.skus.length > 0 && salesStores.length > 0) {
+    const escapedSalesStoreCodes = salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const escapedSesnList = [...new Set(response.skus.map((row) => String(row.sesn || '').trim()).filter(Boolean))]
+      .map((sesn) => `'${sesn.replace(/'/g, "''")}'`)
+      .join(',');
+
+    if (escapedSesnList) {
+      const lyPushSalesQuery = `
+SELECT
+  S.SESN,
+  S.PRDT_CD,
+  COALESCE(SUM(S.TAG_SALE_AMT), 0) AS LY_PUSH_30D_TAG_SALES
+FROM SAP_FNF.DW_HMD_SALE_D S
+WHERE ${brandFilter}
+  AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+  AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  ${salesCategoryFilter}
+  AND S.SESN IN (${escapedSesnList})
+GROUP BY S.SESN, S.PRDT_CD
+`;
+
+      try {
+        const lyPushSalesRows = await executeSnowflakeQuery(lyPushSalesQuery, [lyPushStartDate, lyPushEndDate]);
+        const lyPushSalesMap = new Map<string, number>();
+        lyPushSalesRows.forEach((row: any) => {
+          const key = `${String(row?.SESN || '').trim()}|${String(row?.PRDT_CD || '').trim()}`;
+          lyPushSalesMap.set(key, applyExchangeRate(parseFloat(row?.LY_PUSH_30D_TAG_SALES || 0)) || 0);
+        });
+
+        response.skus = response.skus.map((sku) => {
+          const lyPushSales = lyPushSalesMap.get(`${sku.sesn}|${sku.prdt_cd}`) || 0;
+          const qualifies =
+            sku.stagnant_stock_amt > 0 &&
+            sku.curr_stock_amt > 0 &&
+            lyPushSales >= sku.curr_stock_amt * 0.05;
+
+          return {
+            ...sku,
+            ly_push_30d_tag_sales: lyPushSales,
+            sales_push_stagnant_amt: qualifies ? sku.stagnant_stock_amt : 0,
+            sales_push_stagnant_qty: qualifies ? sku.stagnant_stock_qty : 0,
+            sales_push_flag: qualifies,
+          };
+        });
+      } catch (error: any) {
+        console.error('[section3] failed to compute sales-push stagnant skus:', error.message);
+      }
+    }
+  }
 
   const bucketTargetsByMode =
     region === 'HKMC'

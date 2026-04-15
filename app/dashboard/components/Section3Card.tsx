@@ -1,5 +1,5 @@
-'use client';
-import { useState } from 'react';
+﻿'use client';
+import { useEffect, useRef, useState } from 'react';
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 
@@ -46,6 +46,7 @@ export default function Section3Card({
       yoy_pct: number | null;
       category_nodes?: Array<{
         cat2: string;
+        year_bucket?: string;
         curr_stock_amt: number;
         ly_curr_stock_amt?: number | null;
         yoy_pct?: number | null;
@@ -56,14 +57,76 @@ export default function Section3Card({
         period_sales_yoy_pct?: number | null;
         discount_rate?: number | null;
         discount_rate_diff_pct?: number | null;
+        current_stock_amt?: number | null;
+        stagnant_stock_amt?: number | null;
+        stagnant_stock_qty?: number | null;
+        stagnant_ratio_pct?: number | null;
       }>;
+      current_stock_amt?: number | null;
+      stagnant_stock_qty?: number | null;
+      stagnant_ratio_pct?: number | null;
     }>;
   };
   const [selectedInventoryCard, setSelectedInventoryCard] = useState<InventorySegmentCard | null>(null);
   const [selectedInventoryNode, setSelectedInventoryNode] = useState<{
     name: string;
-    categoryNodes: Array<{ cat2: string; curr_stock_amt: number; ly_curr_stock_amt?: number | null; yoy_pct?: number | null }>;
+    categoryNodes: Array<{ cat2: string; year_bucket?: string; curr_stock_amt: number; ly_curr_stock_amt?: number | null; yoy_pct?: number | null; current_stock_amt?: number | null; stagnant_stock_qty?: number | null; stagnant_ratio_pct?: number | null }>;
   } | null>(null);
+  const [selectedInventorySkuNode, setSelectedInventorySkuNode] = useState<{
+    name: string;
+    rows: Array<{
+      prdt_cd: string;
+      curr_stock_amt: number;
+      stagnant_stock_amt?: number | null;
+      stagnant_stock_qty?: number | null;
+      stagnant_ratio_pct?: number | null;
+      current_stock_amt?: number | null;
+    }>;
+  } | null>(null);
+  const [inventoryCategorySort, setInventoryCategorySort] = useState<{
+    key:
+      | 'cat2'
+      | 'curr_stock_amt'
+      | 'yoy_pct'
+      | 'share'
+      | 'stock_share_diff_pct'
+      | 'period_tag_sales'
+      | 'period_sales_yoy_pct'
+      | 'discount_rate'
+      | 'discount_rate_diff_pct'
+      | 'stagnant_ratio_pct'
+      | 'current_stock_amt'
+      | 'stagnant_stock_qty';
+    direction: 'asc' | 'desc';
+  }>({
+    key: 'curr_stock_amt',
+    direction: 'desc',
+  });
+  const inventorySkuSectionRef = useRef<HTMLDivElement | null>(null);
+  const [salesPushModalOpen, setSalesPushModalOpen] = useState(false);
+  const [selectedSalesPushYear, setSelectedSalesPushYear] = useState<string | null>(null);
+  const [selectedSalesPushCategory, setSelectedSalesPushCategory] = useState<string | null>(null);
+  const [salesPushYearSort, setSalesPushYearSort] = useState<{
+    key: 'year_bucket' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct';
+    direction: 'asc' | 'desc';
+  }>({
+    key: 'sales_rate_pct',
+    direction: 'desc',
+  });
+  const [salesPushCategorySort, setSalesPushCategorySort] = useState<{
+    key: 'cat2' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct';
+    direction: 'asc' | 'desc';
+  }>({
+    key: 'sales_rate_pct',
+    direction: 'desc',
+  });
+  const [salesPushSkuSort, setSalesPushSkuSort] = useState<{
+    key: 'prdt_cd' | 'sales_push_stagnant_amt' | 'current_stock_amt' | 'ly_push_30d_tag_sales' | 'sales_rate_pct';
+    direction: 'asc' | 'desc';
+  }>({
+    key: 'sales_rate_pct',
+    direction: 'desc',
+  });
 
   const getYearBucketRank = (raw: string | null | undefined) => {
     if (!raw) return null;
@@ -391,6 +454,108 @@ export default function Section3Card({
     }
     return cards;
   })();
+  const salesPushWindow = (() => {
+    if (!section3Data?.asof_date) {
+      return {
+        start: '',
+        end: '',
+      };
+    }
+    const start = new Date(`${String(section3Data.asof_date)}T00:00:00`);
+    start.setFullYear(start.getFullYear() - 1);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 29);
+    const toDateString = (value: Date) => value.toISOString().slice(0, 10);
+    return {
+      start: toDateString(start),
+      end: toDateString(end),
+    };
+  })();
+  const salesPushSkuRows = (Array.isArray(section3Data?.skus) ? section3Data.skus : [])
+    .filter((row: any) => !!row?.sales_push_flag && Number(row?.sales_push_stagnant_amt || 0) > 0)
+    .map((row: any) => {
+      const currentStockAmt = Number(row?.curr_stock_amt || 0);
+      const salesAmt = Number(row?.ly_push_30d_tag_sales || 0);
+      return {
+        year_bucket: String(row?.year_bucket || ''),
+        cat2: String(row?.cat2 || ''),
+        prdt_cd: String(row?.prdt_cd || ''),
+        sales_push_stagnant_amt: Number(row?.sales_push_stagnant_amt || 0),
+        sales_push_stagnant_qty: Number(row?.sales_push_stagnant_qty || 0),
+        current_stock_amt: currentStockAmt,
+        current_stock_qty: Number(row?.curr_stock_qty || 0),
+        ly_push_30d_tag_sales: salesAmt,
+        sales_rate_pct: currentStockAmt > 0 ? (salesAmt / currentStockAmt) * 100 : null,
+      };
+    });
+  const salesPushSummary = (() => {
+    const totalAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_amt, 0);
+    const totalSkuCount = salesPushSkuRows.length;
+    const totalLySales = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.ly_push_30d_tag_sales, 0);
+    const stagnantTotal = Number(section3Data?.header?.stagnant_stock_amt || 0);
+    return {
+      totalAmt,
+      totalSkuCount,
+      totalLySales,
+      shareOfStagnantPct: stagnantTotal > 0 ? (totalAmt / stagnantTotal) * 100 : null,
+    };
+  })();
+  const salesPushYearRows = ['1년차', '2년차', '3년차 이상']
+    .map((bucket) => {
+      const rows = salesPushSkuRows.filter((row: any) => row.year_bucket === bucket);
+      const totalAmt = rows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_amt, 0);
+      const totalLySales = rows.reduce((sum: number, row: any) => sum + row.ly_push_30d_tag_sales, 0);
+      const totalCurrentStockAmt = rows.reduce((sum: number, row: any) => sum + row.current_stock_amt, 0);
+      return {
+        year_bucket: bucket,
+        amount: totalAmt,
+        sku_count: rows.length,
+        ly_sales: totalLySales,
+        current_stock_amt: totalCurrentStockAmt,
+        share_pct: salesPushSummary.totalAmt > 0 ? (totalAmt / salesPushSummary.totalAmt) * 100 : null,
+        sales_rate_pct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
+      };
+    })
+    .filter((row) => row.amount > 0);
+  const salesPushCategoryRows = (selectedSalesPushYear
+    ? salesPushSkuRows.filter((row: any) => row.year_bucket === selectedSalesPushYear)
+    : []
+  ).reduce((acc: any[], row: any) => {
+    const existing = acc.find((item) => item.cat2 === row.cat2);
+    if (existing) {
+      existing.amount += row.sales_push_stagnant_amt;
+      existing.sku_count += 1;
+      existing.ly_sales += row.ly_push_30d_tag_sales;
+      existing.current_stock_amt += row.current_stock_amt;
+      existing.stagnant_qty += row.sales_push_stagnant_qty;
+      return acc;
+    }
+    acc.push({
+      cat2: row.cat2,
+      amount: row.sales_push_stagnant_amt,
+      sku_count: 1,
+      ly_sales: row.ly_push_30d_tag_sales,
+      current_stock_amt: row.current_stock_amt,
+      stagnant_qty: row.sales_push_stagnant_qty,
+    });
+    return acc;
+  }, []).map((row: any) => ({
+    ...row,
+    share_pct: selectedSalesPushYear
+      ? (() => {
+          const yearTotal = salesPushSkuRows
+            .filter((item: any) => item.year_bucket === selectedSalesPushYear)
+            .reduce((sum: number, item: any) => sum + item.sales_push_stagnant_amt, 0);
+          return yearTotal > 0 ? (row.amount / yearTotal) * 100 : null;
+        })()
+      : null,
+    sales_rate_pct: row.current_stock_amt > 0 ? (row.ly_sales / row.current_stock_amt) * 100 : null,
+  })).sort((a: any, b: any) => b.amount - a.amount || a.cat2.localeCompare(b.cat2));
+  const salesPushSkuDetailRows = (selectedSalesPushYear && selectedSalesPushCategory)
+    ? salesPushSkuRows
+        .filter((row: any) => row.year_bucket === selectedSalesPushYear && row.cat2 === selectedSalesPushCategory)
+        .sort((a: any, b: any) => b.sales_push_stagnant_amt - a.sales_push_stagnant_amt || a.prdt_cd.localeCompare(b.prdt_cd))
+    : [];
   const bottomCards = summaryCards
     ? [
         {
@@ -627,6 +792,25 @@ export default function Section3Card({
       }))
       .sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
   };
+  const buildStagnantCategoryNodes = (yearBucket: string) => {
+    const categoryRows = Array.isArray(section3Data?.categories) ? section3Data.categories : [];
+    return categoryRows
+      .filter((row: any) => String(row?.year_bucket || '') === yearBucket && Number(row?.stagnant_stock_amt || 0) > 0)
+      .map((row: any) => {
+        const currentStockAmt = Number(row?.curr_stock_amt || 0);
+        const stagnantStockAmt = Number(row?.stagnant_stock_amt || 0);
+        return {
+          cat2: String(row?.cat2 || '-'),
+          year_bucket: String(row?.year_bucket || ''),
+          curr_stock_amt: stagnantStockAmt,
+          current_stock_amt: currentStockAmt,
+          stagnant_stock_amt: stagnantStockAmt,
+          stagnant_stock_qty: Number(row?.stagnant_stock_qty || 0),
+          stagnant_ratio_pct: currentStockAmt > 0 ? (stagnantStockAmt / currentStockAmt) * 100 : null,
+        };
+      })
+      .sort((a: any, b: any) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
+  };
   const buildInventoryDetailCardMap = () => {
     const map = new Map<string, InventorySegmentCard>();
     const inventoryCardMap = new Map(orderedInventorySegmentCards.map((card) => [card.key, card]));
@@ -754,10 +938,21 @@ export default function Section3Card({
         breakdown: normalizedYearCards.map((yearCard: any) => ({
           label_key: String(yearCard.year_bucket || ''),
           curr_stock_amt: Number(yearCard.stagnant_stock_amt || 0),
+          current_stock_amt: Number(yearCard.curr_stock_amt || 0),
+          stagnant_stock_qty:
+            Number(
+              (Array.isArray(section3Data?.years)
+                ? section3Data.years.find((row: any) => String(row?.year_bucket || '') === String(yearCard.year_bucket || ''))?.stagnant_stock_qty
+                : 0) || 0
+            ),
+          stagnant_ratio_pct:
+            Number(yearCard.curr_stock_amt || 0) > 0
+              ? (Number(yearCard.stagnant_stock_amt || 0) / Number(yearCard.curr_stock_amt || 0)) * 100
+              : null,
           ly_curr_stock_amt: null,
           yoy_pct: null,
-          category_nodes: [],
-        })),
+          category_nodes: buildStagnantCategoryNodes(String(yearCard.year_bucket || '')),
+        })).filter((row: any) => row.curr_stock_amt > 0),
       });
     }
 
@@ -772,6 +967,7 @@ export default function Section3Card({
     return map;
   };
   const inventoryDetailCardMap = buildInventoryDetailCardMap();
+  const isStagnantDetail = selectedInventoryCard?.key === 'stagnant';
   const selectedInventoryRows = [...(selectedInventoryCard?.breakdown || [])].sort(
     (a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.label_key.localeCompare(b.label_key)
   );
@@ -796,6 +992,194 @@ export default function Section3Card({
     ? [...activeInventoryNode.categoryNodes].sort((a, b) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2))
     : [];
   const activeInventoryCategoryTotal = activeInventoryCategoryRows.reduce((sum, row: any) => sum + Number(row.curr_stock_amt || 0), 0);
+  const toggleInventoryCategorySort = (
+    key:
+      | 'cat2'
+      | 'curr_stock_amt'
+      | 'yoy_pct'
+      | 'share'
+      | 'stock_share_diff_pct'
+      | 'period_tag_sales'
+      | 'period_sales_yoy_pct'
+      | 'discount_rate'
+      | 'discount_rate_diff_pct'
+      | 'stagnant_ratio_pct'
+      | 'current_stock_amt'
+      | 'stagnant_stock_qty'
+  ) => {
+    setInventoryCategorySort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'cat2' ? 'asc' : 'desc' }
+    );
+  };
+  const getInventoryCategorySortIndicator = (
+    key:
+      | 'cat2'
+      | 'curr_stock_amt'
+      | 'yoy_pct'
+      | 'share'
+      | 'stock_share_diff_pct'
+      | 'period_tag_sales'
+      | 'period_sales_yoy_pct'
+      | 'discount_rate'
+      | 'discount_rate_diff_pct'
+      | 'stagnant_ratio_pct'
+      | 'current_stock_amt'
+      | 'stagnant_stock_qty'
+  ) => {
+    if (inventoryCategorySort.key !== key) return '';
+    return inventoryCategorySort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+  const sortedActiveInventoryCategoryRows = [...activeInventoryCategoryRows].sort((a: any, b: any) => {
+    const getValue = (row: any) => {
+      if (inventoryCategorySort.key === 'cat2') return String(row?.cat2 || '');
+      if (inventoryCategorySort.key === 'share') {
+        return activeInventoryCategoryTotal > 0 ? (Number(row?.curr_stock_amt || 0) / activeInventoryCategoryTotal) * 100 : -Infinity;
+      }
+      return row?.[inventoryCategorySort.key] ?? null;
+    };
+
+    const left = getValue(a);
+    const right = getValue(b);
+
+    if (typeof left === 'string' || typeof right === 'string') {
+      const result = String(left || '').localeCompare(String(right || ''));
+      return inventoryCategorySort.direction === 'asc' ? result : -result;
+    }
+
+    const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+    const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+    if (leftValue === rightValue) {
+      return String(a?.cat2 || '').localeCompare(String(b?.cat2 || ''));
+    }
+    return inventoryCategorySort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  });
+  const selectedInventorySkuTotal = selectedInventorySkuNode
+    ? selectedInventorySkuNode.rows.reduce((sum, row) => sum + Number(row.curr_stock_amt || 0), 0)
+    : 0;
+  const toggleSalesPushYearSort = (key: 'year_bucket' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct') => {
+    setSalesPushYearSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'year_bucket' ? 'asc' : 'desc' }
+    );
+  };
+  const getSalesPushYearSortIndicator = (key: 'year_bucket' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct') => {
+    if (salesPushYearSort.key !== key) return '';
+    return salesPushYearSort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+  const sortedSalesPushYearRows = [...salesPushYearRows].sort((a: any, b: any) => {
+    const left = salesPushYearSort.key === 'year_bucket' ? (getYearBucketRank(a?.year_bucket) ?? -Infinity) : (a?.[salesPushYearSort.key] ?? null);
+    const right = salesPushYearSort.key === 'year_bucket' ? (getYearBucketRank(b?.year_bucket) ?? -Infinity) : (b?.[salesPushYearSort.key] ?? null);
+    const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+    const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+    if (leftValue === rightValue) return (getYearBucketRank(a?.year_bucket) ?? 0) - (getYearBucketRank(b?.year_bucket) ?? 0);
+    return salesPushYearSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  });
+  const toggleSalesPushCategorySort = (key: 'cat2' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct') => {
+    setSalesPushCategorySort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'cat2' ? 'asc' : 'desc' }
+    );
+  };
+  const getSalesPushCategorySortIndicator = (key: 'cat2' | 'amount' | 'share_pct' | 'sku_count' | 'current_stock_amt' | 'ly_sales' | 'sales_rate_pct') => {
+    if (salesPushCategorySort.key !== key) return '';
+    return salesPushCategorySort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+  const sortedSalesPushCategoryRows = [...salesPushCategoryRows].sort((a: any, b: any) => {
+    const left = salesPushCategorySort.key === 'cat2' ? String(a?.cat2 || '') : (a?.[salesPushCategorySort.key] ?? null);
+    const right = salesPushCategorySort.key === 'cat2' ? String(b?.cat2 || '') : (b?.[salesPushCategorySort.key] ?? null);
+    if (typeof left === 'string' || typeof right === 'string') {
+      const result = String(left || '').localeCompare(String(right || ''));
+      return salesPushCategorySort.direction === 'asc' ? result : -result;
+    }
+    const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+    const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+    if (leftValue === rightValue) return String(a?.cat2 || '').localeCompare(String(b?.cat2 || ''));
+    return salesPushCategorySort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  });
+  const toggleSalesPushSkuSort = (key: 'prdt_cd' | 'sales_push_stagnant_amt' | 'current_stock_amt' | 'ly_push_30d_tag_sales' | 'sales_rate_pct') => {
+    setSalesPushSkuSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'prdt_cd' ? 'asc' : 'desc' }
+    );
+  };
+  const getSalesPushSkuSortIndicator = (key: 'prdt_cd' | 'sales_push_stagnant_amt' | 'current_stock_amt' | 'ly_push_30d_tag_sales' | 'sales_rate_pct') => {
+    if (salesPushSkuSort.key !== key) return '';
+    return salesPushSkuSort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+  const sortedSalesPushSkuDetailRows = [...salesPushSkuDetailRows].sort((a: any, b: any) => {
+    const left = salesPushSkuSort.key === 'prdt_cd' ? String(a?.prdt_cd || '') : (a?.[salesPushSkuSort.key] ?? null);
+    const right = salesPushSkuSort.key === 'prdt_cd' ? String(b?.prdt_cd || '') : (b?.[salesPushSkuSort.key] ?? null);
+    if (typeof left === 'string' || typeof right === 'string') {
+      const result = String(left || '').localeCompare(String(right || ''));
+      return salesPushSkuSort.direction === 'asc' ? result : -result;
+    }
+    const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+    const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+    if (leftValue === rightValue) return String(a?.prdt_cd || '').localeCompare(String(b?.prdt_cd || ''));
+    return salesPushSkuSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  });
+  const sortedSalesPushAllSkuRows = [...salesPushSkuRows].sort((a: any, b: any) => {
+    const left = salesPushSkuSort.key === 'prdt_cd' ? String(a?.prdt_cd || '') : (a?.[salesPushSkuSort.key] ?? null);
+    const right = salesPushSkuSort.key === 'prdt_cd' ? String(b?.prdt_cd || '') : (b?.[salesPushSkuSort.key] ?? null);
+    if (typeof left === 'string' || typeof right === 'string') {
+      const result = String(left || '').localeCompare(String(right || ''));
+      return salesPushSkuSort.direction === 'asc' ? result : -result;
+    }
+    const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+    const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+    if (leftValue === rightValue) return String(a?.prdt_cd || '').localeCompare(String(b?.prdt_cd || ''));
+    return salesPushSkuSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+  });
+  useEffect(() => {
+    if (!selectedInventorySkuNode || !inventorySkuSectionRef.current) return;
+    inventorySkuSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedInventorySkuNode]);
+  useEffect(() => {
+    if (!salesPushModalOpen) return;
+    const firstYear = salesPushYearRows[0]?.year_bucket || null;
+    setSelectedSalesPushYear(firstYear);
+    setSelectedSalesPushCategory(null);
+  }, [salesPushModalOpen, section3Data?.asof_date]);
+  useEffect(() => {
+    if (!salesPushModalOpen || !selectedSalesPushYear) return;
+    const firstCategory = salesPushCategoryRows[0]?.cat2 || null;
+    setSelectedSalesPushCategory(firstCategory);
+  }, [salesPushModalOpen, selectedSalesPushYear]);
+  const buildStagnantSkuRows = (yearBucket: string | undefined, cat2: string) => {
+    const skuRows = Array.isArray(section3Data?.skus) ? section3Data.skus : [];
+    return skuRows
+      .filter((row: any) =>
+        (!yearBucket || String(row?.year_bucket || '') === String(yearBucket)) &&
+        String(row?.cat2 || '').toUpperCase() === String(cat2 || '').toUpperCase() &&
+        Number(row?.stagnant_stock_amt || 0) > 0
+      )
+      .map((row: any) => {
+        const currentStockAmt = Number(row?.curr_stock_amt || 0);
+        const stagnantStockAmt = Number(row?.stagnant_stock_amt || 0);
+        return {
+          prdt_cd: String(row?.prdt_cd || '-'),
+          curr_stock_amt: stagnantStockAmt,
+          stagnant_stock_amt: stagnantStockAmt,
+          stagnant_stock_qty: Number(row?.stagnant_stock_qty || 0),
+          current_stock_amt: currentStockAmt,
+          stagnant_ratio_pct: currentStockAmt > 0 ? (stagnantStockAmt / currentStockAmt) * 100 : null,
+        };
+      })
+      .sort((a: any, b: any) => (b.curr_stock_amt - a.curr_stock_amt) || a.prdt_cd.localeCompare(b.prdt_cd));
+  };
+  const stagnantCurrentStockTotal =
+    selectedInventoryCard?.key === 'stagnant'
+      ? Number(summaryCards?.stagnant_card?.curr_stock_amt || 0)
+      : 0;
+  const stagnantRatioPct =
+    isStagnantDetail && stagnantCurrentStockTotal > 0 && selectedInventoryCard
+      ? (Number(selectedInventoryCard.curr_stock_amt || 0) / stagnantCurrentStockTotal) * 100
+      : null;
   const getBreakdownRowMetrics = (row: any) => {
     const categoryNodes = Array.isArray(row?.category_nodes) ? row.category_nodes : [];
     const currentTotal = categoryNodes.reduce((sum: number, item: any) => sum + Number(item.curr_stock_amt || 0), 0);
@@ -913,11 +1297,39 @@ export default function Section3Card({
     <article className={`relative ${fixedHeight ? 'h-[452px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
       <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
         <div className="flex-1">
-          <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
-            {t(language, 'section3Title')}
-            {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
-          </h3>
-          {!simpleDetail && <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
+              {t(language, 'section3Title')}
+              {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
+            </h3>
+            {!simpleDetail && salesPushSummary.totalAmt > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSalesPushModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold leading-tight text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100"
+              >
+                <span>{language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}</span>
+                <span>{formatCurrency(salesPushSummary.totalAmt || 0)}</span>
+              </button>
+            ) : null}
+          </div>
+          {false && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSalesPushModalOpen(true)}
+                className="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+              >
+                {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
+              </button>
+              {salesPushWindow ? (
+                <span className="text-[11px] text-gray-500">
+                  {language === 'ko' ? `전년 동일 30일 판매 기준 ${salesPushWindow.start}~${salesPushWindow.end}` : `LY 30-day sales window ${salesPushWindow.start}~${salesPushWindow.end}`}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {false && !simpleDetail && <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>}
         </div>
 
         <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
@@ -1070,7 +1482,7 @@ export default function Section3Card({
       )}
 
       {selectedInventoryCard && Array.isArray(selectedInventoryCard.breakdown) && selectedInventoryCard.breakdown.length > 0 ? (
-        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/45 px-4 py-6 backdrop-blur-[1px] sm:px-6 sm:py-8" onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}>
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-black/45 px-4 py-6 backdrop-blur-[1px] sm:px-6 sm:py-8" onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); setSelectedInventorySkuNode(null); }}>
           <div className="max-h-[92vh] w-[min(1500px,96vw)] overflow-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -1086,7 +1498,7 @@ export default function Section3Card({
               </div>
               <button
                 type="button"
-                onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); }}
+                onClick={() => { setSelectedInventoryCard(null); setSelectedInventoryNode(null); setSelectedInventorySkuNode(null); }}
                 className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
               >
                 {language === 'ko' ? '닫기' : 'Close'}
@@ -1103,7 +1515,34 @@ export default function Section3Card({
                 </button>
               </div>
             ) : null}
-            {true ? (
+            {isStagnantDetail ? (
+              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '정체재고(TAG)' : 'Stagnant Stock (TAG)'}</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                    {formatCurrency(selectedInventoryCard.curr_stock_amt || 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '정체비중' : 'Stagnant Ratio'}</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-rose-700">
+                    {stagnantRatioPct !== null ? formatPercent(stagnantRatioPct, 1) : '-'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                    {formatCurrency(stagnantCurrentStockTotal)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <p className="text-[11px] text-gray-500">{language === 'ko' ? '전월말 대비' : 'vs Last Month End'}</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
+                    {formatSignedPercentPoint(((summaryCards?.stagnant_card?.stagnant_ratio ?? 0) - (summaryCards?.stagnant_card?.prev_month_stagnant_ratio ?? 0)) * 100)}
+                  </p>
+                </div>
+              </div>
+            ) : !isStagnantDetail ? (
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50 px-3 py-2">
                   <p className="text-[11px] text-gray-500">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</p>
@@ -1143,66 +1582,122 @@ export default function Section3Card({
               <div className="border-b border-gray-200 px-4 py-3">
                 <h5 className="text-sm font-semibold text-gray-900">
                   {selectedInventoryNode
-                    ? (language === 'ko' ? '카테고리 재고 상세' : 'Category Stock Detail')
-                    : (language === 'ko' ? '재고 상세' : 'Stock Detail')}
+                    ? (isStagnantDetail
+                        ? (language === 'ko' ? '카테고리별 정체재고 상세' : 'Category Stagnant Stock Detail')
+                        : (language === 'ko' ? '카테고리 재고 상세' : 'Category Stock Detail'))
+                    : (isStagnantDetail
+                        ? (language === 'ko' ? '정체재고 상세' : 'Stagnant Stock Detail')
+                        : (language === 'ko' ? '재고 상세' : 'Stock Detail'))}
                 </h5>
               </div>
               <div className="max-h-[360px] overflow-auto">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full table-fixed text-sm">
                   <thead className="bg-gray-50 text-gray-700">
                     <tr className="border-b border-gray-200">
-                      <th className="px-4 py-3 text-left font-semibold">
+                      <th className="w-[120px] px-4 py-3 text-left font-semibold">
                         {selectedInventoryNode ? (language === 'ko' ? '카테고리' : 'Category') : (language === 'ko' ? '구분' : 'Segment')}
                       </th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고 YoY' : 'Stock YoY'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중' : 'Share'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중 증감' : 'Share vs LY'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액' : 'Depleted Sales'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액 YoY' : 'Depleted YoY'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율' : 'Discount Rate'}</th>
-                      <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율 증감' : 'Discount vs LY'}</th>
-            {true ? (
-                        <th className="px-4 py-3 text-center font-semibold">{language === 'ko' ? '상세' : 'Detail'}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{isStagnantDetail ? (language === 'ko' ? '정체재고(TAG)' : 'Stagnant Stock (TAG)') : (language === 'ko' ? '재고(TAG)' : 'Stock (TAG)')}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{isStagnantDetail ? (language === 'ko' ? '정체비중' : 'Stagnant Ratio') : (language === 'ko' ? '재고 YoY' : 'Stock YoY')}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{isStagnantDetail ? (language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)') : (language === 'ko' ? '비중' : 'Share')}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{isStagnantDetail ? (language === 'ko' ? '정체재고 수량' : 'Stagnant Qty') : (language === 'ko' ? '비중 증감' : 'Share vs LY')}</th>
+                      <th className="px-4 py-3 text-right font-semibold">{isStagnantDetail ? (language === 'ko' ? '비중' : 'Share') : (language === 'ko' ? '소진액' : 'Depleted Sales')}</th>
+                      <th className={`${isStagnantDetail ? 'w-[88px] px-3 text-center' : 'px-4 text-right'} py-3 font-semibold`}>{isStagnantDetail ? (language === 'ko' ? '상세' : 'Detail') : (language === 'ko' ? '소진액 YoY' : 'Depleted YoY')}</th>
+                      {!isStagnantDetail ? <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율' : 'Discount Rate'}</th> : null}
+                      {!isStagnantDetail ? <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율 증감' : 'Discount vs LY'}</th> : null}
+            {!isStagnantDetail ? (
+                        <th className="w-[88px] px-3 py-3 text-center font-semibold">{language === 'ko' ? '상세' : 'Detail'}</th>
                       ) : null}
                     </tr>
                   </thead>
                   <tbody>
-                    {false
-                      ? selectedInventoryRows.map((row: any) => (
-                          <tr key={row.cat2} className="border-b border-gray-100 last:border-b-0">
-                            <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
-                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
-                              {formatCurrency(row.curr_stock_amt || 0)}
-                            </td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
-                              {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                              {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
-                            </td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? (row.stock_share_diff_pct > 0 ? 'text-red-600' : row.stock_share_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
-                              {row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? formatSignedPercentPoint(row.stock_share_diff_pct) : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
-                              {row.period_tag_sales !== null && row.period_tag_sales !== undefined ? formatCurrency(row.period_tag_sales) : '-'}
-                            </td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.period_sales_yoy_pct)}`}>
-                              {row.period_sales_yoy_pct !== null && row.period_sales_yoy_pct !== undefined ? `${row.period_sales_yoy_pct.toFixed(0)}%` : '-'}
-                            </td>
-                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
-                              {row.discount_rate !== null && row.discount_rate !== undefined ? formatPercent(row.discount_rate, 1) : '-'}
-                            </td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? (row.discount_rate_diff_pct > 0 ? 'text-red-600' : row.discount_rate_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
-                              {row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? formatSignedPercentPoint(row.discount_rate_diff_pct) : '-'}
-                            </td>
-                          </tr>
-                        ))
+                    {isStagnantDetail
+                      ? selectedInventoryRows.map((row: any) => {
+                          const hasCategoryNodes = Array.isArray(row.category_nodes) && row.category_nodes.length > 0;
+                          return (
+                            <tr
+                              key={row.label_key}
+                              onClick={() => {
+                                if (!hasCategoryNodes) return;
+                                setSelectedInventoryNode({
+                                  name: getInventoryBreakdownLabel(row.label_key),
+                                  categoryNodes: row.category_nodes,
+                                });
+                                setSelectedInventorySkuNode(null);
+                              }}
+                              className={`border-b border-gray-100 last:border-b-0 ${
+                                activeInventoryNode?.name === getInventoryBreakdownLabel(row.label_key)
+                                  ? 'bg-purple-50/70'
+                                  : hasCategoryNodes
+                                    ? 'cursor-pointer bg-white hover:bg-purple-50/40'
+                                    : 'bg-white'
+                              }`}
+                            >
+                              <td className="px-4 py-3 font-medium text-gray-900">{getInventoryBreakdownLabel(row.label_key)}</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.curr_stock_amt || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">
+                                {row.stagnant_ratio_pct !== null && row.stagnant_ratio_pct !== undefined ? formatPercent(row.stagnant_ratio_pct, 1) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.current_stock_amt || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-700">
+                                {typeof row.stagnant_stock_qty === 'number' && Number.isFinite(row.stagnant_stock_qty) ? row.stagnant_stock_qty.toFixed(0) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                                {selectedInventoryRowTotal > 0 ? `${((row.curr_stock_amt / selectedInventoryRowTotal) * 100).toFixed(1)}%` : '-'}
+                              </td>
+                              <td className="w-[88px] px-3 py-3 text-center">
+                                {hasCategoryNodes ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedInventoryNode({
+                                        name: getInventoryBreakdownLabel(row.label_key),
+                                        categoryNodes: row.category_nodes,
+                                      });
+                                      setSelectedInventorySkuNode(null);
+                                    }}
+                                    className={`rounded-md border px-2 py-1 text-xs font-medium transition ${
+                                      activeInventoryNode?.name === getInventoryBreakdownLabel(row.label_key)
+                                        ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                        : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {language === 'ko' ? '보기' : 'Open'}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
                       : selectedInventoryRows.map((row: any) => {
                           const hasCategoryNodes = Array.isArray(row.category_nodes) && row.category_nodes.length > 0;
                           const derived = getBreakdownRowMetrics(row);
                           return (
-                            <tr key={row.label_key} className="border-b border-gray-100 last:border-b-0">
+                            <tr
+                              key={row.label_key}
+                              onClick={() => {
+                                if (!hasCategoryNodes) return;
+                                setSelectedInventoryNode({
+                                  name: getInventoryBreakdownLabel(row.label_key),
+                                  categoryNodes: row.category_nodes,
+                                });
+                                setSelectedInventorySkuNode(null);
+                              }}
+                              className={`border-b border-gray-100 last:border-b-0 ${
+                                activeInventoryNode?.name === getInventoryBreakdownLabel(row.label_key)
+                                  ? 'bg-purple-50/70'
+                                  : hasCategoryNodes
+                                    ? 'cursor-pointer bg-white hover:bg-purple-50/40'
+                                    : 'bg-white'
+                              }`}
+                            >
                               <td className="px-4 py-3 font-medium text-gray-900">{getInventoryBreakdownLabel(row.label_key)}</td>
                               <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                                 {formatCurrency(row.curr_stock_amt || 0)}
@@ -1232,12 +1727,14 @@ export default function Section3Card({
                                 {hasCategoryNodes ? (
                                   <button
                                     type="button"
-                                    onClick={() =>
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setSelectedInventoryNode({
                                         name: getInventoryBreakdownLabel(row.label_key),
                                         categoryNodes: row.category_nodes,
-                                      })
-                                    }
+                                      });
+                                      setSelectedInventorySkuNode(null);
+                                    }}
                                     className={`rounded-md border px-2 py-1 text-xs font-medium transition ${
                                       activeInventoryNode?.name === getInventoryBreakdownLabel(row.label_key)
                                         ? 'border-purple-200 bg-purple-50 text-purple-700'
@@ -1261,51 +1758,180 @@ export default function Section3Card({
               <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 <div className="border-b border-gray-200 px-4 py-3">
                   <h5 className="text-sm font-semibold text-gray-900">
-                    {language === 'ko' ? `소분류 카테고리 상세 · ${activeInventoryNode.name}` : `Subcategory Detail · ${activeInventoryNode.name}`}
+                    {isStagnantDetail
+                      ? (language === 'ko' ? `카테고리 상세 · ${activeInventoryNode.name}` : `Category Detail · ${activeInventoryNode.name}`)
+                      : (language === 'ko' ? `소분류 카테고리 상세 · ${activeInventoryNode.name}` : `Subcategory Detail · ${activeInventoryNode.name}`)}
                   </h5>
                 </div>
                 <div className="max-h-[360px] overflow-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full table-fixed text-sm">
                     <thead className="bg-gray-50 text-gray-700">
                       <tr className="border-b border-gray-200">
-                        <th className="px-4 py-3 text-left font-semibold">{language === 'ko' ? '소분류' : 'Subcategory'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고(TAG)' : 'Stock (TAG)'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '재고 YoY' : 'Stock YoY'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중' : 'Share'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중 증감' : 'Share vs LY'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액' : 'Depleted Sales'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '소진액 YoY' : 'Depleted YoY'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율' : 'Discount Rate'}</th>
-                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '할인율 증감' : 'Discount vs LY'}</th>
+                        <th className="w-[120px] px-4 py-3 text-left font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort('cat2')} className="inline-flex w-full items-center justify-start text-left transition hover:text-purple-700">
+                            {language === 'ko' ? (isStagnantDetail ? '카테고리' : '소분류') : (isStagnantDetail ? 'Category' : 'Subcategory')}{getInventoryCategorySortIndicator('cat2')}
+                          </button>
+                        </th>
+                        <th className="w-[160px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort('curr_stock_amt')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                            {language === 'ko' ? (isStagnantDetail ? '정체재고(TAG)' : '재고(TAG)') : (isStagnantDetail ? 'Stagnant Stock (TAG)' : 'Stock (TAG)')}{getInventoryCategorySortIndicator('curr_stock_amt')}
+                          </button>
+                        </th>
+                        <th className="w-[180px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort(isStagnantDetail ? 'stagnant_ratio_pct' : 'yoy_pct')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                            {language === 'ko' ? (isStagnantDetail ? '정체비중' : '재고 YoY') : (isStagnantDetail ? 'Stagnant Ratio' : 'Stock YoY')}{getInventoryCategorySortIndicator(isStagnantDetail ? 'stagnant_ratio_pct' : 'yoy_pct')}
+                          </button>
+                        </th>
+                        <th className="w-[110px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort('share')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                            {language === 'ko' ? '비중' : 'Share'}{getInventoryCategorySortIndicator('share')}
+                          </button>
+                        </th>
+                        <th className="w-[130px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort(isStagnantDetail ? 'current_stock_amt' : 'stock_share_diff_pct')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                            {language === 'ko' ? (isStagnantDetail ? '현재재고(TAG)' : '비중 증감') : (isStagnantDetail ? 'Current Stock (TAG)' : 'Share vs LY')}{getInventoryCategorySortIndicator(isStagnantDetail ? 'current_stock_amt' : 'stock_share_diff_pct')}
+                          </button>
+                        </th>
+                        <th className="w-[190px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleInventoryCategorySort(isStagnantDetail ? 'stagnant_stock_qty' : 'period_tag_sales')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                            {language === 'ko' ? (isStagnantDetail ? '정체재고 수량' : '소진액') : (isStagnantDetail ? 'Stagnant Qty' : 'Depleted Sales')}{getInventoryCategorySortIndicator(isStagnantDetail ? 'stagnant_stock_qty' : 'period_tag_sales')}
+                          </button>
+                        </th>
+                        {!isStagnantDetail ? (
+                          <th className="px-4 py-3 text-right font-semibold">
+                            <button type="button" onClick={() => toggleInventoryCategorySort('period_sales_yoy_pct')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                              {language === 'ko' ? '소진액 YoY' : 'Depleted YoY'}{getInventoryCategorySortIndicator('period_sales_yoy_pct')}
+                            </button>
+                          </th>
+                        ) : null}
+                        {!isStagnantDetail ? (
+                          <th className="px-4 py-3 text-right font-semibold">
+                            <button type="button" onClick={() => toggleInventoryCategorySort('discount_rate')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                              {language === 'ko' ? '할인율' : 'Discount Rate'}{getInventoryCategorySortIndicator('discount_rate')}
+                            </button>
+                          </th>
+                        ) : null}
+                        {!isStagnantDetail ? (
+                          <th className="px-4 py-3 text-right font-semibold">
+                            <button type="button" onClick={() => toggleInventoryCategorySort('discount_rate_diff_pct')} className="inline-flex w-full items-center justify-end text-right transition hover:text-purple-700">
+                              {language === 'ko' ? '할인율 증감' : 'Discount vs LY'}{getInventoryCategorySortIndicator('discount_rate_diff_pct')}
+                            </button>
+                          </th>
+                        ) : null}
+                        {isStagnantDetail ? <th className="px-4 py-3 text-center font-semibold">{language === 'ko' ? '품번' : 'SKU'}</th> : null}
                       </tr>
                     </thead>
                     <tbody>
-                      {activeInventoryCategoryRows.map((row: any) => (
-                        <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
-                          <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                      {isStagnantDetail
+                        ? sortedActiveInventoryCategoryRows.map((row: any) => (
+                            <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
+                              <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.curr_stock_amt || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">
+                                {row.stagnant_ratio_pct !== null && row.stagnant_ratio_pct !== undefined ? formatPercent(row.stagnant_ratio_pct, 1) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                                {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.current_stock_amt || 0)}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-700">
+                                {typeof row.stagnant_stock_qty === 'number' && Number.isFinite(row.stagnant_stock_qty) ? row.stagnant_stock_qty.toFixed(0) : '-'}
+                              </td>
+                              <td className="w-[88px] px-3 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedInventorySkuNode({
+                                      name: row.cat2,
+                                      rows: buildStagnantSkuRows(row.year_bucket, row.cat2),
+                                    })
+                                  }
+                                  className={`rounded-md border px-2 py-1 text-xs font-medium transition ${
+                                    selectedInventorySkuNode?.name === row.cat2
+                                      ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                      : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {language === 'ko' ? '보기' : 'Open'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        : sortedActiveInventoryCategoryRows.map((row: any) => (
+                            <tr key={`${activeInventoryNode.name}-${row.cat2}`} className="border-b border-gray-100 last:border-b-0">
+                              <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {formatCurrency(row.curr_stock_amt || 0)}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
+                                {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                                {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? (row.stock_share_diff_pct > 0 ? 'text-red-600' : row.stock_share_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                                {row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? formatSignedPercentPoint(row.stock_share_diff_pct) : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                                {row.period_tag_sales !== null && row.period_tag_sales !== undefined ? formatCurrency(row.period_tag_sales) : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.period_sales_yoy_pct)}`}>
+                                {row.period_sales_yoy_pct !== null && row.period_sales_yoy_pct !== undefined ? `${row.period_sales_yoy_pct.toFixed(0)}%` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
+                                {row.discount_rate !== null && row.discount_rate !== undefined ? formatPercent(row.discount_rate, 1) : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? (row.discount_rate_diff_pct > 0 ? 'text-red-600' : row.discount_rate_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
+                                {row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? formatSignedPercentPoint(row.discount_rate_diff_pct) : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+            {isStagnantDetail && selectedInventorySkuNode && selectedInventorySkuNode.rows.length > 0 ? (
+              <div ref={inventorySkuSectionRef} className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h5 className="text-sm font-semibold text-gray-900">
+                    {language === 'ko' ? `품번 상세 · ${selectedInventorySkuNode.name}` : `SKU Detail · ${selectedInventorySkuNode.name}`}
+                  </h5>
+                </div>
+                <div className="max-h-[360px] overflow-auto">
+                  <table className="min-w-full table-fixed text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr className="border-b border-gray-200">
+                        <th className="px-4 py-3 text-left font-semibold">{language === 'ko' ? '품번' : 'SKU'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '정체재고(TAG)' : 'Stagnant Stock (TAG)'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '정체비중' : 'Stagnant Ratio'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '정체재고 수량' : 'Stagnant Qty'}</th>
+                        <th className="px-4 py-3 text-right font-semibold">{language === 'ko' ? '비중' : 'Share'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedInventorySkuNode.rows.map((row) => (
+                        <tr key={`${selectedInventorySkuNode.name}-${row.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.prdt_cd}</td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                             {formatCurrency(row.curr_stock_amt || 0)}
                           </td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.yoy_pct)}`}>
-                            {row.yoy_pct !== null && row.yoy_pct !== undefined ? `${row.yoy_pct.toFixed(0)}%` : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                            {activeInventoryCategoryTotal > 0 ? `${((row.curr_stock_amt / activeInventoryCategoryTotal) * 100).toFixed(1)}%` : '-'}
-                          </td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? (row.stock_share_diff_pct > 0 ? 'text-red-600' : row.stock_share_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
-                            {row.stock_share_diff_pct !== null && row.stock_share_diff_pct !== undefined ? formatSignedPercentPoint(row.stock_share_diff_pct) : '-'}
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">
+                            {row.stagnant_ratio_pct !== null && row.stagnant_ratio_pct !== undefined ? formatPercent(row.stagnant_ratio_pct, 1) : '-'}
                           </td>
                           <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
-                            {row.period_tag_sales !== null && row.period_tag_sales !== undefined ? formatCurrency(row.period_tag_sales) : '-'}
+                            {formatCurrency(row.current_stock_amt || 0)}
                           </td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${getInventoryYoyTone(row.period_sales_yoy_pct)}`}>
-                            {row.period_sales_yoy_pct !== null && row.period_sales_yoy_pct !== undefined ? `${row.period_sales_yoy_pct.toFixed(0)}%` : '-'}
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-700">
+                            {typeof row.stagnant_stock_qty === 'number' && Number.isFinite(row.stagnant_stock_qty) ? row.stagnant_stock_qty.toFixed(0) : '-'}
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-sky-700">
-                            {row.discount_rate !== null && row.discount_rate !== undefined ? formatPercent(row.discount_rate, 1) : '-'}
-                          </td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? (row.discount_rate_diff_pct > 0 ? 'text-red-600' : row.discount_rate_diff_pct < 0 ? 'text-green-600' : 'text-gray-600') : 'text-gray-400'}`}>
-                            {row.discount_rate_diff_pct !== null && row.discount_rate_diff_pct !== undefined ? formatSignedPercentPoint(row.discount_rate_diff_pct) : '-'}
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                            {selectedInventorySkuTotal > 0 ? `${((row.curr_stock_amt / selectedInventorySkuTotal) * 100).toFixed(1)}%` : '-'}
                           </td>
                         </tr>
                       ))}
@@ -1323,6 +1949,336 @@ export default function Section3Card({
         </div>
       ) : null}
 
+      {salesPushModalOpen ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-start justify-center bg-black/45 px-4 py-6 backdrop-blur-[1px] sm:px-6 sm:py-8"
+          onClick={() => setSalesPushModalOpen(false)}
+        >
+          <div
+            className="max-h-[92vh] w-[min(1480px,96vw)] overflow-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">
+                  {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
+                </h4>
+                <div className="mt-2 rounded-xl border border-rose-100 bg-rose-50/70 px-3 py-2">
+                  <p className="text-[12px] font-semibold text-rose-800">
+                    {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-gray-700">
+                    {language === 'ko'
+                      ? '전년 동일 30일 TAG 판매가 현재 재고의 5% 이상인 정체 품번입니다. 판매율이 높았던 재고는 지체없이 판매 진행을 추천합니다.'
+                      : 'Stagnant SKUs whose LY same 30-day TAG sales were at least 5% of current stock. We recommend immediate sell-through action for items with strong sales rate.'}
+                  </p>
+                </div>
+                {salesPushWindow ? (
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    {language === 'ko'
+                      ? `비교 구간: ${salesPushWindow.start}~${salesPushWindow.end}`
+                      : `Comparison window: ${salesPushWindow.start}~${salesPushWindow.end}`}
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSalesPushModalOpen(false)}
+                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
+              >
+                {language === 'ko' ? '닫기' : 'Close'}
+              </button>
+            </div>
+
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-orange-50 px-3 py-2">
+                <p className="text-[11px] text-gray-500">{language === 'ko' ? '판매Push 정체재고(TAG)' : 'Sales-Push Stagnant (TAG)'}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-gray-900">{formatCurrency(salesPushSummary.totalAmt || 0)}</p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-gray-500">{language === 'ko' ? '대상 품번 수' : 'Target SKU Count'}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-gray-900">{salesPushSummary.totalSkuCount}</p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-gray-500">{language === 'ko' ? '전체 정체재고 대비 비중' : 'Share of Stagnant'}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-rose-700">
+                  {salesPushSummary.shareOfStagnantPct !== null ? formatPercent(salesPushSummary.shareOfStagnantPct, 1) : '-'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] text-gray-500">{language === 'ko' ? '전년 동기 30일 판매액(TAG)' : 'LY 30-Day Sales (TAG)'}</p>
+                <p className="mt-1 text-base font-bold tabular-nums text-gray-900">{formatCurrency(salesPushSummary.totalLySales || 0)}</p>
+              </div>
+            </div>
+
+            {sortedSalesPushAllSkuRows.length > 0 ? (
+              <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h5 className="text-sm font-semibold text-gray-900">
+                    {language === 'ko' ? 'Push 대상 품번' : 'Push Target SKUs'}
+                  </h5>
+                </div>
+                <div className="max-h-[320px] overflow-auto">
+                  <table className="min-w-full table-fixed text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr className="border-b border-gray-200">
+                        <th className="w-[120px] px-4 py-3 text-left font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushSkuSort('prdt_cd')} className="inline-flex w-full items-center justify-start gap-1 text-left leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '품번' : 'SKU'}{getSalesPushSkuSortIndicator('prdt_cd')}
+                          </button>
+                        </th>
+                        <th className="w-[120px] px-4 py-3 text-left font-semibold">
+                          {language === 'ko' ? '연차' : 'Year'}
+                        </th>
+                        <th className="w-[100px] px-4 py-3 text-left font-semibold">
+                          {language === 'ko' ? '카테고리' : 'Category'}
+                        </th>
+                        <th className="w-[150px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushSkuSort('current_stock_amt')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}{getSalesPushSkuSortIndicator('current_stock_amt')}
+                          </button>
+                        </th>
+                        <th className="w-[100px] px-4 py-3 text-right font-semibold">
+                          {language === 'ko' ? '재고수량' : 'Stock Qty'}
+                        </th>
+                        <th className="w-[170px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushSkuSort('sales_push_stagnant_amt')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '판매Push 정체재고(TAG)' : 'Sales-Push Stagnant (TAG)'}{getSalesPushSkuSortIndicator('sales_push_stagnant_amt')}
+                          </button>
+                        </th>
+                        <th className="w-[110px] px-4 py-3 text-right font-semibold">
+                          {language === 'ko' ? '정체재고 수량' : 'Stagnant Qty'}
+                        </th>
+                        <th className="w-[190px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushSkuSort('ly_push_30d_tag_sales')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '전년 동기 30일 판매액(TAG)' : 'LY 30-Day Sales (TAG)'}{getSalesPushSkuSortIndicator('ly_push_30d_tag_sales')}
+                          </button>
+                        </th>
+                        <th className="w-[110px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushSkuSort('sales_rate_pct')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '판매율' : 'Sales Rate'}{getSalesPushSkuSortIndicator('sales_rate_pct')}
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedSalesPushAllSkuRows.map((row: any) => (
+                        <tr key={`push-all-${row.year_bucket}-${row.cat2}-${row.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.prdt_cd}</td>
+                          <td className="px-4 py-3 text-gray-700">{row.year_bucket}</td>
+                          <td className="px-4 py-3 text-gray-700">{row.cat2}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.current_stock_amt || 0)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{typeof row.current_stock_qty === 'number' && Number.isFinite(row.current_stock_qty) ? `${row.current_stock_qty.toFixed(0)} pcs` : '-'}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.sales_push_stagnant_amt || 0)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{typeof row.sales_push_stagnant_qty === 'number' && Number.isFinite(row.sales_push_stagnant_qty) ? `${row.sales_push_stagnant_qty.toFixed(0)} pcs` : '-'}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.ly_push_30d_tag_sales || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">{row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h5 className="text-sm font-semibold text-gray-900">
+                  {language === 'ko' ? '판매Push 정체재고 상세' : 'Sales-Push Stagnant Detail'}
+                </h5>
+              </div>
+              <div className="max-h-[320px] overflow-auto">
+                <table className="min-w-full table-fixed text-sm">
+                  <thead className="bg-gray-50 text-gray-700">
+                    <tr className="border-b border-gray-200">
+                      <th className="w-[130px] px-4 py-3 text-left font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('year_bucket')} className="inline-flex w-full items-center justify-start gap-1 text-left leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '구분' : 'Segment'}{getSalesPushYearSortIndicator('year_bucket')}
+                        </button>
+                      </th>
+                      <th className="w-[150px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('current_stock_amt')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}{getSalesPushYearSortIndicator('current_stock_amt')}
+                        </button>
+                      </th>
+                      <th className="w-[190px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('amount')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '판매Push 정체재고(TAG)' : 'Sales-Push Stagnant (TAG)'}{getSalesPushYearSortIndicator('amount')}
+                        </button>
+                      </th>
+                      <th className="w-[100px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('share_pct')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '비중' : 'Share'}{getSalesPushYearSortIndicator('share_pct')}
+                        </button>
+                      </th>
+                      <th className="w-[120px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('sku_count')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '대상 품번 수' : 'Target SKUs'}{getSalesPushYearSortIndicator('sku_count')}
+                        </button>
+                      </th>
+                      <th className="w-[180px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('ly_sales')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '전년 동기 30일 판매액(TAG)' : 'LY 30-Day Sales (TAG)'}{getSalesPushYearSortIndicator('ly_sales')}
+                        </button>
+                      </th>
+                      <th className="w-[110px] px-4 py-3 text-right font-semibold">
+                        <button type="button" onClick={() => toggleSalesPushYearSort('sales_rate_pct')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                          {language === 'ko' ? '판매율' : 'Sales Rate'}{getSalesPushYearSortIndicator('sales_rate_pct')}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSalesPushYearRows.map((row: any) => (
+                      <tr
+                        key={row.year_bucket}
+                        onClick={() => {
+                          setSelectedSalesPushYear(row.year_bucket);
+                          setSelectedSalesPushCategory(null);
+                        }}
+                        className={`border-b border-gray-100 last:border-b-0 ${
+                          selectedSalesPushYear === row.year_bucket ? 'bg-purple-50/70' : 'cursor-pointer bg-white hover:bg-purple-50/40'
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-900">{row.year_bucket}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.current_stock_amt || 0)}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.amount || 0)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.share_pct !== null && row.share_pct !== undefined ? formatPercent(row.share_pct, 1) : '-'}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.sku_count}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.ly_sales || 0)}</td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">{row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {selectedSalesPushYear && salesPushCategoryRows.length > 0 ? (
+              <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h5 className="text-sm font-semibold text-gray-900">
+                    {language === 'ko' ? `카테고리 상세 · ${selectedSalesPushYear}` : `Category Detail · ${selectedSalesPushYear}`}
+                  </h5>
+                </div>
+                <div className="max-h-[320px] overflow-auto">
+                  <table className="min-w-full table-fixed text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr className="border-b border-gray-200">
+                        <th className="w-[130px] px-4 py-3 text-left font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('cat2')} className="inline-flex w-full items-center justify-start gap-1 text-left leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '카테고리' : 'Category'}{getSalesPushCategorySortIndicator('cat2')}
+                          </button>
+                        </th>
+                        <th className="w-[150px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('current_stock_amt')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}{getSalesPushCategorySortIndicator('current_stock_amt')}
+                          </button>
+                        </th>
+                        <th className="w-[190px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('amount')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '판매Push 정체재고(TAG)' : 'Sales-Push Stagnant (TAG)'}{getSalesPushCategorySortIndicator('amount')}
+                          </button>
+                        </th>
+                        <th className="w-[100px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('share_pct')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '비중' : 'Share'}{getSalesPushCategorySortIndicator('share_pct')}
+                          </button>
+                        </th>
+                        <th className="w-[120px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('sku_count')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '대상 품번 수' : 'Target SKUs'}{getSalesPushCategorySortIndicator('sku_count')}
+                          </button>
+                        </th>
+                        <th className="w-[180px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('ly_sales')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '전년 동기 30일 판매액(TAG)' : 'LY 30-Day Sales (TAG)'}{getSalesPushCategorySortIndicator('ly_sales')}
+                          </button>
+                        </th>
+                        <th className="w-[110px] px-4 py-3 text-right font-semibold">
+                          <button type="button" onClick={() => toggleSalesPushCategorySort('sales_rate_pct')} className="inline-flex w-full items-center justify-end gap-1 text-right leading-tight transition hover:text-purple-700">
+                            {language === 'ko' ? '판매율' : 'Sales Rate'}{getSalesPushCategorySortIndicator('sales_rate_pct')}
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedSalesPushCategoryRows.map((row: any) => (
+                        <tr
+                          key={`${selectedSalesPushYear}-${row.cat2}`}
+                          onClick={() => setSelectedSalesPushCategory(row.cat2)}
+                          className={`border-b border-gray-100 last:border-b-0 ${
+                            selectedSalesPushCategory === row.cat2 ? 'bg-purple-50/70' : 'cursor-pointer bg-white hover:bg-purple-50/40'
+                          }`}
+                        >
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.cat2}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.current_stock_amt || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.amount || 0)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.share_pct !== null && row.share_pct !== undefined ? formatPercent(row.share_pct, 1) : '-'}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-700">{row.sku_count}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">{formatCurrency(row.ly_sales || 0)}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">{row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {selectedSalesPushYear && selectedSalesPushCategory && salesPushSkuDetailRows.length > 0 ? (
+              <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-4 py-3">
+                  <h5 className="text-sm font-semibold text-gray-900">
+                    {language === 'ko'
+                      ? `품번 상세 · ${selectedSalesPushYear} / ${selectedSalesPushCategory}`
+                      : `SKU Detail · ${selectedSalesPushYear} / ${selectedSalesPushCategory}`}
+                  </h5>
+                </div>
+                <div className="max-h-[360px] overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr className="border-b border-gray-200">
+                        <th className="w-[140px] px-4 py-3 text-left font-semibold">{language === 'ko' ? '품번' : 'SKU'}</th>
+                        <th className="w-[170px] px-4 py-3 text-right font-semibold">{language === 'ko' ? '현재 정체재고(TAG)' : 'Current Stagnant (TAG)'}</th>
+                        <th className="w-[160px] px-4 py-3 text-right font-semibold">{language === 'ko' ? '현재재고(TAG)' : 'Current Stock (TAG)'}</th>
+                        <th className="w-[190px] px-4 py-3 text-right font-semibold">{language === 'ko' ? '전년 동기 30일 판매액(TAG)' : 'LY 30-Day Sales (TAG)'}</th>
+                        <th className="w-[120px] px-4 py-3 text-right font-semibold">{language === 'ko' ? '판매율' : 'Sales Rate'}</th>
+                        <th className="w-[110px] px-4 py-3 text-center font-semibold">{language === 'ko' ? '판정' : 'Status'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedSalesPushSkuDetailRows.map((row: any) => (
+                        <tr key={`${row.year_bucket}-${row.cat2}-${row.prdt_cd}`} className="border-b border-gray-100 last:border-b-0">
+                          <td className="px-4 py-3 font-medium text-gray-900">{row.prdt_cd}</td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                            {formatCurrency(row.sales_push_stagnant_amt || 0)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                            {formatCurrency(row.current_stock_amt || 0)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
+                            {formatCurrency(row.ly_push_30d_tag_sales || 0)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">
+                            {row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex rounded-md bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100">
+                              {language === 'ko' ? 'Push 대상' : 'Push Target'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {!simpleDetail && periodStartInfo && periodInfoPlacement === 'footer' && (
         <div className="mt-1 text-[11px] text-gray-500">
           <span className="ml-2">
@@ -1333,12 +2289,12 @@ export default function Section3Card({
 
       {!simpleDetail && bottomCards.length > 0 && (
         <div className={`border-t border-gray-100 ${fixedHeight ? 'mt-1 pt-2' : 'mt-1.5 pt-2.5'}`}>
-          <div className="mb-2 flex justify-start">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '아래 카드를 누르면 재고 상세가 열립니다.' : 'Tap the cards below to open stock detail.'}
             </p>
           </div>
-          <div className={`grid grid-cols-1 md:grid-cols-5 ${fixedHeight ? 'gap-1.5' : 'gap-2'}`}>
+          <div className={`grid grid-cols-1 items-stretch md:grid-cols-5 ${fixedHeight ? 'gap-1.5' : 'gap-2'}`}>
             {bottomCards.map((card: any) => {
               const cardDiscountRate =
                 card.targetInfo?.actual_discount_rate ?? card.discountRate ?? null;
@@ -1357,16 +2313,45 @@ export default function Section3Card({
               const progressCardClassName = getBottomProgressCardClassName(card.key, progressPct, projectedPct);
 
               return (
+                <div key={card.key} className="flex h-full min-w-0 flex-col">
+                  {false && card.key === 'stagnant' && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
+                    <div className="mb-1.5 flex justify-start">
+                      <button
+                        type="button"
+                        onClick={() => setSalesPushModalOpen(true)}
+                        className="inline-flex max-w-full items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100"
+                      >
+                        <div className="hidden min-w-0">
+                          <p className="text-xs font-semibold text-rose-700">
+                            {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
+                          </p>
+                          {salesPushWindow ? (
+                            <p className="mt-0.5 text-[10px] leading-tight text-gray-500">
+                              {language === 'ko'
+                                ? `전년 동일 30일 판매 기준 ${salesPushWindow?.start}~${salesPushWindow?.end}`
+                                : `LY 30-day sales window ${salesPushWindow?.start}~${salesPushWindow?.end}`}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="truncate text-rose-700">
+                          {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
+                        </span>
+                        <span className="shrink-0 font-bold text-rose-700">
+                          {formatCurrency(salesPushSummary.totalAmt || 0)}
+                        </span>
+                      </button>
+                    </div>
+                  ) : null}
                 <button
-                  key={card.key}
                   type="button"
                   onClick={() => {
                     const detailCard = inventoryDetailCardMap.get(card.key);
                     if (!detailCard) return;
                     setSelectedInventoryCard(detailCard);
                     setSelectedInventoryNode(null);
+                    setSelectedInventorySkuNode(null);
                   }}
-                  className={`min-w-0 rounded-lg border ${fixedHeight ? 'p-2.5' : 'p-3'} ${progressCardClassName} text-left transition hover:border-gray-300 hover:shadow-md`}
+                  className={`flex h-full w-full flex-col rounded-lg border ${fixedHeight ? 'p-2.5' : 'p-3'} ${progressCardClassName} text-left transition hover:border-gray-300 hover:shadow-md`}
                 >
                   <div className={fixedHeight ? 'mb-1.5' : 'mb-2'}>
                     <p className={`${fixedHeight ? 'text-[13px]' : 'text-sm'} font-bold leading-snug ${getBottomCardTitleClassName(card.key)}`}>
@@ -1381,7 +2366,7 @@ export default function Section3Card({
                         : 'Cleared'
                       : formatCurrency(card.stockAmt || 0)}
                   </p>
-                  <div className={`${fixedHeight ? 'mt-1.5 space-y-0' : 'mt-2.5 space-y-0.5'}`}>
+                  <div className={`${fixedHeight ? 'mt-1.5 space-y-0' : 'mt-2.5 space-y-0.5'} flex-1`}>
                     {card.key === 'stagnant' ? (
                       <>
                         {renderMetricLine(
@@ -1479,6 +2464,7 @@ export default function Section3Card({
                     )}
                   </div>
                 </button>
+                </div>
               );
             })}
           </div>
@@ -1486,7 +2472,9 @@ export default function Section3Card({
       )}
 
       {!simpleDetail && (
-        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">{t(language, 'tagBasis')}</div>
+        <div className="mt-4 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+          {language === 'ko' ? `단위 : ${currencyCode}${t(language, 'tagBasis')}` : `Unit: ${currencyCode} ${t(language, 'tagBasis')}`}
+        </div>
       )}
     </article>
   );

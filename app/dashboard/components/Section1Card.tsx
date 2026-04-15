@@ -758,7 +758,7 @@ export default function Section1Card({
           <>
             <div className="relative rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-3 pt-5 sm:min-h-[116px]">
               <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+                <span className="inline-flex rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
                   {modeBadgeLabel}
                 </span>
               </div>
@@ -767,7 +767,7 @@ export default function Section1Card({
             </div>
             <div className="relative rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 pt-5 sm:min-h-[116px]">
               <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+                <span className="inline-flex rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
                   {modeBadgeLabel}
                 </span>
               </div>
@@ -776,7 +776,7 @@ export default function Section1Card({
             </div>
             <div className="relative rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-3 pt-5 sm:min-h-[116px]">
               <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                <span className="inline-flex whitespace-pre-line rounded-full bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+                <span className="inline-flex whitespace-pre-line rounded-lg bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
                   {targetModeBadgeLabel}
                 </span>
               </div>
@@ -788,7 +788,7 @@ export default function Section1Card({
           <>
         <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-purple-50 p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
           <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-            <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
+            <span className="inline-flex rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100 shadow-sm">
               {modeBadgeLabel}
             </span>
           </div>
@@ -909,7 +909,7 @@ export default function Section1Card({
         </div>
         <div className="relative grid min-w-0 grid-rows-[auto_1fr_auto] rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-2.5 pt-5 sm:min-h-[132px] sm:p-3 sm:pt-5">
           <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-            <span className="inline-flex whitespace-pre-line rounded-full bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
+            <span className="inline-flex whitespace-pre-line rounded-lg bg-emerald-50 px-2 py-0.5 text-center text-[10px] font-semibold leading-tight text-emerald-700 ring-1 ring-emerald-100 shadow-sm">
               {targetModeBadgeLabel}
             </span>
           </div>
@@ -990,7 +990,7 @@ export default function Section1Card({
             })}
           </div>
           <div className="mt-1 flex justify-start">
-            <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[9px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+            <p className="inline-flex rounded-lg bg-purple-50 px-2 py-0.5 text-[9px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '매장 카드를 클릭하면 판매 구성 상세가 열립니다.' : 'Click a store card to open the sales mix detail.'}
             </p>
           </div>
@@ -1000,10 +1000,10 @@ export default function Section1Card({
       {!simpleDetail && detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
           <div className="mb-2 flex items-center justify-start gap-2">
-            <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
+            <p className="inline-flex rounded-lg bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '아래 카드를 누르면 상세 내역이 열립니다.' : 'Tap the cards below to open detail.'}
             </p>
-            <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-violet-700 ring-1 ring-violet-100">
+            <span className="inline-flex rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-semibold leading-tight text-violet-700 ring-1 ring-violet-100">
               {modeBadgeLabel}
             </span>
             <span className="text-[10px] font-medium leading-tight text-gray-500">
