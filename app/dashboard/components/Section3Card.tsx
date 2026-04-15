@@ -104,6 +104,7 @@ export default function Section3Card({
   });
   const inventorySkuSectionRef = useRef<HTMLDivElement | null>(null);
   const [salesPushModalOpen, setSalesPushModalOpen] = useState(false);
+  const [excludeUnder10Pcs, setExcludeUnder10Pcs] = useState(false);
   const [selectedSalesPushYear, setSelectedSalesPushYear] = useState<string | null>(null);
   const [selectedSalesPushCategory, setSelectedSalesPushCategory] = useState<string | null>(null);
   const [salesPushYearSort, setSalesPushYearSort] = useState<{
@@ -471,7 +472,7 @@ export default function Section3Card({
       end: toDateString(end),
     };
   })();
-  const salesPushSkuRows = (Array.isArray(section3Data?.skus) ? section3Data.skus : [])
+  const salesPushBaseSkuRows = (Array.isArray(section3Data?.skus) ? section3Data.skus : [])
     .filter((row: any) => !!row?.sales_push_flag && Number(row?.sales_push_stagnant_amt || 0) > 0)
     .map((row: any) => {
       const currentStockAmt = Number(row?.curr_stock_amt || 0);
@@ -488,6 +489,9 @@ export default function Section3Card({
         sales_rate_pct: currentStockAmt > 0 ? (salesAmt / currentStockAmt) * 100 : null,
       };
     });
+  const salesPushSkuRows = excludeUnder10Pcs
+    ? salesPushBaseSkuRows.filter((row: any) => Number(row?.sales_push_stagnant_qty || 0) >= 10)
+    : salesPushBaseSkuRows;
   const salesPushSummary = (() => {
     const totalAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_amt, 0);
     const totalSkuCount = salesPushSkuRows.length;
@@ -1135,6 +1139,23 @@ export default function Section3Card({
     if (leftValue === rightValue) return String(a?.prdt_cd || '').localeCompare(String(b?.prdt_cd || ''));
     return salesPushSkuSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
   });
+
+  useEffect(() => {
+    if (!selectedSalesPushYear) return;
+    const hasYear = salesPushYearRows.some((row: any) => row.year_bucket === selectedSalesPushYear);
+    if (!hasYear) {
+      setSelectedSalesPushYear(null);
+      setSelectedSalesPushCategory(null);
+    }
+  }, [salesPushYearRows, selectedSalesPushYear]);
+
+  useEffect(() => {
+    if (!selectedSalesPushYear || !selectedSalesPushCategory) return;
+    const hasCategory = salesPushCategoryRows.some((row: any) => row.cat2 === selectedSalesPushCategory);
+    if (!hasCategory) {
+      setSelectedSalesPushCategory(null);
+    }
+  }, [salesPushCategoryRows, selectedSalesPushCategory, selectedSalesPushYear]);
   useEffect(() => {
     if (!selectedInventorySkuNode || !inventorySkuSectionRef.current) return;
     inventorySkuSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1959,7 +1980,7 @@ export default function Section3Card({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0 flex-1">
                 <h4 className="text-lg font-semibold text-gray-900">
                   {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
                 </h4>
@@ -1981,13 +2002,26 @@ export default function Section3Card({
                   </p>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={() => setSalesPushModalOpen(false)}
-                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
-              >
-                {language === 'ko' ? '닫기' : 'Close'}
-              </button>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSalesPushModalOpen(false)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50"
+                >
+                  {language === 'ko' ? '닫기' : 'Close'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExcludeUnder10Pcs((prev) => !prev)}
+                  className={`inline-flex min-h-[40px] items-center rounded-lg border px-4 py-2 text-[13px] font-semibold shadow-sm transition ${
+                    excludeUnder10Pcs
+                      ? 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {language === 'ko' ? '10pcs 미만 제외' : 'Exclude Under 10 pcs'}
+                </button>
+              </div>
             </div>
 
             <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -2014,9 +2048,16 @@ export default function Section3Card({
             {sortedSalesPushAllSkuRows.length > 0 ? (
               <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 <div className="border-b border-gray-200 px-4 py-3">
-                  <h5 className="text-sm font-semibold text-gray-900">
-                    {language === 'ko' ? 'Push 대상 품번' : 'Push Target SKUs'}
-                  </h5>
+                  <div className="flex items-center justify-between gap-3">
+                    <h5 className="text-sm font-semibold text-gray-900">
+                      {language === 'ko' ? 'Push 대상 품번' : 'Push Target SKUs'}
+                    </h5>
+                    {excludeUnder10Pcs ? (
+                      <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700 ring-1 ring-violet-100">
+                        {language === 'ko' ? '10pcs 이상만 표시' : '10+ pcs only'}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="max-h-[320px] overflow-auto">
                   <table className="min-w-full table-fixed text-sm">
