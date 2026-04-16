@@ -312,6 +312,9 @@ export default function EntrySalesYoyPopup({
   const [sameStoreTrendRows, setSameStoreTrendRows] = useState<
     Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
   >([]);
+  const [sameStoreYtdRows, setSameStoreYtdRows] = useState<
+    Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
+  >([]);
   const [activeTrendPoint, setActiveTrendPoint] = useState<{
     label: string;
     hkmcYoy: number | null;
@@ -332,20 +335,19 @@ export default function EntrySalesYoyPopup({
   const trendTitle = useMemo(() => getTrendTitle(trendWindow), [trendWindow]);
   const isReady = !!hkmcSnapshot && !!twSnapshot;
   const sameStoreYtdCardValue = useMemo(() => {
-    const hkmcTrendLast = hkmcSnapshot?.same_store_daily_yoy_trend?.at(-1);
-    const twTrendLast = twSnapshot?.same_store_daily_yoy_trend?.at(-1);
+    const hkmcTrendLast = sameStoreYtdRows.at(-1);
 
     return {
       hkmc:
-        typeof hkmcTrendLast?.yoy === 'number' && Number.isFinite(hkmcTrendLast.yoy)
-          ? hkmcTrendLast.yoy
+        typeof hkmcTrendLast?.hkmcYoy === 'number' && Number.isFinite(hkmcTrendLast.hkmcYoy)
+          ? hkmcTrendLast.hkmcYoy
           : hkmcSnapshot?.same_store_yoy_ytd ?? null,
       tw:
-        typeof twTrendLast?.yoy === 'number' && Number.isFinite(twTrendLast.yoy)
-          ? twTrendLast.yoy
+        typeof hkmcTrendLast?.twYoy === 'number' && Number.isFinite(hkmcTrendLast.twYoy)
+          ? hkmcTrendLast.twYoy
           : twSnapshot?.same_store_yoy_ytd ?? null,
     };
-  }, [hkmcSnapshot, twSnapshot]);
+  }, [hkmcSnapshot, sameStoreYtdRows, twSnapshot]);
 
   const rows = useMemo<MetricRow[]>(
     () => [
@@ -404,45 +406,56 @@ export default function EntrySalesYoyPopup({
   useEffect(() => {
     if (!open || yoyBasis !== 'sameStore') {
       setSameStoreTrendRows([]);
+      setSameStoreYtdRows([]);
       return;
     }
 
     let cancelled = false;
 
-    const fetchRegionTrend = async (region: 'HKMC' | 'TW') => {
+    const fetchRegionTrend = async (region: 'HKMC' | 'TW', window: 'all' | '120d' | '30d' | '7d') => {
       const query = new URLSearchParams({
         region,
         brand,
         date,
-        window: trendWindow,
+        window,
       });
       const response = await fetch(`/api/section1/same-store-yoy-trend?${query.toString()}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Failed to load ${region} same-store trend`);
       return response.json();
     };
 
+    const mergeRegionRows = (hkmcResult: any, twResult: any) => {
+      const twMap = new Map(
+        Array.isArray(twResult?.rows) ? twResult.rows.map((row: any) => [String(row.label || ''), row]) : []
+      );
+      return Array.isArray(hkmcResult?.rows)
+        ? hkmcResult.rows.map((row: any) => {
+            const twRow: any = twMap.get(String(row.label || ''));
+            return {
+              label: String(row.label || ''),
+              hkmcYoy: typeof row?.yoy === 'number' ? row.yoy : null,
+              twYoy: typeof twRow?.yoy === 'number' ? twRow.yoy : null,
+            };
+          })
+        : [];
+    };
+
     const load = async () => {
       try {
-        const [hkmcResult, twResult] = await Promise.all([fetchRegionTrend('HKMC'), fetchRegionTrend('TW')]);
+        const [hkmcResult, twResult, hkmcYtdResult, twYtdResult] = await Promise.all([
+          fetchRegionTrend('HKMC', trendWindow),
+          fetchRegionTrend('TW', trendWindow),
+          fetchRegionTrend('HKMC', 'all'),
+          fetchRegionTrend('TW', 'all'),
+        ]);
         if (cancelled) return;
 
-        const twMap = new Map(
-          Array.isArray(twResult?.rows) ? twResult.rows.map((row: any) => [String(row.label || ''), row]) : []
-        );
-        const mergedRows = Array.isArray(hkmcResult?.rows)
-          ? hkmcResult.rows.map((row: any) => {
-              const twRow: any = twMap.get(String(row.label || ''));
-              return {
-                label: String(row.label || ''),
-                hkmcYoy: typeof row?.yoy === 'number' ? row.yoy : null,
-                twYoy: typeof twRow?.yoy === 'number' ? twRow.yoy : null,
-              };
-            })
-          : [];
-        setSameStoreTrendRows(mergedRows);
+        setSameStoreTrendRows(mergeRegionRows(hkmcResult, twResult));
+        setSameStoreYtdRows(mergeRegionRows(hkmcYtdResult, twYtdResult));
       } catch {
         if (!cancelled) {
           setSameStoreTrendRows([]);
+          setSameStoreYtdRows([]);
         }
       }
     };
