@@ -156,3 +156,34 @@ export function getAvailableDates(): string[] {
   
   return dates;
 }
+
+function getMonthEndDate(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+export function buildSnapshotTargetDates(
+  baseDate: Date,
+  recentDays: number,
+  recentMonthEnds: number
+): string[] {
+  const normalizedRecentDays = Math.max(1, Math.min(30, Math.trunc(recentDays || 1)));
+  const normalizedRecentMonthEnds = Math.max(0, Math.min(24, Math.trunc(recentMonthEnds || 0)));
+  const keys = new Set<string>();
+
+  for (let i = 0; i < normalizedRecentDays; i += 1) {
+    const date = new Date(baseDate);
+    date.setDate(date.getDate() - i);
+    keys.add(formatDateYYYYMMDD(date));
+  }
+
+  for (let i = 0; i < normalizedRecentMonthEnds; i += 1) {
+    const anchor = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+    const monthEnd = getMonthEndDate(anchor);
+    if (monthEnd > baseDate) {
+      continue;
+    }
+    keys.add(formatDateYYYYMMDD(monthEnd));
+  }
+
+  return [...keys].sort((a, b) => b.localeCompare(a));
+}

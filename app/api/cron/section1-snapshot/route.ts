@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { setSnapshot, SNAPSHOT_TTL_SECONDS } from '@/lib/snapshotCache';
 import { fetchSection1MonthlyTrend } from '@/lib/section1/monthly-trend';
 import { fetchSection1StoreSales } from '@/lib/section1/store-sales';
-import { getYesterday, formatDateYYYYMMDD } from '@/lib/date-utils';
+import { buildSnapshotTargetDates, getYesterday } from '@/lib/date-utils';
+import { isAuthorizedCronRequest } from '@/lib/cron-auth';
 
 /**
  * Vercel Cron Job: Section1 Snapshot
@@ -24,12 +25,8 @@ import { getYesterday, formatDateYYYYMMDD } from '@/lib/date-utils';
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
-  // 보안 검증: secret 파라미터 또는 헤더
-  const secretFromParam = request.nextUrl.searchParams.get('secret');
-  const secretFromHeader = request.headers.get('x-cron-secret');
-  const envSecret = process.env.CRON_SECRET;
-
-  if (!envSecret || (secretFromParam !== envSecret && secretFromHeader !== envSecret)) {
+  // 보안 검증: Authorization / x-cron-secret / secret 파라미터 모두 허용
+  if (!isAuthorizedCronRequest(request)) {
     console.error('❌ [section1-cron] Unauthorized access attempt');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -40,18 +37,17 @@ export async function GET(request: NextRequest) {
       Math.max(1, parseInt(process.env.SECTION_SNAPSHOT_DAYS || '1', 10)),
       30
     );
+    const snapshotMonthEnds = Math.min(
+      Math.max(0, parseInt(process.env.SECTION_SNAPSHOT_MONTH_ENDS || '3', 10)),
+      24
+    );
     const isParallel = process.env.SECTION_CRON_PARALLEL === '1';
 
     // KST 기준 어제 날짜
     const yesterday = getYesterday();
 
     // 생성할 날짜 목록 (어제부터 N일 전까지)
-    const targetDates: string[] = [];
-    for (let i = 0; i < snapshotDays; i++) {
-      const date = new Date(yesterday);
-      date.setDate(date.getDate() - i);
-      targetDates.push(formatDateYYYYMMDD(date));
-    }
+    const targetDates = buildSnapshotTargetDates(yesterday, snapshotDays, snapshotMonthEnds);
 
     // Region/Brand 조합
     const regions = ['HKMC', 'TW'];
@@ -73,6 +69,7 @@ export async function GET(request: NextRequest) {
       brands,
       resources: resources.map((r) => r.name),
       days_to_generate: snapshotDays,
+      month_ends_to_generate: snapshotMonthEnds,
       parallel: isParallel,
       ttl_hours: ttlSeconds / 3600,
       timestamp: new Date().toISOString(),

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getYesterday, formatDateYYYYMMDD } from '@/lib/date-utils';
+import { buildSnapshotTargetDates, getYesterday } from '@/lib/date-utils';
 import { fetchSection1StoreSales } from '@/lib/section1/store-sales';
 import { fetchSection2Sellthrough } from '@/lib/section2/sellthrough';
 import { executeSection3Query } from '@/lib/section3Query';
 import { redis } from '@/lib/redis';
+import { isAuthorizedCronRequest } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -109,11 +110,7 @@ async function prewarmSummary(
 export async function GET(request: NextRequest) {
   const startedAt = Date.now();
 
-  const secretFromParam = request.nextUrl.searchParams.get('secret');
-  const secretFromHeader = request.headers.get('x-cron-secret');
-  const envSecret = process.env.CRON_SECRET;
-
-  if (!envSecret || (secretFromParam !== envSecret && secretFromHeader !== envSecret)) {
+  if (!isAuthorizedCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -121,15 +118,14 @@ export async function GET(request: NextRequest) {
     Math.max(1, parseInt(process.env.SUMMARY_SNAPSHOT_DAYS || '3', 10)),
     30
   );
+  const snapshotMonthEnds = Math.min(
+    Math.max(0, parseInt(process.env.SUMMARY_SNAPSHOT_MONTH_ENDS || '3', 10)),
+    24
+  );
   const isParallel = process.env.SUMMARY_CRON_PARALLEL !== '0';
 
   const yesterday = getYesterday();
-  const targetDates: string[] = [];
-  for (let i = 0; i < snapshotDays; i += 1) {
-    const date = new Date(yesterday);
-    date.setDate(date.getDate() - i);
-    targetDates.push(formatDateYYYYMMDD(date));
-  }
+  const targetDates = buildSnapshotTargetDates(yesterday, snapshotDays, snapshotMonthEnds);
 
   const regions = ['HKMC', 'TW'];
   const brands = ['M', 'X'];
@@ -182,6 +178,7 @@ export async function GET(request: NextRequest) {
       error_count: errorRows.length,
       duration_ms: durationMs,
       days: snapshotDays,
+      month_ends: snapshotMonthEnds,
       parallel: isParallel,
     },
   };
