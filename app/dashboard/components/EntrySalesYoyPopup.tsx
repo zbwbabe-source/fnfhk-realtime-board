@@ -331,6 +331,21 @@ export default function EntrySalesYoyPopup({
   const trendDescription = useMemo(() => getTrendDescription(trendWindow), [trendWindow]);
   const trendTitle = useMemo(() => getTrendTitle(trendWindow), [trendWindow]);
   const isReady = !!hkmcSnapshot && !!twSnapshot;
+  const sameStoreYtdCardValue = useMemo(() => {
+    const hkmcTrendLast = hkmcSnapshot?.same_store_daily_yoy_trend?.at(-1);
+    const twTrendLast = twSnapshot?.same_store_daily_yoy_trend?.at(-1);
+
+    return {
+      hkmc:
+        typeof hkmcTrendLast?.yoy === 'number' && Number.isFinite(hkmcTrendLast.yoy)
+          ? hkmcTrendLast.yoy
+          : hkmcSnapshot?.same_store_yoy_ytd ?? null,
+      tw:
+        typeof twTrendLast?.yoy === 'number' && Number.isFinite(twTrendLast.yoy)
+          ? twTrendLast.yoy
+          : twSnapshot?.same_store_yoy_ytd ?? null,
+    };
+  }, [hkmcSnapshot, twSnapshot]);
 
   const rows = useMemo<MetricRow[]>(
     () => [
@@ -371,11 +386,11 @@ export default function EntrySalesYoyPopup({
         key: 'ytd',
         metric: labels.rows[4].metric,
         period: labels.rows[4].period,
-        hkmcValue: yoyBasis === 'sameStore' ? hkmcSnapshot?.same_store_yoy_ytd ?? null : hkmcSnapshot?.yoy_ytd ?? null,
-        twValue: yoyBasis === 'sameStore' ? twSnapshot?.same_store_yoy_ytd ?? null : twSnapshot?.yoy_ytd ?? null,
+        hkmcValue: yoyBasis === 'sameStore' ? sameStoreYtdCardValue.hkmc : hkmcSnapshot?.yoy_ytd ?? null,
+        twValue: yoyBasis === 'sameStore' ? sameStoreYtdCardValue.tw : twSnapshot?.yoy_ytd ?? null,
       },
     ],
-    [hkmcSnapshot, twSnapshot, labels.rows, yoyBasis]
+    [hkmcSnapshot, twSnapshot, labels.rows, yoyBasis, sameStoreYtdCardValue]
   );
   const groupedRows = useMemo(
     () => [
