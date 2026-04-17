@@ -372,7 +372,7 @@ function formatPercentValue(value: number | null | undefined, digits = 1) {
 function formatPercentPointValue(value: number | null | undefined, digits = 1) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
   if (value > 0) return `+${value.toFixed(digits)}%p`;
-  if (value < 0) return `${value.toFixed(digits)}%p`;
+  if (value < 0) return `△${Math.abs(value).toFixed(digits)}%p`;
   return `0.${'0'.repeat(Math.max(digits, 1))}%p`;
 }
 
@@ -1321,7 +1321,7 @@ export default function EntrySalesYoyPopup({
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
                                 {formatYoy(storeCategoryDetailData?.header?.sales_yoy_pct ?? null)}
                               </td>
-                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-sky-700">
+                              <td className="px-3 py-2 text-right font-semibold italic tabular-nums text-sky-700">
                                 {formatPercentValue(storeCategoryDetailData?.header?.discount_rate ?? null)}
                               </td>
                               <td className={`px-3 py-2 text-right font-semibold tabular-nums ${(storeCategoryDetailData?.header?.discount_rate_diff ?? null) === null ? 'text-gray-400' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) > 0 ? 'text-rose-600' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
@@ -1343,7 +1343,7 @@ export default function EntrySalesYoyPopup({
                                 <td className={`px-3 py-2 text-right font-semibold tabular-nums ${row.yoy === null ? 'text-gray-400' : row.yoy >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                   {formatYoy(row.yoy)}
                                 </td>
-                                <td className="px-3 py-2 text-right tabular-nums text-sky-700">{formatPercentValue(row.discountRate)}</td>
+                                <td className="px-3 py-2 text-right italic tabular-nums text-sky-700">{formatPercentValue(row.discountRate)}</td>
                                 <td className={`px-3 py-2 text-right font-semibold tabular-nums ${row.discountRateDiff === null ? 'text-gray-400' : row.discountRateDiff > 0 ? 'text-rose-600' : row.discountRateDiff < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
                                   {formatPercentPointValue(row.discountRateDiff)}
                                 </td>
@@ -1477,9 +1477,9 @@ export default function EntrySalesYoyPopup({
                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
                         {formatYoy(storeDetailData.totalYoy)}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                        {formatPercentValue(storeDetailData.totalDiscountRate)}
-                      </td>
+                        <td className="px-3 py-2 text-right font-semibold italic tabular-nums text-gray-900">
+                          {formatPercentValue(storeDetailData.totalDiscountRate)}
+                        </td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
                         {formatPercentPointValue(storeDetailData.totalDiscountRateDiff)}
                       </td>
@@ -1520,7 +1520,7 @@ export default function EntrySalesYoyPopup({
                         <td className={`px-3 py-2 text-right font-semibold tabular-nums ${detailRow.yoy === null ? 'text-gray-400' : detailRow.yoy >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {formatYoy(detailRow.yoy)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-sky-700">
+                        <td className="px-3 py-2 text-right italic tabular-nums text-sky-700">
                           {formatPercentValue(detailRow.discountRate)}
                         </td>
                         <td className={`px-3 py-2 text-right font-semibold tabular-nums ${detailRow.discountRateDiff === null ? 'text-gray-400' : detailRow.discountRateDiff > 0 ? 'text-rose-600' : detailRow.discountRateDiff < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
