@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { getCategoryTooltipText } from '@/lib/category-utils';
 import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
 import { type Language } from '@/lib/translations';
 
@@ -1330,7 +1331,9 @@ export default function EntrySalesYoyPopup({
                             {sortedStoreCategoryRows.map((row) => (
                               <tr key={`${selectedStoreCategoryDetail.shopCd}-${row.subcategory}`} className="border-b border-gray-100 last:border-b-0">
                                 <td className="px-3 py-2 text-gray-700">{getMiddleCategoryLabel(row.middleCategory)}</td>
-                                <td className="px-3 py-2 font-medium text-gray-900">{row.subcategory}</td>
+                                <td className="px-3 py-2 font-medium text-gray-900" title={getCategoryTooltipText(row.subcategory)}>
+                                  {row.subcategory}
+                                </td>
                                 {showCategorySalesColumns ? (
                                   <>
                                     <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(row.currentSales)}</td>
