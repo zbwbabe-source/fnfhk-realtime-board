@@ -161,6 +161,7 @@ interface EntrySalesYoyPopupProps {
   twSection2Data?: any;
   hkmcSection3Data?: any;
   twSection3Data?: any;
+  reopenKey?: number;
 }
 
 const STORAGE_KEY = 'dashboard-entry-sales-yoy-popup-hidden-on';
@@ -532,6 +533,7 @@ export default function EntrySalesYoyPopup({
   language,
   hkmcSection1Data,
   twSection1Data,
+  reopenKey = 0,
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
   const [yoyBasis, setYoyBasis] = useState<'sameStore' | 'overall'>('overall');
@@ -1152,6 +1154,11 @@ export default function EntrySalesYoyPopup({
     const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
     setOpen(hiddenOn !== getVisibilityKey(date));
   }, [date, isReady]);
+
+  useEffect(() => {
+    if (!isReady || !reopenKey) return;
+    setOpen(true);
+  }, [isReady, reopenKey]);
 
   if (!open || !isReady) return null;
 

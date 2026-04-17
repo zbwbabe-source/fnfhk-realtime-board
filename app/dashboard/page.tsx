@@ -114,6 +114,7 @@ export default function DashboardPage() {
   const [isExportingMatrix, setIsExportingMatrix] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [salesTrendPopupRequestKey, setSalesTrendPopupRequestKey] = useState(0);
   const [hkmcTreemapRequestKey, setHkmcTreemapRequestKey] = useState(0);
   const [twTreemapRequestKey, setTwTreemapRequestKey] = useState(0);
 
@@ -1081,13 +1082,22 @@ export default function DashboardPage() {
             : 'Please view in landscape mode on mobile.'}
         </div>
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{t(language, 'title')}</h1>
               <p className="mt-1 text-sm text-gray-500">{t(language, 'subtitle')}</p>
               <p className="mt-1 text-xs text-gray-500">
                 {t(language, 'updated')} {date || '-'} | {t(language, 'asOf')} {date || '-'}
               </p>
+            </div>
+            <div className="hidden shrink-0 md:block">
+              <button
+                type="button"
+                onClick={() => setSalesTrendPopupRequestKey((prev) => prev + 1)}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+              >
+                {language === 'ko' ? '매출추세팝업' : 'Sales Trend Popup'}
+              </button>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {activeTab !== 'summary' && (
@@ -1524,6 +1534,7 @@ export default function DashboardPage() {
         brand={brand}
         date={date}
         language={language}
+        reopenKey={salesTrendPopupRequestKey}
         hkmcSection1Data={hkmcSection1Data}
         twSection1Data={twSection1Data}
         hkmcSection2Data={hkmcSection2Data}
