@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-utils';
+import { type Language } from '@/lib/translations';
 
 type RegionSalesSnapshot = {
   daily_yoy: number | null;
@@ -70,9 +72,19 @@ type MetricRow = {
   isProjected?: boolean;
 };
 
+type PopupRegion = 'HKMC' | 'TW';
+
+type StoreYoyDetailSelection = {
+  metricKey: string;
+  region: PopupRegion;
+};
+
+type StoreDetailSortKey = 'shopCd' | 'shopName' | 'currentSales' | 'previousSales' | 'yoy';
+
 interface EntrySalesYoyPopupProps {
   brand: string;
   date: string;
+  language: Language;
   hkmcSection1Data: any;
   twSection1Data: any;
   hkmcSection2Data?: any;
@@ -181,6 +193,31 @@ function readRegionSnapshot(section1Data: any): RegionSalesSnapshot | null {
 
 function formatYoy(value: number | null) {
   return value === null ? '-' : `${Math.round(value)}%`;
+}
+
+function formatSalesAmount(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+}
+
+function getRegionStores(section1Data: any, region: PopupRegion) {
+  if (!section1Data || typeof section1Data !== 'object') return [];
+
+  const storeGroups =
+    region === 'TW'
+      ? [section1Data.tw_normal, section1Data.tw_outlet, section1Data.tw_online]
+      : [
+          section1Data.hk_normal,
+          section1Data.hk_outlet,
+          section1Data.hk_online,
+          section1Data.mc_normal,
+          section1Data.mc_outlet,
+          section1Data.mc_online,
+        ];
+
+  return storeGroups
+    .flatMap((group) => (Array.isArray(group) ? group : []))
+    .filter((store) => store && typeof store === 'object' && !String(store.shop_cd || '').includes('_TOTAL'));
 }
 
 const HKMC_ACCENT = {
@@ -303,6 +340,7 @@ function buildLabels(date: string) {
 export default function EntrySalesYoyPopup({
   brand,
   date,
+  language,
   hkmcSection1Data,
   twSection1Data,
 }: EntrySalesYoyPopupProps) {
@@ -320,6 +358,12 @@ export default function EntrySalesYoyPopup({
     hkmcYoy: number | null;
     twYoy: number | null;
   } | null>(null);
+  const [selectedStoreDetail, setSelectedStoreDetail] = useState<StoreYoyDetailSelection | null>(null);
+  const [twStoreDetailCurrency, setTwStoreDetailCurrency] = useState<'HKD' | 'TWD'>('HKD');
+  const [storeDetailSort, setStoreDetailSort] = useState<{ key: StoreDetailSortKey; direction: 'asc' | 'desc' }>({
+    key: 'currentSales',
+    direction: 'desc',
+  });
   const [activeTrendPosition, setActiveTrendPosition] = useState<{
     x: number;
     y: number;
@@ -348,6 +392,7 @@ export default function EntrySalesYoyPopup({
           : twSnapshot?.same_store_yoy_ytd ?? null,
     };
   }, [hkmcSnapshot, sameStoreYtdRows, twSnapshot]);
+  const twdToHkdRate = useMemo(() => getExchangeRate(getPeriodFromDateString(date)), [date]);
 
   const rows = useMemo<MetricRow[]>(
     () => [
@@ -545,11 +590,147 @@ export default function EntrySalesYoyPopup({
     });
   }, [date, trendRows, trendWindow, yoyBasis]);
   const trendDomain = useMemo(() => getTrendDomain(visibleTrendRows), [visibleTrendRows]);
+  const selectedMetricRow = useMemo(
+    () => rows.find((row) => row.key === selectedStoreDetail?.metricKey) || null,
+    [rows, selectedStoreDetail]
+  );
+  const storeDetailData = useMemo(() => {
+    if (!selectedStoreDetail) return null;
+
+    const sourceData = selectedStoreDetail.region === 'HKMC' ? hkmcSection1Data : twSection1Data;
+    const stores = getRegionStores(sourceData, selectedStoreDetail.region);
+    const isSameStore = yoyBasis === 'sameStore';
+    const currentLabel =
+      selectedMetricRow?.key === 'daily'
+        ? (language === 'ko' ? '당일 매출액' : 'Current Sales')
+        : selectedMetricRow?.key === 'recent7d'
+          ? (language === 'ko' ? '최근 7일 매출액' : 'Current 7D Sales')
+          : selectedMetricRow?.key === 'ytd'
+            ? (language === 'ko' ? 'YTD 매출액' : 'YTD Sales')
+            : (language === 'ko' ? '당월 매출액' : 'MTD Sales');
+    const previousLabel =
+      selectedMetricRow?.key === 'daily'
+        ? (language === 'ko' ? '전년 동일 매출액' : 'LY Same Day Sales')
+        : selectedMetricRow?.key === 'recent7d'
+          ? (language === 'ko' ? '전년 동기 7일 매출액' : 'LY Same 7D Sales')
+          : selectedMetricRow?.key === 'ytd'
+            ? (language === 'ko' ? '전년 YTD 매출액' : 'LY YTD Sales')
+            : (language === 'ko' ? '전년 동월 매출액' : 'LY MTD Sales');
+
+    const rows = stores
+      .map((store: any) => {
+        let currentSales = 0;
+        let previousSales = 0;
+
+        if (selectedStoreDetail.metricKey === 'daily') {
+          currentSales = Number(store?.daily_act || 0);
+          previousSales = Number(store?.daily_act_py || 0);
+        } else if (selectedStoreDetail.metricKey === 'recent7d') {
+          currentSales = Number(store?.recent_7d_act || 0);
+          previousSales = Number(store?.recent_7d_act_py || 0);
+        } else if (selectedStoreDetail.metricKey === 'ytd') {
+          currentSales = Number(store?.ytd_act || 0);
+          previousSales = Number(store?.ytd_act_py || 0);
+        } else {
+          currentSales = Number(store?.mtd_act || 0);
+          previousSales = Number(store?.mtd_act_py || 0);
+        }
+
+        const excludeByZeroSalesRule =
+          (selectedStoreDetail.metricKey === 'mtd' || selectedStoreDetail.metricKey === 'projectedMtd') &&
+          typeof store?.mtd_zero_sales_days === 'number' &&
+          store.mtd_zero_sales_days >= 5;
+        const isEligibleSameStore = currentSales > 0 && previousSales > 0 && !excludeByZeroSalesRule;
+        const shouldInclude = isSameStore ? isEligibleSameStore : currentSales > 0 || previousSales > 0;
+        if (!shouldInclude) return null;
+
+        return {
+          shopCd: String(store?.shop_cd || ''),
+          shopName: String(store?.shop_name || store?.shop_cd || ''),
+          currentSales,
+          previousSales,
+          yoy: previousSales > 0 ? (currentSales / previousSales) * 100 : null,
+        };
+      })
+      .filter((row): row is { shopCd: string; shopName: string; currentSales: number; previousSales: number; yoy: number | null } => !!row)
+      .sort((a, b) => b.currentSales - a.currentSales || a.shopCd.localeCompare(b.shopCd));
+
+    const currentTotal = rows.reduce((sum, row) => sum + row.currentSales, 0);
+    const previousTotal = rows.reduce((sum, row) => sum + row.previousSales, 0);
+
+    return {
+      region: selectedStoreDetail.region,
+      metricLabel: selectedMetricRow?.metric || '',
+      periodLabel: selectedMetricRow?.period || '',
+      currentLabel,
+      previousLabel,
+      rows,
+      currentTotal,
+      previousTotal,
+      totalYoy: previousTotal > 0 ? (currentTotal / previousTotal) * 100 : null,
+    };
+  }, [hkmcSection1Data, language, selectedMetricRow, selectedStoreDetail, twSection1Data, yoyBasis]);
 
   useEffect(() => {
     setActiveTrendPoint(null);
     setActiveTrendPosition(null);
   }, [visibleTrendRows]);
+
+  useEffect(() => {
+    setSelectedStoreDetail(null);
+  }, [date, yoyBasis]);
+
+  useEffect(() => {
+    if (selectedStoreDetail?.region !== 'TW') {
+      setTwStoreDetailCurrency('HKD');
+    }
+  }, [selectedStoreDetail?.region]);
+
+  useEffect(() => {
+    setStoreDetailSort({ key: 'currentSales', direction: 'desc' });
+  }, [selectedStoreDetail?.metricKey, selectedStoreDetail?.region]);
+
+  const sortedStoreDetailRows = useMemo(() => {
+    if (!storeDetailData) return [];
+
+    return [...storeDetailData.rows].sort((a, b) => {
+      const left = a[storeDetailSort.key];
+      const right = b[storeDetailSort.key];
+
+      if (typeof left === 'string' || typeof right === 'string') {
+        const result = String(left || '').localeCompare(String(right || ''));
+        return storeDetailSort.direction === 'asc' ? result : -result;
+      }
+
+      const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+      const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+      if (leftValue === rightValue) {
+        return a.shopCd.localeCompare(b.shopCd);
+      }
+      return storeDetailSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+    });
+  }, [storeDetailData, storeDetailSort]);
+
+  const formatStoreDetailAmount = (value: number | null | undefined) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+    if (storeDetailData?.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0) {
+      return formatSalesAmount(value / twdToHkdRate);
+    }
+    return formatSalesAmount(value);
+  };
+
+  const toggleStoreDetailSort = (key: StoreDetailSortKey) => {
+    setStoreDetailSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'shopCd' || key === 'shopName' ? 'asc' : 'desc' }
+    );
+  };
+
+  const getStoreDetailSortIndicator = (key: StoreDetailSortKey) => {
+    if (storeDetailSort.key !== key) return '';
+    return storeDetailSort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
 
   useEffect(() => {
     const previousDate = lastDateRef.current;
@@ -586,6 +767,129 @@ export default function EntrySalesYoyPopup({
         className="relative w-full max-w-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
+        {storeDetailData ? (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-white/85 px-4 py-4 backdrop-blur-[1px]"
+            onClick={() => setSelectedStoreDetail(null)}
+          >
+            <div
+              className="flex max-h-full w-full max-w-[620px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {storeDetailData.region} · {storeDetailData.metricLabel}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    {storeDetailData.periodLabel} · {yoyBasis === 'sameStore' ? 'Same Store' : 'Overall'}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-gray-400">
+                    Unit: {storeDetailData.region === 'TW' ? twStoreDetailCurrency : 'HKD'}
+                    {storeDetailData.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0
+                      ? ` · Rate ${twdToHkdRate.toFixed(4)}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {storeDetailData.region === 'TW' ? (
+                    <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setTwStoreDetailCurrency('HKD')}
+                        className={`px-3 py-1 transition-colors ${
+                          twStoreDetailCurrency === 'HKD'
+                            ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        HKD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTwStoreDetailCurrency('TWD')}
+                        className={`border-l border-gray-200 px-3 py-1 transition-colors ${
+                          twStoreDetailCurrency === 'TWD'
+                            ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        TWD
+                      </button>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStoreDetail(null)}
+                    className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    {language === 'ko' ? '닫기' : 'Close'}
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-[420px] overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-50 text-gray-700">
+                    <tr className="border-b border-gray-200">
+                      <th className="px-3 py-2 text-left font-semibold">
+                        <button type="button" onClick={() => toggleStoreDetailSort('shopCd')} className="inline-flex items-center gap-1">
+                          Shop Code{getStoreDetailSortIndicator('shopCd')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold">
+                        <button type="button" onClick={() => toggleStoreDetailSort('shopName')} className="inline-flex items-center gap-1">
+                          Shop Name{getStoreDetailSortIndicator('shopName')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold">
+                        <button type="button" onClick={() => toggleStoreDetailSort('currentSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                          Current Sales{getStoreDetailSortIndicator('currentSales')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold">
+                        <button type="button" onClick={() => toggleStoreDetailSort('previousSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                          LY Sales{getStoreDetailSortIndicator('previousSales')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold">
+                        <button type="button" onClick={() => toggleStoreDetailSort('yoy')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                          YoY{getStoreDetailSortIndicator('yoy')}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-gray-200 bg-slate-50/90">
+                      <td className="px-3 py-2 font-semibold text-gray-900" colSpan={2}>
+                        {language === 'ko' ? '합계' : 'Total'}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                        {formatStoreDetailAmount(storeDetailData.currentTotal)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                        {formatStoreDetailAmount(storeDetailData.previousTotal)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                        {formatYoy(storeDetailData.totalYoy)}
+                      </td>
+                    </tr>
+                    {sortedStoreDetailRows.map((detailRow) => (
+                      <tr key={`${storeDetailData.region}-${detailRow.shopCd}`} className="border-b border-gray-100 last:border-b-0">
+                        <td className="px-3 py-2 font-medium text-gray-800">{detailRow.shopCd}</td>
+                        <td className="px-3 py-2 text-gray-700">{detailRow.shopName}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmount(detailRow.currentSales)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmount(detailRow.previousSales)}</td>
+                        <td className={`px-3 py-2 text-right font-semibold tabular-nums ${detailRow.yoy === null ? 'text-gray-400' : detailRow.yoy >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {formatYoy(detailRow.yoy)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
           <div>
             <p className="text-[11px] font-bold tracking-[0.15em] text-emerald-600">SALES YOY SNAPSHOT</p>
@@ -604,7 +908,32 @@ export default function EntrySalesYoyPopup({
         </div>
 
         <div className="px-4 pb-4">
-          <div className="mb-2 flex items-center justify-end">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex min-h-10 items-center">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100/80">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0"
+                >
+                  <path d="M15 15l6 6" />
+                  <circle cx="10" cy="10" r="7" />
+                </svg>
+                <span>
+                  {language === 'ko'
+                    ? 'YOY율 클릭 시 매장별 상세 확인 가능 / Click any YoY badge to open store-level details.'
+                    : 'Click any YoY badge to open store-level details. / YOY율 클릭 시 매장별 상세 확인 가능'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
             <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
               <button
                 type="button"
@@ -625,6 +954,7 @@ export default function EntrySalesYoyPopup({
                 Same Store
               </button>
             </div>
+            </div>
           </div>
           <div className="mb-2.5 grid grid-cols-[minmax(0,1fr)_92px_92px] items-center gap-x-3 px-1">
             <div className="text-left text-[11px] font-semibold text-gray-400">
@@ -640,17 +970,19 @@ export default function EntrySalesYoyPopup({
             {groupedRows.map((group) => (
               <div key={group.key} className="rounded-2xl bg-slate-50/85 px-3 py-1.5 ring-1 ring-slate-200/80">
                 {group.rows.map((row, index) => (
-                  <button
+                  <div
                     key={row.key}
-                    type="button"
-                    onClick={() => setTrendWindow(getTrendWindowForMetric(row.key))}
-                    className={`grid w-full grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 rounded-xl py-2 text-left transition-colors ${
+                    className={`grid w-full grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 rounded-xl py-2 ${
                       index < group.rows.length - 1 ? 'border-b border-white/80' : ''
                     } ${
                       getTrendWindowForMetric(row.key) === trendWindow ? 'bg-white/65' : 'hover:bg-white/45'
                     }`}
                   >
-                    <div className="pr-1">
+                    <button
+                      type="button"
+                      onClick={() => setTrendWindow(getTrendWindowForMetric(row.key))}
+                      className="pr-1 text-left"
+                    >
                       <div className="flex flex-wrap items-center gap-1.5">
                         <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
                         {row.isProjected ? (
@@ -660,18 +992,64 @@ export default function EntrySalesYoyPopup({
                         ) : null}
                       </div>
                       <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
-                    </div>
-                    <div className="flex items-center justify-center rounded-xl bg-white/85 ring-1 ring-slate-200/80">
-                      <div className={`whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'HKMC' })}
+                      className={`flex items-center justify-center rounded-xl bg-white/85 ring-1 ring-slate-200/80 transition ${
+                        selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'HKMC'
+                          ? 'ring-2 ring-gray-400'
+                          : 'hover:bg-white'
+                      }`}
+                    >
+                      <div className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="opacity-65"
+                        >
+                          <path d="M15 15l6 6" />
+                          <circle cx="10" cy="10" r="7" />
+                        </svg>
                         {formatYoy(row.hkmcValue)}
                       </div>
-                    </div>
-                    <div className="flex items-center justify-center rounded-xl bg-violet-50/55 ring-1 ring-violet-100">
-                      <div className={`whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'TW' })}
+                      className={`flex items-center justify-center rounded-xl bg-violet-50/55 ring-1 ring-violet-100 transition ${
+                        selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'TW'
+                          ? 'ring-2 ring-violet-300'
+                          : 'hover:bg-violet-50/80'
+                      }`}
+                    >
+                      <div className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="opacity-65"
+                        >
+                          <path d="M15 15l6 6" />
+                          <circle cx="10" cy="10" r="7" />
+                        </svg>
                         {formatYoy(row.twValue)}
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             ))}

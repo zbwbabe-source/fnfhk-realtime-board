@@ -24,6 +24,7 @@ import { getExchangeRate, getPeriodFromDateString } from '@/lib/exchange-rate-ut
 type DetailExportMode = 'mtd' | 'ytd';
 type ExportRegion = 'HKMC' | 'TW';
 type DetailExportDataType = 'sales' | 'inventory';
+type DetailExportSalesView = 'store' | 'season';
 
 function getKstYesterdayString(): string {
   const now = new Date();
@@ -107,6 +108,7 @@ export default function DashboardPage() {
   const [twCurrency, setTwCurrency] = useState<'HKD' | 'TWD'>('HKD');
   const [detailExportMode, setDetailExportMode] = useState<DetailExportMode>('mtd');
   const [detailExportDataType, setDetailExportDataType] = useState<DetailExportDataType>('sales');
+  const [detailExportSalesView, setDetailExportSalesView] = useState<DetailExportSalesView>('store');
   const [refreshKey, setRefreshKey] = useState(0);
   const [isExportingJson, setIsExportingJson] = useState(false);
   const [isExportingMatrix, setIsExportingMatrix] = useState(false);
@@ -425,6 +427,117 @@ export default function DashboardPage() {
     };
 
     void exportAllBrandStoreSales(targetRegion);
+  }, [activeTab, date, detailExportMode, language]);
+
+  const handleDownloadSeasonSalesMatrix = useCallback((targetRegion: ExportRegion) => {
+    if (activeTab === 'summary' || !date) return;
+
+    const exportSeasonSales = async (regionToExport: ExportRegion) => {
+      setIsExportingMatrix(true);
+
+      try {
+        const exportBrands: Array<'M' | 'X'> = ['M', 'X'];
+        const responses = await Promise.all(
+          exportBrands.map(async (brandCode) => {
+            const response = await fetch(
+              `/api/section1/store-sales?region=${regionToExport}&brand=${brandCode}&date=${date}&mode=${detailExportMode}`,
+              { cache: 'no-store' }
+            );
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch section1 season export data for ${regionToExport}/${brandCode}/${date}`);
+            }
+
+            const json = await response.json();
+            return { brandCode, data: json };
+          })
+        );
+
+        const workbook = XLSX.utils.book_new();
+        const modePrefix = detailExportMode === 'ytd' ? 'ytd' : 'mtd';
+        const modeLabel = detailExportMode.toUpperCase();
+
+        const seasonRows = responses
+          .flatMap(({ brandCode, data }) => {
+            const metrics = data?.season_category_sales?.metrics || {};
+            const seasonLabels = data?.season_category_sales?.season_labels || {};
+            const currentSeasonLabel = seasonLabels.current || 'Current';
+            const nextSeasonLabel = seasonLabels.next || 'Next';
+            const pastSeasonLabel = seasonLabels.past || 'Past';
+
+            const orderedMetrics = [
+              { key: 'currentSeason', display: currentSeasonLabel },
+              { key: 'nextSeason', display: nextSeasonLabel },
+              { key: 'pastSeason', display: pastSeasonLabel },
+              { key: 'hat', display: language === 'ko' ? '모자' : 'Hat' },
+              { key: 'shoes', display: language === 'ko' ? '신발' : 'Shoes' },
+              { key: 'bag', display: language === 'ko' ? '가방' : 'Bag' },
+            ];
+
+            return orderedMetrics.map(({ key, display }) => {
+              const metric = metrics?.[key] || {};
+              return {
+                Brand: getBrandLabel(brandCode),
+                Region: regionToExport,
+                Group: display,
+                Mode: modeLabel,
+                [`Actual ${modeLabel} (HKD)`]: Number(metric?.[`${modePrefix}_act`] || 0),
+                [`YoY ${modeLabel} (%)`]:
+                  typeof metric?.[`${modePrefix}_yoy`] === 'number' && Number.isFinite(metric?.[`${modePrefix}_yoy`])
+                    ? Number(metric[`${modePrefix}_yoy`].toFixed(2))
+                    : null,
+                [`Discount ${modeLabel} (%)`]:
+                  typeof metric?.[`${modePrefix}_discount_rate`] === 'number' &&
+                  Number.isFinite(metric?.[`${modePrefix}_discount_rate`])
+                    ? Number(metric[`${modePrefix}_discount_rate`].toFixed(2))
+                    : null,
+                [`Discount YoY Diff ${modeLabel} (%p)`]:
+                  typeof metric?.[`${modePrefix}_discount_rate_diff`] === 'number' &&
+                  Number.isFinite(metric?.[`${modePrefix}_discount_rate_diff`])
+                    ? Number(metric[`${modePrefix}_discount_rate_diff`].toFixed(2))
+                    : null,
+              };
+            });
+          })
+          .sort((a, b) => {
+            const brandCompare = String(a.Brand || '').localeCompare(String(b.Brand || ''));
+            if (brandCompare !== 0) return brandCompare;
+            return String(a.Group || '').localeCompare(String(b.Group || ''));
+          });
+
+        const metaRows = [
+          ['As Of Date', date, 'Region', targetRegion],
+          ['Export Type', 'Season Sales', 'Mode', modeLabel],
+          ['Currency', 'HKD'],
+          [],
+        ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet(metaRows);
+        XLSX.utils.sheet_add_json(worksheet, seasonRows, {
+          origin: 'A4',
+        });
+        worksheet['!cols'] = [
+          { wch: 14 },
+          { wch: 10 },
+          { wch: 18 },
+          { wch: 10 },
+          { wch: 18 },
+          { wch: 16 },
+          { wch: 18 },
+          { wch: 24 },
+        ];
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${regionToExport}_${modeLabel}_SEASON`);
+        XLSX.writeFile(workbook, `${regionToExport.toLowerCase()}-season-sales-${date}-${detailExportMode}.xlsx`);
+      } catch (error) {
+        console.error('Failed to export season sales matrix:', error);
+        window.alert(language === 'ko' ? '시즌별 매출 엑셀 저장에 실패했습니다.' : 'Failed to export season sales Excel file.');
+      } finally {
+        setIsExportingMatrix(false);
+      }
+    };
+
+    void exportSeasonSales(targetRegion);
   }, [activeTab, date, detailExportMode, language]);
 
   const handleDownloadInventorySeasonMatrix = useCallback(async (targetRegion: ExportRegion) => {
@@ -1001,6 +1114,25 @@ export default function DashboardPage() {
                     </button>
                   </div>
                   {detailExportDataType === 'sales' ? (
+                    <>
+                    <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <button
+                        onClick={() => setDetailExportSalesView('store')}
+                        className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                          detailExportSalesView === 'store' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {language === 'ko' ? '매장별' : 'By Store'}
+                      </button>
+                      <button
+                        onClick={() => setDetailExportSalesView('season')}
+                        className={`border-l border-gray-200 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                          detailExportSalesView === 'season' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {language === 'ko' ? '시즌별' : 'By Season'}
+                      </button>
+                    </div>
                     <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white">
                       <button
                         onClick={() => setDetailExportMode('mtd')}
@@ -1019,6 +1151,7 @@ export default function DashboardPage() {
                         YTD
                       </button>
                     </div>
+                    </>
                   ) : (
                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-600 whitespace-nowrap">
                       {language === 'ko' ? '시즌별 / 기준일 스냅샷' : 'By Season / As-of Snapshot'}
@@ -1027,7 +1160,9 @@ export default function DashboardPage() {
                   <button
                     onClick={() =>
                       detailExportDataType === 'sales'
-                        ? handleDownloadShopSalesMatrix(region as 'HKMC' | 'TW')
+                        ? (detailExportSalesView === 'season'
+                            ? handleDownloadSeasonSalesMatrix(region as 'HKMC' | 'TW')
+                            : handleDownloadShopSalesMatrix(region as 'HKMC' | 'TW'))
                         : handleDownloadInventorySeasonMatrix(region as 'HKMC' | 'TW')
                     }
                     disabled={anyDataLoading || isExportingMatrix}
@@ -1388,6 +1523,7 @@ export default function DashboardPage() {
       <EntrySalesYoyPopup
         brand={brand}
         date={date}
+        language={language}
         hkmcSection1Data={hkmcSection1Data}
         twSection1Data={twSection1Data}
         hkmcSection2Data={hkmcSection2Data}
