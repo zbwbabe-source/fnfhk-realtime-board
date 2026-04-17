@@ -1090,16 +1090,14 @@ export default function DashboardPage() {
                 {t(language, 'updated')} {date || '-'} | {t(language, 'asOf')} {date || '-'}
               </p>
             </div>
-            <div className="hidden shrink-0 md:block">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setSalesTrendPopupRequestKey((prev) => prev + 1)}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                className="hidden rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 md:block"
               >
                 {language === 'ko' ? '매출추세팝업' : 'Sales Trend Popup'}
               </button>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
               {activeTab !== 'summary' && (
                 <div className="flex flex-nowrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
                   <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
