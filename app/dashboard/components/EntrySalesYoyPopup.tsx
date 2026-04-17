@@ -79,7 +79,76 @@ type StoreYoyDetailSelection = {
   region: PopupRegion;
 };
 
-type StoreDetailSortKey = 'shopCd' | 'shopName' | 'currentSales' | 'previousSales' | 'yoy';
+type StoreDetailSortKey =
+  | 'shopCd'
+  | 'shopName'
+  | 'currentSales'
+  | 'previousSales'
+  | 'yoy'
+  | 'discountRate'
+  | 'discountRateDiff';
+type StoreCategoryDetailSortKey =
+  | 'middleCategory'
+  | 'subcategory'
+  | 'currentSales'
+  | 'previousSales'
+  | 'yoy'
+  | 'discountRate'
+  | 'discountRateDiff';
+
+type StoreCategoryDetailSelection = {
+  shopCd: string;
+  shopName: string;
+};
+
+type StoreCategoryDetailRow = {
+  middleCategory: string;
+  subcategory: string;
+  currentSales: number;
+  previousSales: number;
+  yoy: number | null;
+  discountRate: number | null;
+  discountRateDiff: number | null;
+};
+
+type StoreDetailRow = {
+  shopCd: string;
+  shopName: string;
+  currentSales: number;
+  previousSales: number;
+  yoy: number | null;
+  discountRate: number | null;
+  discountRateDiff: number | null;
+};
+
+type StoreCategoryDetailPayload = {
+  asof_date: string;
+  period_start_date: string;
+  mode: 'mtd' | 'ytd';
+  metric_key?: 'daily' | 'recent7d' | 'mtd' | 'projectedMtd' | 'ytd';
+  region: string;
+  brand: string;
+  categories: Array<{
+    category: string;
+    small_categories: Array<{
+      category_small_key: string;
+      category_small: string;
+      middle_category: string;
+      sales_act: number;
+      sales_act_ly: number;
+      sales_act_yoy_pct: number | null;
+      discount_rate: number | null;
+      discount_rate_diff: number | null;
+    }>;
+  }>;
+  header: {
+    shop_cd: string;
+    shop_name: string;
+    sales_yoy_pct: number | null;
+    discount_rate: number | null;
+    discount_rate_diff: number | null;
+  };
+};
 
 interface EntrySalesYoyPopupProps {
   brand: string;
@@ -195,9 +264,128 @@ function formatYoy(value: number | null) {
   return value === null ? '-' : `${Math.round(value)}%`;
 }
 
+function AnimatedYoyValue({
+  value,
+  toneClassName,
+  delayMs = 0,
+}: {
+  value: number | null;
+  toneClassName: string;
+  delayMs?: number;
+}) {
+  const [displayValue, setDisplayValue] = useState<number | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  useEffect(() => {
+    let frameId = 0;
+    let revealFrameId = 0;
+    let startTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    setIsRevealed(false);
+
+    if (value === null || !Number.isFinite(value)) {
+      setDisplayValue(null);
+      startTimeout = setTimeout(() => {
+        revealFrameId = requestAnimationFrame(() => {
+          revealFrameId = requestAnimationFrame(() => setIsRevealed(true));
+        });
+      }, delayMs);
+      return () => {
+        if (startTimeout) clearTimeout(startTimeout);
+        cancelAnimationFrame(revealFrameId);
+      };
+    }
+
+    const roundedTarget = Math.round(value);
+    const startValue = 0;
+    const duration = 680;
+
+    const tick = (startedAt: number, now: number) => {
+      const elapsed = now - startedAt;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4);
+      const nextValue = Math.round(startValue + (roundedTarget - startValue) * eased);
+
+      setDisplayValue(nextValue);
+      if (progress < 1) {
+        frameId = requestAnimationFrame((nextNow) => tick(startedAt, nextNow));
+      }
+    };
+
+    setDisplayValue(startValue);
+    startTimeout = setTimeout(() => {
+      revealFrameId = requestAnimationFrame(() => {
+        revealFrameId = requestAnimationFrame(() => setIsRevealed(true));
+      });
+      frameId = requestAnimationFrame((now) => tick(now, now));
+    }, delayMs);
+
+    return () => {
+      if (startTimeout) clearTimeout(startTimeout);
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(revealFrameId);
+    };
+  }, [delayMs, value]);
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:text-xl ${
+        isRevealed ? 'translate-y-0 scale-100 blur-0 opacity-100' : 'translate-y-[8px] scale-[0.94] blur-[10px] opacity-0'
+      } ${toneClassName}`}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="opacity-65"
+      >
+        <path d="M15 15l6 6" />
+        <circle cx="10" cy="10" r="7" />
+      </svg>
+      {displayValue === null ? '-' : `${displayValue}%`}
+    </div>
+  );
+}
+
 function formatSalesAmount(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+}
+
+function formatPercentValue(value: number | null | undefined, digits = 1) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  return `${value.toFixed(digits)}%`;
+}
+
+function formatPercentPointValue(value: number | null | undefined, digits = 1) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (value > 0) return `+${value.toFixed(digits)}%p`;
+  if (value < 0) return `${value.toFixed(digits)}%p`;
+  return `0.${'0'.repeat(Math.max(digits, 1))}%p`;
+}
+
+function formatAmountInThousands(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(value / 1000));
+}
+
+function getMiddleCategoryLabel(middleCategory: string) {
+  const normalized = String(middleCategory || '').trim().toUpperCase();
+  if (normalized === 'OUTER') return 'Outer';
+  if (normalized === 'INNER') return 'Inner';
+  if (normalized === 'BOTTOM') return 'Bottom';
+  if (normalized === 'WEAR_ETC') return 'WTC';
+  if (normalized === 'HEADWEAR') return 'Headwear';
+  if (normalized === 'SHOES') return 'Shoes';
+  if (normalized === 'BAG') return 'Bags';
+  if (normalized === 'ACC_ETC' || normalized === 'ETC' || normalized === 'UNKNOWN') return 'ATC';
+  return middleCategory;
 }
 
 function getRegionStores(section1Data: any, region: PopupRegion) {
@@ -359,8 +547,21 @@ export default function EntrySalesYoyPopup({
     twYoy: number | null;
   } | null>(null);
   const [selectedStoreDetail, setSelectedStoreDetail] = useState<StoreYoyDetailSelection | null>(null);
+  const [selectedStoreCategoryDetail, setSelectedStoreCategoryDetail] = useState<StoreCategoryDetailSelection | null>(null);
+  const [storeCategoryDetailData, setStoreCategoryDetailData] = useState<StoreCategoryDetailPayload | null>(null);
+  const [storeCategoryDetailLoading, setStoreCategoryDetailLoading] = useState(false);
+  const [storeCategoryDetailError, setStoreCategoryDetailError] = useState('');
   const [twStoreDetailCurrency, setTwStoreDetailCurrency] = useState<'HKD' | 'TWD'>('HKD');
+  const [showStoreSalesColumns, setShowStoreSalesColumns] = useState(false);
+  const [showCategorySalesColumns, setShowCategorySalesColumns] = useState(false);
   const [storeDetailSort, setStoreDetailSort] = useState<{ key: StoreDetailSortKey; direction: 'asc' | 'desc' }>({
+    key: 'currentSales',
+    direction: 'desc',
+  });
+  const [storeCategoryDetailSort, setStoreCategoryDetailSort] = useState<{
+    key: StoreCategoryDetailSortKey;
+    direction: 'asc' | 'desc';
+  }>({
     key: 'currentSales',
     direction: 'desc',
   });
@@ -618,9 +819,10 @@ export default function EntrySalesYoyPopup({
             : (language === 'ko' ? '전년 동월 매출액' : 'LY MTD Sales');
 
     const rows = stores
-      .map((store: any) => {
+      .map((store: any): StoreDetailRow | null => {
         let currentSales = 0;
         let previousSales = 0;
+        const useYtdDiscount = selectedStoreDetail.metricKey === 'ytd';
 
         if (selectedStoreDetail.metricKey === 'daily') {
           currentSales = Number(store?.daily_act || 0);
@@ -650,13 +852,30 @@ export default function EntrySalesYoyPopup({
           currentSales,
           previousSales,
           yoy: previousSales > 0 ? (currentSales / previousSales) * 100 : null,
+          discountRate: Number(
+            useYtdDiscount ? store?.discount_rate_ytd ?? store?.ytd_discount_rate ?? 0 : store?.discount_rate_mtd ?? 0
+          ),
+          discountRateDiff: Number(
+            useYtdDiscount
+              ? store?.discount_rate_ytd_diff ?? store?.ytd_discount_rate_diff ?? 0
+              : store?.discount_rate_mtd_diff ?? 0
+          ),
         };
       })
-      .filter((row): row is { shopCd: string; shopName: string; currentSales: number; previousSales: number; yoy: number | null } => !!row)
+      .filter((row): row is StoreDetailRow => row !== null)
       .sort((a, b) => b.currentSales - a.currentSales || a.shopCd.localeCompare(b.shopCd));
 
     const currentTotal = rows.reduce((sum, row) => sum + row.currentSales, 0);
     const previousTotal = rows.reduce((sum, row) => sum + row.previousSales, 0);
+    const discountWeight = rows.reduce((sum, row) => sum + Math.max(row.currentSales, 0), 0);
+    const totalDiscountRate =
+      discountWeight > 0
+        ? rows.reduce((sum, row) => sum + (row.discountRate ?? 0) * Math.max(row.currentSales, 0), 0) / discountWeight
+        : null;
+    const totalDiscountRateDiff =
+      discountWeight > 0
+        ? rows.reduce((sum, row) => sum + (row.discountRateDiff ?? 0) * Math.max(row.currentSales, 0), 0) / discountWeight
+        : null;
 
     return {
       region: selectedStoreDetail.region,
@@ -667,6 +886,8 @@ export default function EntrySalesYoyPopup({
       rows,
       currentTotal,
       previousTotal,
+      totalDiscountRate,
+      totalDiscountRateDiff,
       totalYoy: previousTotal > 0 ? (currentTotal / previousTotal) * 100 : null,
     };
   }, [hkmcSection1Data, language, selectedMetricRow, selectedStoreDetail, twSection1Data, yoyBasis]);
@@ -681,6 +902,17 @@ export default function EntrySalesYoyPopup({
   }, [date, yoyBasis]);
 
   useEffect(() => {
+    setShowStoreSalesColumns(false);
+    setSelectedStoreCategoryDetail(null);
+    setStoreCategoryDetailData(null);
+    setStoreCategoryDetailError('');
+  }, [selectedStoreDetail?.metricKey, selectedStoreDetail?.region, date, yoyBasis]);
+
+  useEffect(() => {
+    setShowCategorySalesColumns(false);
+  }, [selectedStoreCategoryDetail?.shopCd]);
+
+  useEffect(() => {
     if (selectedStoreDetail?.region !== 'TW') {
       setTwStoreDetailCurrency('HKD');
     }
@@ -689,6 +921,10 @@ export default function EntrySalesYoyPopup({
   useEffect(() => {
     setStoreDetailSort({ key: 'currentSales', direction: 'desc' });
   }, [selectedStoreDetail?.metricKey, selectedStoreDetail?.region]);
+
+  useEffect(() => {
+    setStoreCategoryDetailSort({ key: 'currentSales', direction: 'desc' });
+  }, [selectedStoreCategoryDetail?.shopCd]);
 
   const sortedStoreDetailRows = useMemo(() => {
     if (!storeDetailData) return [];
@@ -711,12 +947,118 @@ export default function EntrySalesYoyPopup({
     });
   }, [storeDetailData, storeDetailSort]);
 
+  useEffect(() => {
+    if (!selectedStoreDetail || !selectedStoreCategoryDetail) return;
+
+    let active = true;
+    const controller = new AbortController();
+
+    const loadStoreCategoryDetail = async () => {
+      setStoreCategoryDetailLoading(true);
+      setStoreCategoryDetailError('');
+
+      try {
+        const params = new URLSearchParams({
+          region: selectedStoreDetail.region,
+          brand,
+          date,
+          shop_cd: selectedStoreCategoryDetail.shopCd,
+          mode: selectedStoreDetail.metricKey === 'ytd' ? 'ytd' : 'mtd',
+          metric_key: selectedStoreDetail.metricKey,
+        });
+
+        const response = await fetch(`/api/section1/store-detail?${params.toString()}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        const json = await response.json();
+        if (!response.ok) {
+          throw new Error(json?.message || json?.error || 'Failed to fetch store category detail');
+        }
+        if (!active) return;
+        setStoreCategoryDetailData(json);
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        if (!active) return;
+        setStoreCategoryDetailError(error?.message || 'Failed to fetch store category detail');
+        setStoreCategoryDetailData(null);
+      } finally {
+        if (active) setStoreCategoryDetailLoading(false);
+      }
+    };
+
+    void loadStoreCategoryDetail();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [brand, date, selectedStoreCategoryDetail, selectedStoreDetail]);
+
+  const storeCategoryRows = useMemo<StoreCategoryDetailRow[]>(() => {
+    if (!storeCategoryDetailData) return [];
+
+    return storeCategoryDetailData.categories
+      .flatMap((category) =>
+        (Array.isArray(category.small_categories) ? category.small_categories : []).map((smallCategory) => ({
+          middleCategory: smallCategory.middle_category,
+          subcategory: smallCategory.category_small,
+          currentSales: Number(smallCategory.sales_act || 0),
+          previousSales: Number(smallCategory.sales_act_ly || 0),
+          yoy:
+            typeof smallCategory.sales_act_yoy_pct === 'number' && Number.isFinite(smallCategory.sales_act_yoy_pct)
+              ? smallCategory.sales_act_yoy_pct
+              : Number(smallCategory.sales_act_ly || 0) > 0
+                ? (Number(smallCategory.sales_act || 0) / Number(smallCategory.sales_act_ly || 0)) * 100
+                : null,
+          discountRate:
+            typeof smallCategory.discount_rate === 'number' && Number.isFinite(smallCategory.discount_rate)
+              ? smallCategory.discount_rate
+              : null,
+          discountRateDiff:
+            typeof smallCategory.discount_rate_diff === 'number' && Number.isFinite(smallCategory.discount_rate_diff)
+              ? smallCategory.discount_rate_diff
+              : null,
+        }))
+      )
+      .filter((row) => row.currentSales > 0 || row.previousSales > 0)
+      .sort((a, b) => b.currentSales - a.currentSales || a.subcategory.localeCompare(b.subcategory));
+  }, [storeCategoryDetailData]);
+
+  const sortedStoreCategoryRows = useMemo(() => {
+    return [...storeCategoryRows].sort((a, b) => {
+      const left = a[storeCategoryDetailSort.key];
+      const right = b[storeCategoryDetailSort.key];
+
+      if (typeof left === 'string' || typeof right === 'string') {
+        const result = String(left || '').localeCompare(String(right || ''));
+        return storeCategoryDetailSort.direction === 'asc' ? result : -result;
+      }
+
+      const leftValue = left === null || left === undefined || !Number.isFinite(left) ? -Infinity : Number(left);
+      const rightValue = right === null || right === undefined || !Number.isFinite(right) ? -Infinity : Number(right);
+      if (leftValue === rightValue) {
+        return a.subcategory.localeCompare(b.subcategory);
+      }
+      return storeCategoryDetailSort.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+    });
+  }, [storeCategoryRows, storeCategoryDetailSort]);
+
   const formatStoreDetailAmount = (value: number | null | undefined) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
     if (storeDetailData?.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0) {
       return formatSalesAmount(value / twdToHkdRate);
     }
     return formatSalesAmount(value);
+  };
+
+  const formatStoreDetailAmountInThousands = (value: number | null | undefined) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+    const converted =
+      storeDetailData?.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0
+        ? value / twdToHkdRate
+        : value;
+    return formatAmountInThousands(converted);
   };
 
   const toggleStoreDetailSort = (key: StoreDetailSortKey) => {
@@ -730,6 +1072,19 @@ export default function EntrySalesYoyPopup({
   const getStoreDetailSortIndicator = (key: StoreDetailSortKey) => {
     if (storeDetailSort.key !== key) return '';
     return storeDetailSort.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+
+  const toggleStoreCategoryDetailSort = (key: StoreCategoryDetailSortKey) => {
+    setStoreCategoryDetailSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'middleCategory' || key === 'subcategory' ? 'asc' : 'desc' }
+    );
+  };
+
+  const getStoreCategoryDetailSortIndicator = (key: StoreCategoryDetailSortKey) => {
+    if (storeCategoryDetailSort.key !== key) return '';
+    return storeCategoryDetailSort.direction === 'asc' ? ' ▲' : ' ▼';
   };
 
   useEffect(() => {
@@ -776,6 +1131,182 @@ export default function EntrySalesYoyPopup({
               className="flex max-h-full w-full max-w-[620px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
               onClick={(event) => event.stopPropagation()}
             >
+              {selectedStoreCategoryDetail ? (
+                <div
+                  className="absolute inset-0 z-10 flex items-center justify-center bg-white/88 px-4 py-4 backdrop-blur-[1px]"
+                  onClick={() => setSelectedStoreCategoryDetail(null)}
+                >
+                  <div
+                    className="flex max-h-full w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {selectedStoreCategoryDetail.shopName} ({selectedStoreCategoryDetail.shopCd})
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {storeDetailData.periodLabel} · {yoyBasis === 'sameStore' ? 'Same Store' : 'Overall'}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-gray-400">
+                          Unit: 1K {storeDetailData.region === 'TW' ? twStoreDetailCurrency : 'HKD'}
+                          {storeDetailData.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0
+                            ? ` · Rate ${twdToHkdRate.toFixed(4)}`
+                            : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCategorySalesColumns((prev) => !prev)}
+                        className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
+                      >
+                        {showCategorySalesColumns ? 'Hide Sales' : 'Show Sales'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStoreCategoryDetail(null)}
+                        className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
+                      >
+                        {language === 'ko' ? '닫기' : 'Close'}
+                      </button>
+                    </div>
+                    <div className="max-h-[420px] overflow-auto">
+                      {storeCategoryDetailLoading ? (
+                        <div className="flex h-48 items-center justify-center text-sm text-gray-500">
+                          {language === 'ko' ? '로딩 중...' : 'Loading...'}
+                        </div>
+                      ) : storeCategoryDetailError ? (
+                        <div className="flex h-48 items-center justify-center text-sm font-medium text-rose-500">
+                          {storeCategoryDetailError}
+                        </div>
+                      ) : (
+                        <table className="min-w-full table-fixed text-sm">
+                          <thead className="sticky top-0 bg-gray-50 text-gray-700">
+                            <tr className="border-b border-gray-200">
+                              <th className="w-[20%] px-3 py-2 text-left font-semibold">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStoreCategoryDetailSort('middleCategory')}
+                                  className="inline-flex items-center gap-1"
+                                >
+                                  Middle Category{getStoreCategoryDetailSortIndicator('middleCategory')}
+                                </button>
+                              </th>
+                              <th className="w-[14%] px-3 py-2 text-left font-semibold">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStoreCategoryDetailSort('subcategory')}
+                                  className="inline-flex items-center gap-1"
+                                >
+                                  Subcategory{getStoreCategoryDetailSortIndicator('subcategory')}
+                                </button>
+                              </th>
+                              {showCategorySalesColumns ? (
+                                <>
+                                  <th className="w-[16%] px-3 py-2 text-right font-semibold">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleStoreCategoryDetailSort('currentSales')}
+                                      className="inline-flex w-full items-center justify-end gap-1 text-right"
+                                    >
+                                      Current Sales{getStoreCategoryDetailSortIndicator('currentSales')}
+                                    </button>
+                                  </th>
+                                  <th className="w-[16%] px-3 py-2 text-right font-semibold">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleStoreCategoryDetailSort('previousSales')}
+                                      className="inline-flex w-full items-center justify-end gap-1 text-right"
+                                    >
+                                      LY Sales{getStoreCategoryDetailSortIndicator('previousSales')}
+                                    </button>
+                                  </th>
+                                </>
+                              ) : null}
+                              <th className={`${showCategorySalesColumns ? 'w-[10%]' : 'w-[15%]'} px-3 py-2 text-right font-semibold`}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStoreCategoryDetailSort('yoy')}
+                                  className="inline-flex w-full items-center justify-end gap-1 text-right"
+                                >
+                                  YoY{getStoreCategoryDetailSortIndicator('yoy')}
+                                </button>
+                              </th>
+                              <th className={`${showCategorySalesColumns ? 'w-[12%]' : 'w-[16%]'} px-3 py-2 text-right font-semibold`}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStoreCategoryDetailSort('discountRate')}
+                                  className="inline-flex w-full items-center justify-end gap-1 text-right"
+                                >
+                                  Disc. Rate{getStoreCategoryDetailSortIndicator('discountRate')}
+                                </button>
+                              </th>
+                              <th className={`${showCategorySalesColumns ? 'w-[12%]' : 'w-[19%]'} px-3 py-2 text-right font-semibold`}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStoreCategoryDetailSort('discountRateDiff')}
+                                  className="inline-flex w-full items-center justify-end gap-1 text-right"
+                                >
+                                  Disc. vs LY (%p){getStoreCategoryDetailSortIndicator('discountRateDiff')}
+                                </button>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-b border-gray-200 bg-slate-50/90">
+                              <td className="px-3 py-2 font-semibold text-gray-900" colSpan={2}>
+                                {language === 'ko' ? '합계' : 'Total'}
+                              </td>
+                              {showCategorySalesColumns ? (
+                                <>
+                                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                                    {formatStoreDetailAmountInThousands(
+                                      storeCategoryRows.reduce((sum, row) => sum + row.currentSales, 0)
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                                    {formatStoreDetailAmountInThousands(
+                                      storeCategoryRows.reduce((sum, row) => sum + row.previousSales, 0)
+                                    )}
+                                  </td>
+                                </>
+                              ) : null}
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                                {formatYoy(storeCategoryDetailData?.header?.sales_yoy_pct ?? null)}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold tabular-nums text-sky-700">
+                                {formatPercentValue(storeCategoryDetailData?.header?.discount_rate ?? null)}
+                              </td>
+                              <td className={`px-3 py-2 text-right font-semibold tabular-nums ${(storeCategoryDetailData?.header?.discount_rate_diff ?? null) === null ? 'text-gray-400' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) > 0 ? 'text-rose-600' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                {formatPercentPointValue(storeCategoryDetailData?.header?.discount_rate_diff ?? null)}
+                              </td>
+                            </tr>
+                            {sortedStoreCategoryRows.map((row) => (
+                              <tr key={`${selectedStoreCategoryDetail.shopCd}-${row.subcategory}`} className="border-b border-gray-100 last:border-b-0">
+                                <td className="px-3 py-2 text-gray-700">{getMiddleCategoryLabel(row.middleCategory)}</td>
+                                <td className="px-3 py-2 font-medium text-gray-900">{row.subcategory}</td>
+                                {showCategorySalesColumns ? (
+                                  <>
+                                    <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(row.currentSales)}</td>
+                                    <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(row.previousSales)}</td>
+                                  </>
+                                ) : null}
+                                <td className={`px-3 py-2 text-right font-semibold tabular-nums ${row.yoy === null ? 'text-gray-400' : row.yoy >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {formatYoy(row.yoy)}
+                                </td>
+                                <td className="px-3 py-2 text-right tabular-nums text-sky-700">{formatPercentValue(row.discountRate)}</td>
+                                <td className={`px-3 py-2 text-right font-semibold tabular-nums ${row.discountRateDiff === null ? 'text-gray-400' : row.discountRateDiff > 0 ? 'text-rose-600' : row.discountRateDiff < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                  {formatPercentPointValue(row.discountRateDiff)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
@@ -785,7 +1316,7 @@ export default function EntrySalesYoyPopup({
                     {storeDetailData.periodLabel} · {yoyBasis === 'sameStore' ? 'Same Store' : 'Overall'}
                   </p>
                   <p className="mt-0.5 text-[11px] text-gray-400">
-                    Unit: {storeDetailData.region === 'TW' ? twStoreDetailCurrency : 'HKD'}
+                    Unit: 1K {storeDetailData.region === 'TW' ? twStoreDetailCurrency : 'HKD'}
                     {storeDetailData.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0
                       ? ` · Rate ${twdToHkdRate.toFixed(4)}`
                       : ''}
@@ -820,6 +1351,13 @@ export default function EntrySalesYoyPopup({
                   ) : null}
                   <button
                     type="button"
+                    onClick={() => setShowStoreSalesColumns((prev) => !prev)}
+                    className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
+                  >
+                    {showStoreSalesColumns ? 'Hide Sales' : 'Show Sales'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setSelectedStoreDetail(null)}
                     className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50"
                   >
@@ -828,32 +1366,46 @@ export default function EntrySalesYoyPopup({
                 </div>
               </div>
               <div className="max-h-[420px] overflow-auto">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full table-fixed text-sm">
                   <thead className="sticky top-0 bg-gray-50 text-gray-700">
                     <tr className="border-b border-gray-200">
-                      <th className="px-3 py-2 text-left font-semibold">
+                      <th className="w-[16%] px-3 py-2 text-left font-semibold">
                         <button type="button" onClick={() => toggleStoreDetailSort('shopCd')} className="inline-flex items-center gap-1">
                           Shop Code{getStoreDetailSortIndicator('shopCd')}
                         </button>
                       </th>
-                      <th className="px-3 py-2 text-left font-semibold">
+                      <th className="w-[22%] px-3 py-2 text-left font-semibold">
                         <button type="button" onClick={() => toggleStoreDetailSort('shopName')} className="inline-flex items-center gap-1">
                           Shop Name{getStoreDetailSortIndicator('shopName')}
                         </button>
                       </th>
-                      <th className="px-3 py-2 text-right font-semibold">
-                        <button type="button" onClick={() => toggleStoreDetailSort('currentSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
-                          Current Sales{getStoreDetailSortIndicator('currentSales')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right font-semibold">
-                        <button type="button" onClick={() => toggleStoreDetailSort('previousSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
-                          LY Sales{getStoreDetailSortIndicator('previousSales')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right font-semibold">
+                      {showStoreSalesColumns ? (
+                        <>
+                          <th className="w-[15%] px-3 py-2 text-right font-semibold">
+                            <button type="button" onClick={() => toggleStoreDetailSort('currentSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                              Current Sales{getStoreDetailSortIndicator('currentSales')}
+                            </button>
+                          </th>
+                          <th className="w-[15%] px-3 py-2 text-right font-semibold">
+                            <button type="button" onClick={() => toggleStoreDetailSort('previousSales')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                              LY Sales{getStoreDetailSortIndicator('previousSales')}
+                            </button>
+                          </th>
+                        </>
+                      ) : null}
+                      <th className={`${showStoreSalesColumns ? 'w-[10%]' : 'w-[15%]'} px-3 py-2 text-right font-semibold`}>
                         <button type="button" onClick={() => toggleStoreDetailSort('yoy')} className="inline-flex w-full items-center justify-end gap-1 text-right">
                           YoY{getStoreDetailSortIndicator('yoy')}
+                        </button>
+                      </th>
+                      <th className={`${showStoreSalesColumns ? 'w-[11%]' : 'w-[18%]'} px-3 py-2 text-right font-semibold`}>
+                        <button type="button" onClick={() => toggleStoreDetailSort('discountRate')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                          Disc. Rate{getStoreDetailSortIndicator('discountRate')}
+                        </button>
+                      </th>
+                      <th className={`${showStoreSalesColumns ? 'w-[11%]' : 'w-[19%]'} px-3 py-2 text-right font-semibold`}>
+                        <button type="button" onClick={() => toggleStoreDetailSort('discountRateDiff')} className="inline-flex w-full items-center justify-end gap-1 text-right">
+                          Disc. vs LY (%p){getStoreDetailSortIndicator('discountRateDiff')}
                         </button>
                       </th>
                     </tr>
@@ -863,24 +1415,48 @@ export default function EntrySalesYoyPopup({
                       <td className="px-3 py-2 font-semibold text-gray-900" colSpan={2}>
                         {language === 'ko' ? '합계' : 'Total'}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                        {formatStoreDetailAmount(storeDetailData.currentTotal)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                        {formatStoreDetailAmount(storeDetailData.previousTotal)}
-                      </td>
+                      {showStoreSalesColumns ? (
+                        <>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                            {formatStoreDetailAmountInThousands(storeDetailData.currentTotal)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                            {formatStoreDetailAmountInThousands(storeDetailData.previousTotal)}
+                          </td>
+                        </>
+                      ) : null}
                       <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
                         {formatYoy(storeDetailData.totalYoy)}
                       </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                        {formatPercentValue(storeDetailData.totalDiscountRate)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
+                        {formatPercentPointValue(storeDetailData.totalDiscountRateDiff)}
+                      </td>
                     </tr>
                     {sortedStoreDetailRows.map((detailRow) => (
-                      <tr key={`${storeDetailData.region}-${detailRow.shopCd}`} className="border-b border-gray-100 last:border-b-0">
+                      <tr
+                        key={`${storeDetailData.region}-${detailRow.shopCd}`}
+                        onClick={() => setSelectedStoreCategoryDetail({ shopCd: detailRow.shopCd, shopName: detailRow.shopName })}
+                        className="cursor-pointer border-b border-gray-100 transition hover:bg-slate-50/80 last:border-b-0"
+                      >
                         <td className="px-3 py-2 font-medium text-gray-800">{detailRow.shopCd}</td>
                         <td className="px-3 py-2 text-gray-700">{detailRow.shopName}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmount(detailRow.currentSales)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmount(detailRow.previousSales)}</td>
+                        {showStoreSalesColumns ? (
+                          <>
+                            <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(detailRow.currentSales)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(detailRow.previousSales)}</td>
+                          </>
+                        ) : null}
                         <td className={`px-3 py-2 text-right font-semibold tabular-nums ${detailRow.yoy === null ? 'text-gray-400' : detailRow.yoy >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
                           {formatYoy(detailRow.yoy)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-sky-700">
+                          {formatPercentValue(detailRow.discountRate)}
+                        </td>
+                        <td className={`px-3 py-2 text-right font-semibold tabular-nums ${detailRow.discountRateDiff === null ? 'text-gray-400' : detailRow.discountRateDiff > 0 ? 'text-rose-600' : detailRow.discountRateDiff < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                          {formatPercentPointValue(detailRow.discountRateDiff)}
                         </td>
                       </tr>
                     ))}
@@ -1002,24 +1578,11 @@ export default function EntrySalesYoyPopup({
                           : 'hover:bg-white'
                       }`}
                     >
-                      <div className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="opacity-65"
-                        >
-                          <path d="M15 15l6 6" />
-                          <circle cx="10" cy="10" r="7" />
-                        </svg>
-                        {formatYoy(row.hkmcValue)}
-                      </div>
+                      <AnimatedYoyValue
+                        value={row.hkmcValue}
+                        delayMs={index * 55}
+                        toneClassName={row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                      />
                     </button>
                     <button
                       type="button"
@@ -1030,24 +1593,11 @@ export default function EntrySalesYoyPopup({
                           : 'hover:bg-violet-50/80'
                       }`}
                     >
-                      <div className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums sm:text-xl ${row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="opacity-65"
-                        >
-                          <path d="M15 15l6 6" />
-                          <circle cx="10" cy="10" r="7" />
-                        </svg>
-                        {formatYoy(row.twValue)}
-                      </div>
+                      <AnimatedYoyValue
+                        value={row.twValue}
+                        delayMs={index * 55 + 28}
+                        toneClassName={row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                      />
                     </button>
                   </div>
                 ))}
