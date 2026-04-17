@@ -1614,6 +1614,14 @@ export default function EntrySalesYoyPopup({
             {groupedRows.map((group) => (
               <div key={group.key} className="rounded-2xl bg-slate-50/85 px-3 py-1.5 ring-1 ring-slate-200/80">
                 {group.rows.map((row, index) => (
+                  (() => {
+                    const isProjectedDetailDisabled = row.key === 'projectedMtd';
+                    const hkmcSelected =
+                      selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'HKMC';
+                    const twSelected =
+                      selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'TW';
+
+                    return (
                   <div
                     key={row.key}
                     className={`grid w-full grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 rounded-xl py-2 ${
@@ -1637,37 +1645,62 @@ export default function EntrySalesYoyPopup({
                       </div>
                       <div className="text-[11px] leading-snug text-gray-400">{row.period}</div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'HKMC' })}
-                      className={`flex items-center justify-center rounded-xl bg-white/85 ring-1 ring-slate-200/80 transition ${
-                        selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'HKMC'
-                          ? 'ring-2 ring-gray-400'
-                          : 'hover:bg-white'
-                      }`}
-                    >
-                      <AnimatedYoyValue
-                        value={row.hkmcValue}
-                        delayMs={index * 110}
-                        toneClassName={row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'TW' })}
-                      className={`flex items-center justify-center rounded-xl bg-violet-50/55 ring-1 ring-violet-100 transition ${
-                        selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'TW'
-                          ? 'ring-2 ring-violet-300'
-                          : 'hover:bg-violet-50/80'
-                      }`}
-                    >
-                      <AnimatedYoyValue
-                        value={row.twValue}
-                        delayMs={index * 110 + 60}
-                        toneClassName={row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
-                      />
-                    </button>
+                    {isProjectedDetailDisabled ? (
+                      <>
+                        <div
+                          className="flex cursor-not-allowed items-center justify-center rounded-xl bg-white/70 opacity-75 ring-1 ring-slate-200/70"
+                          title={language === 'ko' ? 'Projection 상세는 아직 지원되지 않습니다.' : 'Projected detail is not available yet.'}
+                        >
+                          <AnimatedYoyValue
+                            value={row.hkmcValue}
+                            delayMs={index * 110}
+                            toneClassName={row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                          />
+                        </div>
+                        <div
+                          className="flex cursor-not-allowed items-center justify-center rounded-xl bg-violet-50/45 opacity-75 ring-1 ring-violet-100"
+                          title={language === 'ko' ? 'Projection 상세는 아직 지원되지 않습니다.' : 'Projected detail is not available yet.'}
+                        >
+                          <AnimatedYoyValue
+                            value={row.twValue}
+                            delayMs={index * 110 + 60}
+                            toneClassName={row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'HKMC' })}
+                          className={`flex items-center justify-center rounded-xl bg-white/85 ring-1 ring-slate-200/80 transition ${
+                            hkmcSelected ? 'ring-2 ring-gray-400' : 'hover:bg-white'
+                          }`}
+                        >
+                          <AnimatedYoyValue
+                            value={row.hkmcValue}
+                            delayMs={index * 110}
+                            toneClassName={row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStoreDetail({ metricKey: row.key, region: 'TW' })}
+                          className={`flex items-center justify-center rounded-xl bg-violet-50/55 ring-1 ring-violet-100 transition ${
+                            twSelected ? 'ring-2 ring-violet-300' : 'hover:bg-violet-50/80'
+                          }`}
+                        >
+                          <AnimatedYoyValue
+                            value={row.twValue}
+                            delayMs={index * 110 + 60}
+                            toneClassName={row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
+                          />
+                        </button>
+                      </>
+                    )}
                   </div>
+                    );
+                  })()
                 ))}
               </div>
             ))}
