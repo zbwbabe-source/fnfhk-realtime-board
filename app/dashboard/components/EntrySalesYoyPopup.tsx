@@ -105,6 +105,8 @@ type StoreCategoryDetailSelection = {
 type StoreCategoryDetailRow = {
   middleCategory: string;
   subcategory: string;
+  currentTagSales: number;
+  previousTagSales: number;
   currentSales: number;
   previousSales: number;
   yoy: number | null;
@@ -135,6 +137,8 @@ type StoreCategoryDetailPayload = {
       category_small_key: string;
       category_small: string;
       middle_category: string;
+      sales_tag: number;
+      sales_tag_ly: number;
       sales_act: number;
       sales_act_ly: number;
       sales_act_yoy_pct: number | null;
@@ -1003,73 +1007,62 @@ export default function EntrySalesYoyPopup({
 
     const mergedRows = new Map<
       string,
-      StoreCategoryDetailRow & {
-        discountWeight: number;
-        discountDiffWeight: number;
-      }
+      StoreCategoryDetailRow
     >();
 
     storeCategoryDetailData.categories.forEach((category) => {
       (Array.isArray(category.small_categories) ? category.small_categories : []).forEach((smallCategory) => {
         const middleCategory = smallCategory.middle_category;
         const subcategory = smallCategory.category_small;
+        const currentTagSales = Number(smallCategory.sales_tag || 0);
+        const previousTagSales = Number(smallCategory.sales_tag_ly || 0);
         const currentSales = Number(smallCategory.sales_act || 0);
         const previousSales = Number(smallCategory.sales_act_ly || 0);
-        const discountRate =
-          typeof smallCategory.discount_rate === 'number' && Number.isFinite(smallCategory.discount_rate)
-            ? smallCategory.discount_rate
-            : null;
-        const discountRateDiff =
-          typeof smallCategory.discount_rate_diff === 'number' && Number.isFinite(smallCategory.discount_rate_diff)
-            ? smallCategory.discount_rate_diff
-            : null;
         const rowKey = `${middleCategory}__${subcategory}`;
         const existing = mergedRows.get(rowKey);
-        const nextWeight = Math.max(currentSales, 0);
+        const currentDiscountRate = currentTagSales > 0 ? (1 - currentSales / currentTagSales) * 100 : null;
+        const previousDiscountRate = previousTagSales > 0 ? (1 - previousSales / previousTagSales) * 100 : null;
 
         if (!existing) {
           mergedRows.set(rowKey, {
             middleCategory,
             subcategory,
+            currentTagSales,
+            previousTagSales,
             currentSales,
             previousSales,
             yoy: null,
-            discountRate,
-            discountRateDiff,
-            discountWeight: discountRate === null ? 0 : nextWeight,
-            discountDiffWeight: discountRateDiff === null ? 0 : nextWeight,
+            discountRate: currentDiscountRate,
+            discountRateDiff:
+              currentDiscountRate !== null && previousDiscountRate !== null
+                ? currentDiscountRate - previousDiscountRate
+                : null,
           });
           return;
         }
 
+        existing.currentTagSales += currentTagSales;
+        existing.previousTagSales += previousTagSales;
         existing.currentSales += currentSales;
         existing.previousSales += previousSales;
-
-        if (discountRate !== null) {
-          const combinedWeight = existing.discountWeight + nextWeight;
-          existing.discountRate =
-            combinedWeight > 0
-              ? (((existing.discountRate ?? 0) * existing.discountWeight) + discountRate * nextWeight) / combinedWeight
-              : existing.discountRate;
-          existing.discountWeight = combinedWeight;
-        }
-
-        if (discountRateDiff !== null) {
-          const combinedDiffWeight = existing.discountDiffWeight + nextWeight;
-          existing.discountRateDiff =
-            combinedDiffWeight > 0
-              ? (((existing.discountRateDiff ?? 0) * existing.discountDiffWeight) + discountRateDiff * nextWeight) / combinedDiffWeight
-              : existing.discountRateDiff;
-          existing.discountDiffWeight = combinedDiffWeight;
-        }
       });
     });
 
     return Array.from(mergedRows.values())
-      .map(({ discountWeight: _discountWeight, discountDiffWeight: _discountDiffWeight, ...row }) => ({
-        ...row,
-        yoy: row.previousSales > 0 ? (row.currentSales / row.previousSales) * 100 : null,
-      }))
+      .map((row) => {
+        const mergedCurrentDiscountRate = row.currentTagSales > 0 ? (1 - row.currentSales / row.currentTagSales) * 100 : null;
+        const mergedPreviousDiscountRate = row.previousTagSales > 0 ? (1 - row.previousSales / row.previousTagSales) * 100 : null;
+
+        return {
+          ...row,
+          yoy: row.previousSales > 0 ? (row.currentSales / row.previousSales) * 100 : null,
+          discountRate: mergedCurrentDiscountRate,
+          discountRateDiff:
+            mergedCurrentDiscountRate !== null && mergedPreviousDiscountRate !== null
+              ? mergedCurrentDiscountRate - mergedPreviousDiscountRate
+              : null,
+        };
+      })
       .filter((row) => row.currentSales > 0 || row.previousSales > 0)
       .sort((a, b) => b.currentSales - a.currentSales || a.subcategory.localeCompare(b.subcategory));
   }, [storeCategoryDetailData]);

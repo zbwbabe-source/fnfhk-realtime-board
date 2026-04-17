@@ -22,6 +22,7 @@ export interface StoreDetailSmallCategoryRow {
   category_small: string;
   middle_category: string;
   sales_tag: number;
+  sales_tag_ly: number;
   sales_act: number;
   sales_act_ly: number;
   sales_share_pct: number;
@@ -422,6 +423,7 @@ export async function fetchSection1StoreDetail({
       category_small: smallAgg.category_small,
       middle_category: smallAgg.middle_category,
       sales_tag: smallAgg.sales_tag,
+      sales_tag_ly: smallAgg.sales_tag_ly_base,
       sales_act: smallAgg.sales_act,
       sales_share_pct: 0,
       sales_act_ly: smallAgg.sales_act_ly_base,
