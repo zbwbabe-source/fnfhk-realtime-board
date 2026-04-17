@@ -1439,10 +1439,29 @@ export default function EntrySalesYoyPopup({
                       <tr
                         key={`${storeDetailData.region}-${detailRow.shopCd}`}
                         onClick={() => setSelectedStoreCategoryDetail({ shopCd: detailRow.shopCd, shopName: detailRow.shopName })}
-                        className="cursor-pointer border-b border-gray-100 transition hover:bg-slate-50/80 last:border-b-0"
+                        className="group cursor-pointer border-b border-gray-100 transition hover:bg-slate-50/80 last:border-b-0"
                       >
                         <td className="px-3 py-2 font-medium text-gray-800">{detailRow.shopCd}</td>
-                        <td className="px-3 py-2 text-gray-700">{detailRow.shopName}</td>
+                        <td className="px-3 py-2 text-gray-700">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span>{detailRow.shopName}</span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="shrink-0 text-gray-400 transition group-hover:text-violet-500"
+                              aria-hidden="true"
+                            >
+                              <path d="m9 18 6-6-6-6" />
+                            </svg>
+                          </div>
+                        </td>
                         {showStoreSalesColumns ? (
                           <>
                             <td className="px-3 py-2 text-right tabular-nums text-gray-900">{formatStoreDetailAmountInThousands(detailRow.currentSales)}</td>

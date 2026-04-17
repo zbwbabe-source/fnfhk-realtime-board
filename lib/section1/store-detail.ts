@@ -23,6 +23,7 @@ export interface StoreDetailSmallCategoryRow {
   middle_category: string;
   sales_tag: number;
   sales_act: number;
+  sales_act_ly: number;
   sales_share_pct: number;
   sales_tag_yoy_pct: number | null;
   sales_act_yoy_pct: number | null;
@@ -48,6 +49,7 @@ export interface StoreDetailPayload {
   asof_date: string;
   period_start_date: string;
   mode: 'mtd' | 'ytd';
+  metric_key?: 'daily' | 'recent7d' | 'mtd' | 'projectedMtd' | 'ytd';
   region: string;
   brand: string;
   header: {
@@ -86,6 +88,33 @@ function getPeriodStartDate(date: string, mode: 'mtd' | 'ytd'): string {
     return `${current.getFullYear()}-01-01`;
   }
   return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function shiftDays(date: string, days: number): string {
+  const current = new Date(date);
+  current.setDate(current.getDate() + days);
+  return formatDate(current);
+}
+
+function getPeriodRangeForMetric(
+  date: string,
+  mode: 'mtd' | 'ytd',
+  metricKey?: 'daily' | 'recent7d' | 'mtd' | 'projectedMtd' | 'ytd'
+) {
+  const normalizedMetricKey = metricKey || mode;
+  if (normalizedMetricKey === 'daily') {
+    return { mode: 'mtd' as const, periodStartDate: date, lyPeriodStartDate: getLyDateString(date) };
+  }
+  if (normalizedMetricKey === 'recent7d') {
+    const periodStartDate = shiftDays(date, -6);
+    return { mode: 'mtd' as const, periodStartDate, lyPeriodStartDate: getLyDateString(periodStartDate) };
+  }
+  if (normalizedMetricKey === 'ytd') {
+    const periodStartDate = getPeriodStartDate(date, 'ytd');
+    return { mode: 'ytd' as const, periodStartDate, lyPeriodStartDate: getPeriodStartDate(getLyDateString(date), 'ytd') };
+  }
+  const periodStartDate = getPeriodStartDate(date, 'mtd');
+  return { mode: 'mtd' as const, periodStartDate, lyPeriodStartDate: getPeriodStartDate(getLyDateString(date), 'mtd') };
 }
 
 function normalizeLargeCategory(raw: string): string {
@@ -139,12 +168,14 @@ export async function fetchSection1StoreDetail({
   date,
   shopCd,
   mode,
+  metricKey,
 }: {
   region: string;
   brand: string;
   date: string;
   shopCd: string;
   mode: 'mtd' | 'ytd';
+  metricKey?: 'daily' | 'recent7d' | 'mtd' | 'projectedMtd' | 'ytd';
 }): Promise<StoreDetailPayload> {
   const storeInfo = getStoreInfo(shopCd);
   if (!storeInfo) {
@@ -156,9 +187,8 @@ export async function fetchSection1StoreDetail({
     throw new Error(`Store ${shopCd} does not belong to ${region}/${brand}`);
   }
 
-  const periodStartDate = getPeriodStartDate(date, mode);
   const lyDate = getLyDateString(date);
-  const lyPeriodStartDate = getPeriodStartDate(lyDate, mode);
+  const { mode: normalizedMode, periodStartDate, lyPeriodStartDate } = getPeriodRangeForMetric(date, mode, metricKey);
   const isTwRegion = region === 'TW';
   const currentPeriod = isTwRegion ? getPeriodFromDateString(date) : '';
   const lyPeriod = isTwRegion ? getPeriodFromDateString(lyDate) : '';
@@ -327,7 +357,6 @@ export async function fetchSection1StoreDetail({
     const mapping = getCategoryMapping(categorySmall);
     const normalizedLarge = normalizeLargeCategory(mapping.large);
     const currentCategoryLarge = getDisplayCategory(normalizedLarge, sesn, date);
-    const lyCategoryLarge = getDisplayCategory(normalizedLarge, sesn, lyDate);
     const middleCategory = mapping.middle || 'Unknown';
     const salesAct = applyCurrentRate(Number(row.SALES_ACT || 0));
     const salesTag = applyCurrentRate(Number(row.SALES_TAG || 0));
@@ -346,22 +375,11 @@ export async function fetchSection1StoreDetail({
         product_count: 0,
       });
     }
-    if (!categoryMap.has(lyCategoryLarge)) {
-      categoryMap.set(lyCategoryLarge, {
-        category: lyCategoryLarge,
-        sales_tag: 0,
-        sales_act: 0,
-        sales_tag_ly_base: 0,
-        sales_act_ly_base: 0,
-        product_count: 0,
-      });
-    }
     const currentCategoryAgg = categoryMap.get(currentCategoryLarge)!;
     currentCategoryAgg.sales_tag += salesTag;
     currentCategoryAgg.sales_act += salesAct;
-    const lyCategoryAgg = categoryMap.get(lyCategoryLarge)!;
-    lyCategoryAgg.sales_tag_ly_base += salesTagLy;
-    lyCategoryAgg.sales_act_ly_base += salesActLy;
+    currentCategoryAgg.sales_tag_ly_base += salesTagLy;
+    currentCategoryAgg.sales_act_ly_base += salesActLy;
 
     const currentCategorySmallKey = `${currentCategoryLarge}__${categorySmall}`;
     if (!smallCategoryMap.has(currentCategorySmallKey)) {
@@ -377,26 +395,11 @@ export async function fetchSection1StoreDetail({
         product_count: 0,
       });
     }
-    const lyCategorySmallKey = `${lyCategoryLarge}__${categorySmall}`;
-    if (!smallCategoryMap.has(lyCategorySmallKey)) {
-      smallCategoryMap.set(lyCategorySmallKey, {
-        category_small_key: lyCategorySmallKey,
-        category_small: categorySmall,
-        middle_category: middleCategory,
-        category_large: lyCategoryLarge,
-        sales_tag: 0,
-        sales_act: 0,
-        sales_tag_ly_base: 0,
-        sales_act_ly_base: 0,
-        product_count: 0,
-      });
-    }
     const currentSmallAgg = smallCategoryMap.get(currentCategorySmallKey)!;
     currentSmallAgg.sales_tag += salesTag;
     currentSmallAgg.sales_act += salesAct;
-    const lySmallAgg = smallCategoryMap.get(lyCategorySmallKey)!;
-    lySmallAgg.sales_tag_ly_base += salesTagLy;
-    lySmallAgg.sales_act_ly_base += salesActLy;
+    currentSmallAgg.sales_tag_ly_base += salesTagLy;
+    currentSmallAgg.sales_act_ly_base += salesActLy;
   });
 
   rawRowsBySmallCategory.forEach((productRows, categorySmallKey) => {
@@ -421,6 +424,7 @@ export async function fetchSection1StoreDetail({
       sales_tag: smallAgg.sales_tag,
       sales_act: smallAgg.sales_act,
       sales_share_pct: 0,
+      sales_act_ly: smallAgg.sales_act_ly_base,
       sales_tag_yoy_pct:
         smallAgg.sales_tag_ly_base > 0 ? (smallAgg.sales_tag / smallAgg.sales_tag_ly_base) * 100 : null,
       sales_act_yoy_pct:
@@ -504,13 +508,14 @@ export async function fetchSection1StoreDetail({
   return {
     asof_date: date,
     period_start_date: periodStartDate,
-    mode,
+    mode: normalizedMode,
+    metric_key: metricKey,
     region,
     brand,
     header: {
       shop_cd: shopCd,
       shop_name: storeInfo.store_name,
-      mode,
+      mode: normalizedMode,
       sales_tag: totalSalesTag,
       sales_act: totalSalesAct,
       sales_yoy_pct: totalSalesActLy > 0 ? (totalSalesAct / totalSalesActLy) * 100 : null,
