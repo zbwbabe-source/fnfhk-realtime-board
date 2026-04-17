@@ -298,7 +298,7 @@ function AnimatedYoyValue({
 
     const roundedTarget = Math.round(value);
     const startValue = 0;
-    const duration = 680;
+    const duration = 1120;
 
     const tick = (startedAt: number, now: number) => {
       const elapsed = now - startedAt;
@@ -329,8 +329,8 @@ function AnimatedYoyValue({
 
   return (
     <div
-      className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:text-xl ${
-        isRevealed ? 'translate-y-0 scale-100 blur-0 opacity-100' : 'translate-y-[8px] scale-[0.94] blur-[10px] opacity-0'
+      className={`inline-flex items-center gap-1 whitespace-nowrap text-center text-lg font-bold tabular-nums transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:text-xl ${
+        isRevealed ? 'translate-y-0 scale-100 blur-0 opacity-100' : 'translate-y-[14px] scale-[0.9] blur-[14px] opacity-0'
       } ${toneClassName}`}
     >
       <svg
@@ -1580,7 +1580,7 @@ export default function EntrySalesYoyPopup({
                     >
                       <AnimatedYoyValue
                         value={row.hkmcValue}
-                        delayMs={index * 55}
+                        delayMs={index * 110}
                         toneClassName={row.hkmcValue === null ? 'text-gray-400' : row.hkmcValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
                       />
                     </button>
@@ -1595,7 +1595,7 @@ export default function EntrySalesYoyPopup({
                     >
                       <AnimatedYoyValue
                         value={row.twValue}
-                        delayMs={index * 55 + 28}
+                        delayMs={index * 110 + 60}
                         toneClassName={row.twValue === null ? 'text-gray-400' : row.twValue >= 100 ? 'text-emerald-600' : 'text-rose-600'}
                       />
                     </button>
