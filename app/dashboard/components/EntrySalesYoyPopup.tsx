@@ -440,7 +440,13 @@ function getTrendDomain(rows: Array<{ hkmcYoy: number | null; twYoy: number | nu
   return [paddedMin, paddedMax] as const;
 }
 
-function getTrendDescription(window: 'all' | '120d' | '30d' | '7d') {
+function getTrendDescription(window: 'all' | 'mtd' | '120d' | '30d' | '7d') {
+  if (window === 'mtd') {
+    return {
+      ko: '당월 1일부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
+      en: 'Cumulative YoY from the first day of this month with 100% baseline',
+    };
+  }
   if (window === '120d') {
     return {
       ko: '최근 120일 시작일부터 각 날짜까지 누적 YoY 추이, 100% 기준선',
@@ -465,16 +471,18 @@ function getTrendDescription(window: 'all' | '120d' | '30d' | '7d') {
   };
 }
 
-function getTrendTitle(window: 'all' | '120d' | '30d' | '7d') {
+function getTrendTitle(window: 'all' | 'mtd' | '120d' | '30d' | '7d') {
+  if (window === 'mtd') return 'MTD YoY Trend';
   if (window === '120d') return '120 Days YoY Trend';
   if (window === '30d') return '30 Days YoY Trend';
   if (window === '7d') return '7 Days YoY Trend';
   return 'YTD YoY Trend';
 }
 
-function getTrendWindowForMetric(metricKey: string): 'all' | '30d' | '7d' {
+function getTrendWindowForMetric(metricKey: string): 'all' | 'mtd' | '30d' | '7d' | null {
   if (metricKey === 'ytd') return 'all';
-  if (metricKey === 'mtd' || metricKey === 'projectedMtd') return '30d';
+  if (metricKey === 'mtd') return 'mtd';
+  if (metricKey === 'projectedMtd') return null;
   return '7d';
 }
 
@@ -541,7 +549,7 @@ export default function EntrySalesYoyPopup({
 }: EntrySalesYoyPopupProps) {
   const [open, setOpen] = useState(false);
   const [yoyBasis, setYoyBasis] = useState<'sameStore' | 'overall'>('overall');
-  const [trendWindow, setTrendWindow] = useState<'all' | '120d' | '30d' | '7d'>('all');
+  const [trendWindow, setTrendWindow] = useState<'all' | 'mtd' | '120d' | '30d' | '7d'>('all');
   const [sameStoreTrendRows, setSameStoreTrendRows] = useState<
     Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
   >([]);
@@ -695,9 +703,10 @@ export default function EntrySalesYoyPopup({
 
     const load = async () => {
       try {
+        const fetchWindow = trendWindow === 'mtd' ? 'all' : trendWindow;
         const [hkmcResult, twResult, hkmcYtdResult, twYtdResult] = await Promise.all([
-          fetchRegionTrend('HKMC', trendWindow),
-          fetchRegionTrend('TW', trendWindow),
+          fetchRegionTrend('HKMC', fetchWindow),
+          fetchRegionTrend('TW', fetchWindow),
           fetchRegionTrend('HKMC', 'all'),
           fetchRegionTrend('TW', 'all'),
         ]);
@@ -758,7 +767,16 @@ export default function EntrySalesYoyPopup({
     if (trendRows.length === 0) return [];
 
     if (yoyBasis === 'sameStore') {
-      return trendRows.map((row) => ({
+      const parsedAsOfDate = parseLocalDate(date);
+      const monthStartKey = parsedAsOfDate
+        ? formatDateKey(new Date(parsedAsOfDate.getFullYear(), parsedAsOfDate.getMonth(), 1))
+        : null;
+      const sameStoreRows =
+        trendWindow === 'mtd' && monthStartKey
+          ? trendRows.filter((row) => row.date >= monthStartKey)
+          : trendRows;
+
+      return sameStoreRows.map((row) => ({
         label: row.label,
         hkmcYoy: row.hkmcYtdYoy ?? null,
         twYoy: row.twYtdYoy ?? null,
@@ -775,6 +793,31 @@ export default function EntrySalesYoyPopup({
         hkmcYoy: row.hkmcYtdYoy ?? null,
         twYoy: row.twYtdYoy ?? null,
       }));
+    }
+
+    if (trendWindow === 'mtd') {
+      const parsedAsOfDate = parseLocalDate(date);
+      const monthStartKey = parsedAsOfDate
+        ? formatDateKey(new Date(parsedAsOfDate.getFullYear(), parsedAsOfDate.getMonth(), 1))
+        : null;
+      const mtdRows = monthStartKey ? trendRows.filter((row) => row.date >= monthStartKey) : trendRows;
+      let hkmcMtdSales = 0;
+      let hkmcMtdSalesLy = 0;
+      let twMtdSales = 0;
+      let twMtdSalesLy = 0;
+
+      return mtdRows.map((row) => {
+        hkmcMtdSales += row.hkmcDailySales;
+        hkmcMtdSalesLy += row.hkmcDailySalesLy;
+        twMtdSales += row.twDailySales;
+        twMtdSalesLy += row.twDailySalesLy;
+
+        return {
+          label: row.label,
+          hkmcYoy: hkmcMtdSalesLy > 0 ? (hkmcMtdSales / hkmcMtdSalesLy) * 100 : null,
+          twYoy: twMtdSalesLy > 0 ? (twMtdSales / twMtdSalesLy) * 100 : null,
+        };
+      });
     }
 
     const windowSize = trendWindow === '7d' ? 7 : trendWindow === '30d' ? 30 : 120;
@@ -1086,6 +1129,26 @@ export default function EntrySalesYoyPopup({
     });
   }, [storeCategoryRows, storeCategoryDetailSort]);
 
+  const storeCategoryTotals = useMemo(() => {
+    const currentSales = storeCategoryRows.reduce((sum, row) => sum + row.currentSales, 0);
+    const previousSales = storeCategoryRows.reduce((sum, row) => sum + row.previousSales, 0);
+    const currentTagSales = storeCategoryRows.reduce((sum, row) => sum + row.currentTagSales, 0);
+    const previousTagSales = storeCategoryRows.reduce((sum, row) => sum + row.previousTagSales, 0);
+    const discountRate = currentTagSales > 0 ? (1 - currentSales / currentTagSales) * 100 : null;
+    const previousDiscountRate = previousTagSales > 0 ? (1 - previousSales / previousTagSales) * 100 : null;
+
+    return {
+      currentSales,
+      previousSales,
+      yoy: previousSales > 0 ? (currentSales / previousSales) * 100 : null,
+      discountRate,
+      discountRateDiff:
+        discountRate !== null && previousDiscountRate !== null
+          ? discountRate - previousDiscountRate
+          : null,
+    };
+  }, [storeCategoryRows]);
+
   const formatStoreDetailAmount = (value: number | null | undefined) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
     if (storeDetailData?.region === 'TW' && twStoreDetailCurrency === 'TWD' && twdToHkdRate > 0) {
@@ -1307,25 +1370,21 @@ export default function EntrySalesYoyPopup({
                               {showCategorySalesColumns ? (
                                 <>
                                   <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                                    {formatStoreDetailAmountInThousands(
-                                      storeCategoryRows.reduce((sum, row) => sum + row.currentSales, 0)
-                                    )}
+                                    {formatStoreDetailAmountInThousands(storeCategoryTotals.currentSales)}
                                   </td>
                                   <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                                    {formatStoreDetailAmountInThousands(
-                                      storeCategoryRows.reduce((sum, row) => sum + row.previousSales, 0)
-                                    )}
+                                    {formatStoreDetailAmountInThousands(storeCategoryTotals.previousSales)}
                                   </td>
                                 </>
                               ) : null}
                               <td className="px-3 py-2 text-right font-semibold tabular-nums text-gray-900">
-                                {formatYoy(storeCategoryDetailData?.header?.sales_yoy_pct ?? null)}
+                                {formatYoy(storeCategoryTotals.yoy)}
                               </td>
                               <td className="px-3 py-2 text-right font-semibold italic tabular-nums text-sky-700">
-                                {formatPercentValue(storeCategoryDetailData?.header?.discount_rate ?? null)}
+                                {formatPercentValue(storeCategoryTotals.discountRate)}
                               </td>
-                              <td className={`px-3 py-2 text-right font-semibold tabular-nums ${(storeCategoryDetailData?.header?.discount_rate_diff ?? null) === null ? 'text-gray-400' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) > 0 ? 'text-rose-600' : (storeCategoryDetailData?.header?.discount_rate_diff ?? 0) < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
-                                {formatPercentPointValue(storeCategoryDetailData?.header?.discount_rate_diff ?? null)}
+                              <td className={`px-3 py-2 text-right font-semibold tabular-nums ${storeCategoryTotals.discountRateDiff === null ? 'text-gray-400' : storeCategoryTotals.discountRateDiff > 0 ? 'text-rose-600' : storeCategoryTotals.discountRateDiff < 0 ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                {formatPercentPointValue(storeCategoryTotals.discountRateDiff)}
                               </td>
                             </tr>
                             {sortedStoreCategoryRows.map((row) => (
@@ -1616,6 +1675,7 @@ export default function EntrySalesYoyPopup({
                 {group.rows.map((row, index) => (
                   (() => {
                     const isProjectedDetailDisabled = row.key === 'projectedMtd';
+                    const linkedTrendWindow = getTrendWindowForMetric(row.key);
                     const hkmcSelected =
                       selectedStoreDetail?.metricKey === row.key && selectedStoreDetail?.region === 'HKMC';
                     const twSelected =
@@ -1627,13 +1687,15 @@ export default function EntrySalesYoyPopup({
                     className={`grid w-full grid-cols-[minmax(0,1fr)_92px_92px] items-stretch gap-x-3 rounded-xl py-2 ${
                       index < group.rows.length - 1 ? 'border-b border-white/80' : ''
                     } ${
-                      getTrendWindowForMetric(row.key) === trendWindow ? 'bg-white/65' : 'hover:bg-white/45'
+                      linkedTrendWindow !== null && linkedTrendWindow === trendWindow ? 'bg-white/65' : 'hover:bg-white/45'
                     }`}
                   >
                     <button
                       type="button"
-                      onClick={() => setTrendWindow(getTrendWindowForMetric(row.key))}
-                      className="pr-1 text-left"
+                      onClick={() => {
+                        if (linkedTrendWindow !== null) setTrendWindow(linkedTrendWindow);
+                      }}
+                      className={`pr-1 text-left ${linkedTrendWindow === null ? 'cursor-default' : ''}`}
                     >
                       <div className="flex flex-wrap items-center gap-1.5">
                         <div className="text-[13px] font-semibold leading-tight text-gray-800">{row.metric}</div>
@@ -1722,11 +1784,11 @@ export default function EntrySalesYoyPopup({
                   </div>
                 </div>
                 <div className="flex flex-col items-start gap-2 lg:items-end">
-                  <div className="flex flex-wrap overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
+                  <div className="inline-flex flex-nowrap overflow-hidden rounded-lg border border-gray-200 bg-white text-[11px] font-medium">
                     <button
                       type="button"
                       onClick={() => setTrendWindow('all')}
-                      className={`px-2.5 py-1 transition-colors ${
+                      className={`whitespace-nowrap px-2.5 py-1 transition-colors ${
                         trendWindow === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -1734,8 +1796,17 @@ export default function EntrySalesYoyPopup({
                     </button>
                     <button
                       type="button"
+                      onClick={() => setTrendWindow('mtd')}
+                      className={`whitespace-nowrap border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                        trendWindow === 'mtd' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      MTD
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setTrendWindow('120d')}
-                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                      className={`whitespace-nowrap border-l border-gray-200 px-2.5 py-1 transition-colors ${
                         trendWindow === '120d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -1744,7 +1815,7 @@ export default function EntrySalesYoyPopup({
                     <button
                       type="button"
                       onClick={() => setTrendWindow('30d')}
-                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                      className={`whitespace-nowrap border-l border-gray-200 px-2.5 py-1 transition-colors ${
                         trendWindow === '30d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -1753,7 +1824,7 @@ export default function EntrySalesYoyPopup({
                     <button
                       type="button"
                       onClick={() => setTrendWindow('7d')}
-                      className={`border-l border-gray-200 px-2.5 py-1 transition-colors ${
+                      className={`whitespace-nowrap border-l border-gray-200 px-2.5 py-1 transition-colors ${
                         trendWindow === '7d' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
