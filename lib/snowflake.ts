@@ -1,4 +1,5 @@
 import snowflake from 'snowflake-sdk';
+import { createPrivateKey } from 'node:crypto';
 
 export interface SnowflakeConfig {
   account: string;
@@ -14,11 +15,34 @@ let connectionPool: snowflake.Connection | null = null;
 const CONNECTION_TIMEOUT_MS = 15000;
 const QUERY_TIMEOUT_MS = 30000;
 
+function normalizeSnowflakePrivateKey(rawValue?: string): string {
+  if (!rawValue) return '';
+
+  const trimmed = rawValue.trim();
+  const unwrapped =
+    trimmed.startsWith('"') && trimmed.endsWith('"')
+      ? trimmed.slice(1, -1)
+      : trimmed;
+
+  const normalized = unwrapped.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return '';
+
+  try {
+    return createPrivateKey(normalized)
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString();
+  } catch (error) {
+    throw new Error(
+      'Invalid Snowflake private key. Provide a valid PEM key; PKCS#1 keys will be converted automatically if the input is parseable.'
+    );
+  }
+}
+
 export function getSnowflakeConfig(): SnowflakeConfig {
   // Snowflake SDK는 account를 특정 형식으로 요구합니다
   // cixxjbf-wp67697 형식을 그대로 사용
   const account = process.env.SNOWFLAKE_ACCOUNT || '';
-  const privateKey = process.env.SNOWFLAKE_PRIVATE_KEY?.replace(/\\n/g, '\n') || '';
+  const privateKey = normalizeSnowflakePrivateKey(process.env.SNOWFLAKE_PRIVATE_KEY);
   
   return {
     account: account,
