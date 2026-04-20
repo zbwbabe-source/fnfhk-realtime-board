@@ -121,10 +121,6 @@ export default function DashboardPage() {
   const [section1Data, setSection1Data] = useState<any>(null);
   const [section2Data, setSection2Data] = useState<any>(null);
   const [section3Data, setSection3Data] = useState<any>(null);
-  const refreshedSummaryKeysRef = useRef<Set<string>>(new Set());
-  const prefetchedSummaryS3KeysRef = useRef<Set<string>>(new Set());
-  const prefetchedDetailKeysRef = useRef<Set<string>>(new Set());
-
   const [hkmcSection1Data, setHkmcSection1Data] = useState<any>(null);
   const [hkmcSection2Data, setHkmcSection2Data] = useState<any>(null);
   const [hkmcSection3Data, setHkmcSection3Data] = useState<any>(null);
@@ -668,15 +664,9 @@ export default function DashboardPage() {
         setTwSection3Data(null);
 
         const mode = isYtdMode ? 'ytd' : 'mtd';
-        const summaryKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}`;
-        const isLatestSelectedDate = !!latestDate && date === latestDate;
-        const shouldForceRefresh = refreshKey > 0 || isLatestSelectedDate;
-        const fetchOptions: RequestInit = isLatestSelectedDate
-          ? { signal: controller.signal, cache: 'no-store' }
-          : { signal: controller.signal };
-        const section3FetchOptions: RequestInit = isLatestSelectedDate
-          ? { signal: controller.signal, cache: 'no-store' }
-          : { signal: controller.signal };
+        const shouldForceRefresh = refreshKey > 0;
+        const fetchOptions: RequestInit = { signal: controller.signal };
+        const section3FetchOptions: RequestInit = { signal: controller.signal };
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const fetchJson = async (
           url: string,
@@ -738,23 +728,6 @@ export default function DashboardPage() {
         await Promise.allSettled([section1Task, section2Task, section3Task]);
         if (isCancelled) return;
 
-        // Warm up opposite section3 category in summary (clothes <-> all)
-        const oppositeS3Filter = section3CategoryFilter === 'clothes' ? 'all' : 'clothes';
-        const prefetchS3Key = `${brand}|${date}|${oppositeS3Filter}`;
-        if (!prefetchedSummaryS3KeysRef.current.has(prefetchS3Key)) {
-          prefetchedSummaryS3KeysRef.current.add(prefetchS3Key);
-          const warmUrls = [
-            `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=true${forceRefreshParam}`,
-            `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${oppositeS3Filter}&include_yoy=true${forceRefreshParam}`,
-          ];
-          Promise.all(
-            warmUrls.map((u) =>
-              fetch(u, { signal: controller.signal }).catch(() => null)
-            )
-          ).catch(() => null);
-        }
-
-        if (shouldForceRefresh) refreshedSummaryKeysRef.current.add(summaryKey);
       } catch (error) {
         if (controller.signal.aborted || isCancelled) return;
         console.error('Error fetching summary data:', error);
@@ -784,12 +757,12 @@ export default function DashboardPage() {
       try {
         setSection3Data(null);
 
-        const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
+        const shouldForceRefresh = refreshKey > 0;
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const url = `/api/section3/old-season-inventory?region=${region}&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`;
         const res = await fetch(
           url,
-          shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal }
+          { signal: controller.signal }
         );
 
         if (!res.ok) {
@@ -815,61 +788,6 @@ export default function DashboardPage() {
   }, [activeTab, region, brand, date, section3CategoryFilter, latestDate, refreshKey]);
 
   useEffect(() => {
-    if (activeTab !== 'summary' || !date || !brand) return;
-    if (
-      dataLoadStatus.section1 !== 'success' ||
-      dataLoadStatus.section2 !== 'success' ||
-      dataLoadStatus.section3 !== 'success'
-    ) {
-      return;
-    }
-
-    const mode = isYtdMode ? 'ytd' : 'mtd';
-    const prefetchKey = `${brand}|${date}|${mode}|${categoryFilter}|${section3CategoryFilter}|${refreshKey}`;
-    if (prefetchedDetailKeysRef.current.has(prefetchKey)) return;
-    prefetchedDetailKeysRef.current.add(prefetchKey);
-
-    const controller = new AbortController();
-    const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
-    const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
-    const detailWarmupUrls = [
-      `/api/section1/store-sales?region=HKMC&brand=${brand}&date=${date}${forceRefreshParam}`,
-      `/api/section1/store-sales?region=TW&brand=${brand}&date=${date}${forceRefreshParam}`,
-      `/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`,
-      `/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`,
-      `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
-      `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
-    ];
-
-    void Promise.allSettled(
-      detailWarmupUrls.map((url) =>
-        fetch(url, shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal })
-      )
-    ).then((results) => {
-      if (controller.signal.aborted) return;
-      const hasSuccess = results.some((result) => result.status === 'fulfilled');
-      if (!hasSuccess) {
-        prefetchedDetailKeysRef.current.delete(prefetchKey);
-      }
-    });
-
-    return () => {
-      controller.abort();
-    };
-  }, [
-    activeTab,
-    date,
-    brand,
-    isYtdMode,
-    categoryFilter,
-    section3CategoryFilter,
-    refreshKey,
-    dataLoadStatus.section1,
-    dataLoadStatus.section2,
-    dataLoadStatus.section3,
-  ]);
-
-  useEffect(() => {
     if (activeTab === 'summary' || !date || !brand || !region) return;
 
     let isCancelled = false;
@@ -880,12 +798,12 @@ export default function DashboardPage() {
         setSection1Data(null);
         setDataLoadStatus((prev) => ({ ...prev, section1: 'loading' }));
 
-        const shouldForceRefresh = refreshKey > 0 || (!!latestDate && date === latestDate);
+        const shouldForceRefresh = refreshKey > 0;
         const forceRefreshParam = shouldForceRefresh ? '&forceRefresh=true' : '';
         const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}${forceRefreshParam}`;
         const res = await fetch(
           url,
-          shouldForceRefresh ? { signal: controller.signal, cache: 'no-store' } : { signal: controller.signal }
+          { signal: controller.signal }
         );
 
         if (!res.ok) {

@@ -228,9 +228,8 @@ export default function Section1Table({
       setError('');
       
       try {
-        const isLatestDate = !!latestDate && date === latestDate;
-        const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}${isLatestDate ? '&forceRefresh=true' : ''}`;
-        const res = await fetch(url, isLatestDate ? { cache: 'no-store' } : undefined);
+        const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}`;
+        const res = await fetch(url);
         
         if (!res.ok) {
           throw new Error('Failed to fetch data');

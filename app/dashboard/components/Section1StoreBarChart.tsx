@@ -166,9 +166,7 @@ export default function Section1StoreBarChart({
         const url = `/api/section1/store-sales?region=${region}&brand=${brand}&date=${date}`;
         console.log('📊 Fetching from URL:', url);
 
-        const isLatestDate = !!latestDate && date === latestDate;
-        const finalUrl = `${url}${isLatestDate ? '&forceRefresh=true' : ''}`;
-        const res = await fetch(finalUrl, isLatestDate ? { cache: 'no-store' } : undefined);
+        const res = await fetch(url);
 
         if (!res.ok) {
           throw new Error('Failed to fetch store sales');

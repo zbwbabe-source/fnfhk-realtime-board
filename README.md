@@ -129,8 +129,8 @@ npm run convert-store-master
 ```env
 # Snowflake Connection
 SNOWFLAKE_ACCOUNT=your_account.region
-SNOWFLAKE_USERNAME=your_username
-SNOWFLAKE_PASSWORD=your_password
+SNOWFLAKE_USERNAME=SVC_ORG_FPA
+SNOWFLAKE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 SNOWFLAKE_DATABASE=SAP_FNF
 SNOWFLAKE_SCHEMA=DASH
 SNOWFLAKE_WAREHOUSE=your_warehouse
@@ -197,8 +197,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA SAP_FNF.DASH TO ROLE your_role;
 | 변수명 | 설명 | 예시 |
 |--------|------|------|
 | `SNOWFLAKE_ACCOUNT` | Snowflake 계정 | `abc12345.ap-northeast-1` |
-| `SNOWFLAKE_USERNAME` | 사용자명 | `fnf_user` |
-| `SNOWFLAKE_PASSWORD` | 비밀번호 | `********` |
+| `SNOWFLAKE_USERNAME` | 서비스 계정 사용자명 | `SVC_ORG_FPA` |
+| `SNOWFLAKE_PRIVATE_KEY` | PEM private key 문자열 | `-----BEGIN PRIVATE KEY-----...` |
 | `SNOWFLAKE_DATABASE` | 데이터베이스 | `SAP_FNF` |
 | `SNOWFLAKE_SCHEMA` | 스키마 | `DASH` |
 | `SNOWFLAKE_WAREHOUSE` | Warehouse | `COMPUTE_WH` |
@@ -236,7 +236,7 @@ Vercel 프로젝트 설정 → Environment Variables에서 추가:
 
 - `SNOWFLAKE_ACCOUNT`
 - `SNOWFLAKE_USERNAME`
-- `SNOWFLAKE_PASSWORD`
+- `SNOWFLAKE_PRIVATE_KEY`
 - `SNOWFLAKE_DATABASE`
 - `SNOWFLAKE_SCHEMA`
 - `SNOWFLAKE_WAREHOUSE`

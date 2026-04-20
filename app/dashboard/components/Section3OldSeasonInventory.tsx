@@ -103,7 +103,6 @@ export default function Section3OldSeasonInventory({
   const [error, setError] = useState<string | null>(null);
   const requestSeqRef = React.useRef(0);
   const lastContextRef = React.useRef('');
-  const prefetchedAllRef = React.useRef<Set<string>>(new Set());
 
   // ?뺤옣 ?곹깭 愿由?
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -145,7 +144,7 @@ export default function Section3OldSeasonInventory({
         const url = `/api/section3/old-season-inventory?${params}`;
         console.log('?뵇 Section3: Fetching from URL:', url);
         
-        const res = await fetch(url, { cache: 'no-store' });
+        const res = await fetch(url);
         
         console.log('?뱻 Section3: Response status:', res.status);
         
@@ -162,23 +161,6 @@ export default function Section3OldSeasonInventory({
         console.log('??Section3: Received data:', json);
         setData(json);
 
-        // Warm up 'all' dataset in background so switching from clothes -> all is fast.
-        if (categoryFilter === 'clothes') {
-          const prefetchKey = `${region}|${brand}|${date}|all`;
-          if (!prefetchedAllRef.current.has(prefetchKey)) {
-            prefetchedAllRef.current.add(prefetchKey);
-            const allParams = new URLSearchParams({
-              region,
-              brand,
-              date,
-              category_filter: 'all',
-            });
-            fetch(`/api/section3/old-season-inventory?${allParams}`).catch(() => {
-              prefetchedAllRef.current.delete(prefetchKey);
-            });
-          }
-        }
-        
         // 遺紐?而댄룷?뚰듃濡??곗씠???꾨떖
         if (onDataChange) {
           onDataChange(json);
