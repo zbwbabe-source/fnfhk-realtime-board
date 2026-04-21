@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell, Text } from 'recharts';
+import { ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Scatter, Cell } from 'recharts';
 import { t, type Language } from '@/lib/translations';
 import { isNewStore, getYoYForChart } from '@/lib/new-store-utils';
 import {
@@ -815,7 +815,7 @@ export default function Section1StoreBarChart({
         
         <div className="w-full h-full min-h-0 px-0">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={displayData} margin={{ top: 8, right: 4, left: 0, bottom: 12 }}>
+            <ComposedChart data={displayData} margin={{ top: 8, right: 64, left: 0, bottom: 12 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             
             {/* Legend 제거 - 차트 외부로 이동 */}
@@ -851,7 +851,7 @@ export default function Section1StoreBarChart({
               domain={[0, yoyAxisMax]}
               ticks={getYoyTicks(yoyAxisMax)}
               allowDataOverflow={false}
-              width={38}
+              width={44}
             />
             
             <Tooltip content={<CustomTooltip />} />
@@ -863,13 +863,6 @@ export default function Section1StoreBarChart({
               stroke="#374151" 
               strokeDasharray="3 3"
               strokeWidth={1.5}
-              label={{ 
-                value: '100%', 
-                position: 'right',
-                fill: '#374151',
-                fontSize: 10,
-                offset: 5
-              }}
             />
             
             {/* 막대그래프: 실판매출 또는 평당매출 */}
@@ -1174,7 +1167,7 @@ export default function Section1StoreBarChart({
               ) : (
                 // 데스크톱: ResponsiveContainer 사용
                 <ResponsiveContainer width="100%" height={650}>
-                  <ComposedChart data={displayData} margin={{ top: 10, right: 50, left: 10, bottom: 60 }}>
+                  <ComposedChart data={displayData} margin={{ top: 10, right: 108, left: 10, bottom: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     
                     <XAxis
@@ -1212,6 +1205,7 @@ export default function Section1StoreBarChart({
                       domain={[0, yoyAxisMax]}
                       ticks={getYoyTicks(yoyAxisMax)}
                       allowDataOverflow={false}
+                      width={52}
                       label={{
                         value: 'YoY (%)',
                         angle: 90,
@@ -1228,13 +1222,6 @@ export default function Section1StoreBarChart({
                       stroke="#374151" 
                       strokeDasharray="3 3"
                       strokeWidth={1.5}
-                      label={{ 
-                        value: '100%', 
-                        position: 'right',
-                        fill: '#374151',
-                        fontSize: 11,
-                        offset: 5
-                      }}
                     />
                     
                     <Bar
