@@ -12,8 +12,13 @@ export interface SnowflakeConfig {
 }
 
 let connectionPool: snowflake.Connection | null = null;
-const CONNECTION_TIMEOUT_MS = 15000;
-const QUERY_TIMEOUT_MS = 30000;
+const parseTimeout = (value: string | undefined, fallbackMs: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+};
+
+const CONNECTION_TIMEOUT_MS = parseTimeout(process.env.SNOWFLAKE_CONNECTION_TIMEOUT_MS, 60000);
+const QUERY_TIMEOUT_MS = parseTimeout(process.env.SNOWFLAKE_QUERY_TIMEOUT_MS, 120000);
 
 function normalizeSnowflakePrivateKey(rawValue?: string): string {
   if (!rawValue) return '';
