@@ -140,6 +140,15 @@ export async function GET(request: NextRequest) {
               Object.prototype.hasOwnProperty.call(row, 'curr_stock_qty') &&
               Object.prototype.hasOwnProperty.call(row, 'stagnant_stock_qty')
           );
+        const hasSalesPushLyQtyFields =
+          payload &&
+          Array.isArray(payload.skus) &&
+          payload.skus.every(
+            (row: any) =>
+              !Object.prototype.hasOwnProperty.call(row, 'sales_push_flag') ||
+              !row.sales_push_flag ||
+              Object.prototype.hasOwnProperty.call(row, 'ly_push_30d_sales_qty')
+          );
         const hasTargetInfo =
           region !== 'HKMC' ||
           (
@@ -174,6 +183,7 @@ export async function GET(request: NextRequest) {
           hasYearQtyFields &&
           hasCategoryQtyFields &&
           hasSkuQtyFields &&
+          hasSalesPushLyQtyFields &&
           hasTargetInfo
         ) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
