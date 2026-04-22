@@ -91,6 +91,15 @@ function getBrandLabel(brandCode: string): string {
   return brandCode;
 }
 
+type SnowflakeDiagnostic = {
+  ok: boolean;
+  status: 'ok' | 'error';
+  stage: 'config' | 'connection' | 'query';
+  message: string;
+  checked_at: string;
+  duration_ms: number;
+} | null;
+
 export default function DashboardPage() {
   const fallbackDate = getKstYesterdayString();
   const [region, setRegion] = useState('HKMC');
@@ -114,6 +123,7 @@ export default function DashboardPage() {
   const [isExportingMatrix, setIsExportingMatrix] = useState(false);
   const [isDataManagementOpen, setIsDataManagementOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [snowflakeDiagnostic, setSnowflakeDiagnostic] = useState<SnowflakeDiagnostic>(null);
   const [salesTrendPopupRequestKey, setSalesTrendPopupRequestKey] = useState(0);
   const [hkmcTreemapRequestKey, setHkmcTreemapRequestKey] = useState(0);
   const [twTreemapRequestKey, setTwTreemapRequestKey] = useState(0);
@@ -694,12 +704,12 @@ export default function DashboardPage() {
         const hkmcS2Promise = fetchJson(`/api/section2/sellthrough?region=HKMC&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const twS2Promise = fetchJson(`/api/section2/sellthrough?region=TW&brand=${brand}&date=${date}&category_filter=${categoryFilter}${forceRefreshParam}`);
         const hkmcS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=HKMC&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
         const twS3Promise = fetchJson(
-          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true${forceRefreshParam}`,
+          `/api/section3/old-season-inventory?region=TW&brand=${brand}&date=${date}&category_filter=${section3CategoryFilter}&include_yoy=true&lightweight=true${forceRefreshParam}`,
           section3FetchOptions,
           150000
         );
@@ -975,6 +985,48 @@ export default function DashboardPage() {
   const allDataLoaded = dataLoadStatus.section1 === 'success' && dataLoadStatus.section2 === 'success' && dataLoadStatus.section3 === 'success';
   const anyDataLoading = dataLoadStatus.section1 === 'loading' || dataLoadStatus.section2 === 'loading' || dataLoadStatus.section3 === 'loading';
   const anyDataError = dataLoadStatus.section1 === 'error' || dataLoadStatus.section2 === 'error' || dataLoadStatus.section3 === 'error';
+  const snowflakeDiagnosticLabel = snowflakeDiagnostic
+    ? language === 'ko'
+      ? `Snowflake ${snowflakeDiagnostic.stage}: ${snowflakeDiagnostic.message}`
+      : `Snowflake ${snowflakeDiagnostic.stage}: ${snowflakeDiagnostic.message}`
+    : null;
+
+  useEffect(() => {
+    if (activeTab !== 'summary' || anyDataLoading || !anyDataError) {
+      setSnowflakeDiagnostic(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchSnowflakeDiagnostic = async () => {
+      try {
+        const response = await fetch('/api/ops/snowflake-status', {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        const json = await response.json();
+        if (!controller.signal.aborted) {
+          setSnowflakeDiagnostic(json);
+        }
+      } catch (error: any) {
+        if (controller.signal.aborted) return;
+        setSnowflakeDiagnostic({
+          ok: false,
+          status: 'error',
+          stage: 'connection',
+          message: error?.message || 'Failed to check Snowflake status.',
+          checked_at: new Date().toISOString(),
+          duration_ms: 0,
+        });
+      }
+    };
+
+    void fetchSnowflakeDiagnostic();
+
+    return () => controller.abort();
+  }, [activeTab, anyDataError, anyDataLoading]);
+
   const twHkdToTwdRate = useMemo(() => {
     if (!date) return 1;
     const period = getPeriodFromDateString(date);
@@ -1263,6 +1315,19 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="mt-3 text-xs text-gray-500">{language === 'ko' ? '기준일' : 'As of'} {date || '-'}</p>
+          {activeTab === 'summary' && anyDataError && !anyDataLoading ? (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="font-semibold">
+                {language === 'ko' ? '데이터 로드 실패' : 'Data load failed'}
+              </div>
+              <div className="mt-1">
+                {snowflakeDiagnosticLabel ||
+                  (language === 'ko'
+                    ? '원인 진단 중입니다. 잠시 후 다시 시도해주세요.'
+                    : 'Diagnosing the cause. Please try again shortly.')}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

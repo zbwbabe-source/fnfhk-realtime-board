@@ -156,6 +156,16 @@ export async function GET(request: NextRequest) {
             payload.header &&
             Object.prototype.hasOwnProperty.call(payload.header, 'target_info')
           );
+        const hasDetailSeasonType =
+          payload &&
+          (payload.detail_season_type === 'S' || payload.detail_season_type === 'F');
+        const hasDetailSummaryCard =
+          payload &&
+          payload.summary_cards &&
+          payload.summary_cards.detail_total &&
+          Object.prototype.hasOwnProperty.call(payload.summary_cards.detail_total, 'curr_stock_amt') &&
+          Object.prototype.hasOwnProperty.call(payload.summary_cards.detail_total, 'period_tag_sales') &&
+          Object.prototype.hasOwnProperty.call(payload.summary_cards.detail_total, 'target_info');
         const hasPeriodTagSalesLy =
           payload &&
           payload.header &&
@@ -184,7 +194,9 @@ export async function GET(request: NextRequest) {
           hasCategoryQtyFields &&
           hasSkuQtyFields &&
           hasSalesPushLyQtyFields &&
-          hasTargetInfo
+          hasTargetInfo &&
+          hasDetailSeasonType &&
+          hasDetailSummaryCard
         ) {
           responseRowsCount = Array.isArray(payload) ? payload.length : 0;
           const durationMs = Date.now() - startTime;
