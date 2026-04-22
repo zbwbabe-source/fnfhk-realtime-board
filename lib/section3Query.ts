@@ -17,6 +17,7 @@ export interface Section3Response {
   base_stock_date: string;
   period_start_date: string;
   season_type: string;
+  detail_season_type?: 'S' | 'F';
   region: string;
   brand: string;
   header: {
@@ -128,6 +129,38 @@ export interface Section3Response {
     sales_push_flag?: boolean;
   }>;
   summary_cards?: {
+    detail_total: {
+      curr_stock_amt: number;
+      stagnant_stock_amt: number;
+      period_tag_sales: number;
+      sales_yoy_pct: number | null;
+      discount_rate: number | null;
+      target_info: {
+        monthly: {
+          progress_pct: number | null;
+          projected_progress_pct: number | null;
+          actual_discount_rate: number | null;
+          target_discount_rate: number | null;
+        };
+        cumulative: {
+          progress_pct: number | null;
+          projected_progress_pct: number | null;
+          actual_discount_rate: number | null;
+          target_discount_rate: number | null;
+        };
+      } | null;
+    };
+    sales_push_summary?: {
+      total_amt: number;
+      total_sku_count: number;
+      total_ly_sales: number;
+      total_ly_sales_qty: number;
+      total_current_stock_amt: number;
+      total_current_stock_qty: number;
+      total_stagnant_qty: number;
+      share_of_stagnant_pct: number | null;
+      total_sales_rate_pct: number | null;
+    };
     year_cards: Array<{
       year_bucket: string;
       season_code: string;
@@ -1088,6 +1121,19 @@ ORDER BY
       AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
       AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
   `;
+  const allPastSalesQuery = `
+    SELECT
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS period_tag_sales_total,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS period_act_sales_total,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS current_month_tag_sales_total,
+      COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS current_month_act_sales_total
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      ${salesCategoryFilter}
+      AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  `;
   const alignedSeasonSalesQuery = `
     SELECT
       S.SESN,
@@ -1177,6 +1223,32 @@ ORDER BY
     periodStartForSales,
     date,
   ]);
+  const allPastSalesRowsPromise = executeSnowflakeQuery(allPastSalesQuery, [
+    periodStartForSales,
+    date,
+    periodStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    currentMonthStartForSales,
+    date,
+    currentYYForSales - 1,
+    periodStartForSales,
+    date,
+  ]);
+  const allPastSalesLyRowsPromise = executeSnowflakeQuery(allPastSalesQuery, [
+    periodStartForSalesLy,
+    lyDateForSales,
+    periodStartForSalesLy,
+    lyDateForSales,
+    `${yearForSalesLy}-${String(monthForSalesLy).padStart(2, '0')}-01`,
+    lyDateForSales,
+    `${yearForSalesLy}-${String(monthForSalesLy).padStart(2, '0')}-01`,
+    lyDateForSales,
+    currentYYForSalesLy - 1,
+    periodStartForSalesLy,
+    lyDateForSales,
+  ]);
   const allStoreCodesStr =
     allStores.length > 0 ? allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
   const previousYearEndDate = `${yearForSales - 1}-12-31`;
@@ -1256,6 +1328,8 @@ ORDER BY
 
   const [
     rows,
+    allPastSalesRows,
+    allPastSalesLyRows,
     alignedSalesRows,
     alignedSalesLyRows,
     alignedSeasonSalesRows,
@@ -1265,6 +1339,8 @@ ORDER BY
     ytdCategorySalesRows,
   ] = await Promise.all([
     rowsPromise,
+    allPastSalesRowsPromise,
+    allPastSalesLyRowsPromise,
     alignedSalesRowsPromise,
     alignedSalesLyRowsPromise,
     alignedSeasonSalesRowsPromise,
@@ -1289,6 +1365,20 @@ ORDER BY
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
   const alignedCurrentMonthTagSalesLy =
     applyExchangeRateLY(parseFloat(alignedSalesLyRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+  const allPastPeriodTagSales =
+    applyExchangeRate(parseFloat(allPastSalesRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
+  const allPastPeriodActSales =
+    applyExchangeRate(parseFloat(allPastSalesRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
+  const allPastCurrentMonthTagSales =
+    applyExchangeRate(parseFloat(allPastSalesRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+  const allPastCurrentMonthActSales =
+    applyExchangeRate(parseFloat(allPastSalesRows?.[0]?.CURRENT_MONTH_ACT_SALES_TOTAL || 0)) || 0;
+  const allPastPeriodTagSalesLy =
+    applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.PERIOD_TAG_SALES_TOTAL || 0)) || 0;
+  const allPastPeriodActSalesLy =
+    applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
+  const allPastCurrentMonthTagSalesLy =
+    applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
   const isWearCategory = (cat2Raw: string | null | undefined) => {
     const cat2 = String(cat2Raw || '').trim().toUpperCase();
     const mapping = getCategoryMapping(cat2);
@@ -1545,6 +1635,14 @@ ORDER BY
     projectedMonthlySoldAmt !== null
       ? resolvedPeriodTagSales - resolvedCurrentMonthTagSales + projectedMonthlySoldAmt
       : null;
+  const projectedMonthlySoldAmtAllPast =
+    elapsedDays > 0 ? (allPastCurrentMonthTagSales / elapsedDays) * daysInMonth : null;
+  const projectedCumulativeSoldAmtAllPast =
+    projectedMonthlySoldAmtAllPast !== null
+      ? allPastPeriodTagSales - allPastCurrentMonthTagSales + projectedMonthlySoldAmtAllPast
+      : null;
+  const allPastCurrentMonthDiscountRate =
+    allPastCurrentMonthTagSales > 0 ? 1 - allPastCurrentMonthActSales / allPastCurrentMonthTagSales : null;
   const buildProgressPct = (actual: number, target: number | null | undefined) =>
     target && target > 0 ? (actual / target) * 100 : null;
   const targetInfo =
@@ -1558,25 +1656,25 @@ ORDER BY
             target_sold_amt: monthlyTarget?.target_sold_amt ?? null,
             target_sold_gross: monthlyTarget?.target_sold_gross ?? null,
             target_discount_rate: monthlyTarget?.target_discount_rate ?? null,
-            actual_sold_amt: resolvedCurrentMonthTagSales,
-            actual_sold_gross: resolvedCurrentMonthActSales,
-            actual_discount_rate: resolvedCurrentMonthDiscountRate,
+            actual_sold_amt: allPastCurrentMonthTagSales,
+            actual_sold_gross: allPastCurrentMonthActSales,
+            actual_discount_rate: allPastCurrentMonthDiscountRate,
             // Progress must compare TAG sales actual vs TAG sales target.
-            progress_pct: buildProgressPct(resolvedCurrentMonthTagSales, monthlyTarget?.target_sold_gross),
-            projected_sold_amt: projectedMonthlySoldAmt,
-            projected_progress_pct: buildProgressPct(projectedMonthlySoldAmt ?? 0, monthlyTarget?.target_sold_gross),
+            progress_pct: buildProgressPct(allPastCurrentMonthTagSales, monthlyTarget?.target_sold_gross),
+            projected_sold_amt: projectedMonthlySoldAmtAllPast,
+            projected_progress_pct: buildProgressPct(projectedMonthlySoldAmtAllPast ?? 0, monthlyTarget?.target_sold_gross),
           },
           cumulative: {
             target_sold_amt: cumulativeTarget?.target_sold_amt ?? null,
             target_sold_gross: cumulativeTarget?.target_sold_gross ?? null,
             target_discount_rate: cumulativeTarget?.target_discount_rate ?? null,
-            actual_sold_amt: resolvedPeriodTagSales,
-            actual_sold_gross: resolvedPeriodActSales,
+            actual_sold_amt: allPastPeriodTagSales,
+            actual_sold_gross: allPastPeriodActSales,
             actual_discount_rate:
-              resolvedPeriodTagSales > 0 ? 1 - resolvedPeriodActSales / resolvedPeriodTagSales : null,
-            progress_pct: buildProgressPct(resolvedPeriodTagSales, cumulativeTarget?.target_sold_gross),
-            projected_sold_amt: projectedCumulativeSoldAmt,
-            projected_progress_pct: buildProgressPct(projectedCumulativeSoldAmt ?? 0, cumulativeTarget?.target_sold_gross),
+              allPastPeriodTagSales > 0 ? 1 - allPastPeriodActSales / allPastPeriodTagSales : null,
+            progress_pct: buildProgressPct(allPastPeriodTagSales, cumulativeTarget?.target_sold_gross),
+            projected_sold_amt: projectedCumulativeSoldAmtAllPast,
+            projected_progress_pct: buildProgressPct(projectedCumulativeSoldAmtAllPast ?? 0, cumulativeTarget?.target_sold_gross),
           },
         }
       : null;
@@ -1586,6 +1684,7 @@ ORDER BY
     base_stock_date: baseStockDate,
     period_start_date: periodStartDate,
     season_type: seasonType,
+    detail_season_type: currentTypeForSales,
     region,
     brand,
     header: header ? {
@@ -1607,17 +1706,17 @@ ORDER BY
         ? (applyExchangeRate(parseFloat(header.PREV_STAGNANT_STOCK_AMT || 0)) || 0) / (applyExchangeRate(parseFloat(header.PREV_CURR_STOCK_AMT || 0)) || 0)
         : 0,
       depleted_stock_amt: applyExchangeRate(parseFloat(header.DEPLETED_STOCK_AMT || 0)) || 0,
-      period_tag_sales: totalBucketCurrentSales,
-      period_tag_sales_ly: totalBucketPrevSales,
-      period_act_sales: totalBucketCurrentActSales,
-      period_act_sales_ly: totalBucketPrevActSales,
-      current_month_depleted: resolvedCurrentMonthTagSales,
-      current_month_depleted_act: resolvedCurrentMonthActSales,
-      current_month_depleted_ly: alignedCurrentMonthTagSalesLy,
-      current_month_discount_rate: resolvedCurrentMonthDiscountRate,
+      period_tag_sales: allPastPeriodTagSales,
+      period_tag_sales_ly: allPastPeriodTagSalesLy,
+      period_act_sales: allPastPeriodActSales,
+      period_act_sales_ly: allPastPeriodActSalesLy,
+      current_month_depleted: allPastCurrentMonthTagSales,
+      current_month_depleted_act: allPastCurrentMonthActSales,
+      current_month_depleted_ly: allPastCurrentMonthTagSalesLy,
+      current_month_discount_rate: allPastCurrentMonthDiscountRate,
       discount_rate:
-        totalBucketCurrentSales > 0
-          ? 1 - totalBucketCurrentActSales / totalBucketCurrentSales
+        allPastPeriodTagSales > 0
+          ? 1 - allPastPeriodActSales / allPastPeriodTagSales
           : parseFloat(header.DISCOUNT_RATE || 0),
       inv_days_raw: header.INV_DAYS_RAW ? parseFloat(header.INV_DAYS_RAW) : null,
       inv_days: header.INV_DAYS ? parseFloat(header.INV_DAYS) : null,
@@ -1680,9 +1779,38 @@ ORDER BY
   lyPushEndDateObj.setDate(lyPushEndDateObj.getDate() + 29);
   const lyPushEndDate = formatDateYYYYMMDD(lyPushEndDateObj);
 
-  if (response.skus.length > 0 && salesStores.length > 0) {
+  const salesPushSourceRows = visibleSkuRows.map((row: any) => ({
+    sesn: String(row?.SESN || '').trim(),
+    prdt_cd: String(row?.PRDT_CD || '').trim(),
+    year_bucket: String(row?.YEAR_BUCKET || ''),
+    cat2: String(row?.CAT2 || ''),
+    base_stock_amt: applyExchangeRate(parseFloat(row?.BASE_STOCK_AMT || 0)) || 0,
+    curr_stock_amt: applyExchangeRate(parseFloat(row?.CURR_STOCK_AMT || 0)) || 0,
+    curr_stock_qty: parseFloat(row?.CURR_STOCK_QTY || 0) || 0,
+    stagnant_stock_amt: applyExchangeRate(parseFloat(row?.STAGNANT_STOCK_AMT || 0)) || 0,
+    stagnant_stock_qty: parseFloat(row?.STAGNANT_STOCK_QTY || 0) || 0,
+    depleted_stock_amt: applyExchangeRate(parseFloat(row?.DEPLETED_STOCK_AMT || 0)) || 0,
+    period_tag_sales: applyExchangeRate(parseFloat(row?.PERIOD_TAG_SALES || 0)) || 0,
+    period_act_sales: applyExchangeRate(parseFloat(row?.PERIOD_ACT_SALES || 0)) || 0,
+  }));
+
+  let salesPushSummary:
+    | {
+        total_amt: number;
+        total_sku_count: number;
+        total_ly_sales: number;
+        total_ly_sales_qty: number;
+        total_current_stock_amt: number;
+        total_current_stock_qty: number;
+        total_stagnant_qty: number;
+        share_of_stagnant_pct: number | null;
+        total_sales_rate_pct: number | null;
+      }
+    | undefined;
+
+  if (salesPushSourceRows.length > 0 && salesStores.length > 0) {
     const escapedSalesStoreCodes = salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
-    const escapedSesnList = [...new Set(response.skus.map((row) => String(row.sesn || '').trim()).filter(Boolean))]
+    const escapedSesnList = [...new Set(salesPushSourceRows.map((row) => row.sesn).filter(Boolean))]
       .map((sesn) => `'${sesn.replace(/'/g, "''")}'`)
       .join(',');
 
@@ -1713,7 +1841,7 @@ GROUP BY S.SESN, S.PRDT_CD
           });
         });
 
-        response.skus = response.skus.map((sku) => {
+        const salesPushRows = salesPushSourceRows.map((sku) => {
           const lyPushSales = lyPushSalesMap.get(`${sku.sesn}|${sku.prdt_cd}`) || { salesAmt: 0, salesQty: 0 };
           const qualifies =
             sku.stagnant_stock_amt > 0 &&
@@ -1729,6 +1857,29 @@ GROUP BY S.SESN, S.PRDT_CD
             sales_push_flag: qualifies,
           };
         });
+
+        const qualifiedSalesPushRows = salesPushRows.filter((row) => row.sales_push_flag && row.sales_push_stagnant_qty >= 10);
+        const totalAmt = qualifiedSalesPushRows.reduce((sum, row) => sum + row.sales_push_stagnant_amt, 0);
+        const totalLySales = qualifiedSalesPushRows.reduce((sum, row) => sum + row.ly_push_30d_tag_sales, 0);
+        const totalLySalesQty = qualifiedSalesPushRows.reduce((sum, row) => sum + row.ly_push_30d_sales_qty, 0);
+        const totalCurrentStockAmt = qualifiedSalesPushRows.reduce((sum, row) => sum + row.curr_stock_amt, 0);
+        const totalCurrentStockQty = qualifiedSalesPushRows.reduce((sum, row) => sum + row.curr_stock_qty, 0);
+        const totalStagnantQty = qualifiedSalesPushRows.reduce((sum, row) => sum + row.sales_push_stagnant_qty, 0);
+        salesPushSummary = {
+          total_amt: totalAmt,
+          total_sku_count: qualifiedSalesPushRows.length,
+          total_ly_sales: totalLySales,
+          total_ly_sales_qty: totalLySalesQty,
+          total_current_stock_amt: totalCurrentStockAmt,
+          total_current_stock_qty: totalCurrentStockQty,
+          total_stagnant_qty: totalStagnantQty,
+          share_of_stagnant_pct: response.header && response.header.stagnant_stock_amt > 0 ? (totalAmt / response.header.stagnant_stock_amt) * 100 : null,
+          total_sales_rate_pct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
+        };
+
+        if (!lightweight) {
+          response.skus = salesPushRows;
+        }
       } catch (error: any) {
         console.error('[section3] failed to compute sales-push stagnant skus:', error.message);
       }
@@ -1752,6 +1903,30 @@ GROUP BY S.SESN, S.PRDT_CD
       : null;
 
   response.summary_cards = {
+    detail_total: {
+      curr_stock_amt: yearRows.reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0), 0),
+      stagnant_stock_amt: yearRows.reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0), 0),
+      period_tag_sales: totalBucketCurrentSales,
+      sales_yoy_pct: totalBucketPrevSales > 0 ? (totalBucketCurrentSales / totalBucketPrevSales) * 100 : null,
+      discount_rate: totalBucketCurrentSales > 0 ? 1 - totalBucketCurrentActSales / totalBucketCurrentSales : null,
+      target_info: region === 'HKMC'
+        ? {
+            monthly: {
+              progress_pct: buildProgressPct(resolvedCurrentMonthTagSales, monthlyTarget?.target_sold_gross),
+              projected_progress_pct: buildProgressPct(projectedMonthlySoldAmt ?? 0, monthlyTarget?.target_sold_gross),
+              actual_discount_rate: resolvedCurrentMonthDiscountRate,
+              target_discount_rate: monthlyTarget?.target_discount_rate ?? null,
+            },
+            cumulative: {
+              progress_pct: buildProgressPct(resolvedPeriodTagSales, cumulativeTarget?.target_sold_gross),
+              projected_progress_pct: buildProgressPct(projectedCumulativeSoldAmt ?? 0, cumulativeTarget?.target_sold_gross),
+              actual_discount_rate: resolvedPeriodTagSales > 0 ? 1 - resolvedPeriodActSales / resolvedPeriodTagSales : null,
+              target_discount_rate: cumulativeTarget?.target_discount_rate ?? null,
+            },
+          }
+        : null,
+    },
+    sales_push_summary: salesPushSummary,
     year_cards: yearRows.map((row: any) => {
       const bucket = String(row.YEAR_BUCKET || '');
       const seasonCode = getYearBucketSeasonCode(bucket);

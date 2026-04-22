@@ -469,7 +469,15 @@ export default function Section3Card({
         : `Unit: ${currencyCode}`
       : t(language, 'cardUnit');
   const summaryCards = section3Data?.summary_cards;
+  const detailTotalCard = summaryCards?.detail_total || null;
   const yearCards = summaryCards?.year_cards || [];
+  const detailSeasonType = String(section3Data?.detail_season_type || '').toUpperCase();
+  const detailSeasonLabel = (() => {
+    const asofDate = String(section3Data?.asof_date || '');
+    const yearText = asofDate.length >= 4 ? asofDate.slice(2, 4) : '';
+    if (!yearText || (detailSeasonType !== 'S' && detailSeasonType !== 'F')) return '';
+    return `${yearText}${detailSeasonType}`;
+  })();
   const normalizedYearCards = (() => {
     const cards = [...yearCards];
     const hasThirdYearCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === 3);
@@ -526,7 +534,27 @@ export default function Section3Card({
   const salesPushSkuRows = excludeUnder10Pcs
     ? salesPushBaseSkuRows.filter((row: any) => Number(row?.sales_push_stagnant_qty || 0) >= 10)
     : salesPushBaseSkuRows;
+  const summarySalesPush = section3Data?.summary_cards?.sales_push_summary || null;
   const salesPushSummary = (() => {
+    if (salesPushSkuRows.length === 0 && summarySalesPush) {
+      return {
+        totalAmt: Number(summarySalesPush.total_amt || 0),
+        totalSkuCount: Number(summarySalesPush.total_sku_count || 0),
+        totalLySales: Number(summarySalesPush.total_ly_sales || 0),
+        totalLySalesQty: Number(summarySalesPush.total_ly_sales_qty || 0),
+        totalCurrentStockAmt: Number(summarySalesPush.total_current_stock_amt || 0),
+        totalCurrentStockQty: Number(summarySalesPush.total_current_stock_qty || 0),
+        totalStagnantQty: Number(summarySalesPush.total_stagnant_qty || 0),
+        shareOfStagnantPct:
+          summarySalesPush.share_of_stagnant_pct !== null && summarySalesPush.share_of_stagnant_pct !== undefined
+            ? Number(summarySalesPush.share_of_stagnant_pct)
+            : null,
+        totalSalesRatePct:
+          summarySalesPush.total_sales_rate_pct !== null && summarySalesPush.total_sales_rate_pct !== undefined
+            ? Number(summarySalesPush.total_sales_rate_pct)
+            : null,
+      };
+    }
     const totalAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_amt, 0);
     const totalSkuCount = salesPushSkuRows.length;
     const totalLySales = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.ly_push_30d_tag_sales, 0);
@@ -612,14 +640,12 @@ export default function Section3Card({
         {
           key: 'all',
           title: language === 'ko' ? '전체' : 'Total',
-          seasonCode: '',
-          stockAmt: section3Data?.header?.curr_stock_amt || 0,
-          salesAmt: section3Data?.header?.period_tag_sales || 0,
-          salesYoyPct: section3Data?.header?.period_tag_sales_ly
-            ? ((section3Data.header.period_tag_sales / section3Data.header.period_tag_sales_ly) * 100)
-            : null,
-          targetInfo: section3Data?.header?.target_info?.[targetMode] || null,
-          discountRate: section3Data?.header?.discount_rate ?? null,
+          seasonCode: detailSeasonLabel,
+          stockAmt: detailTotalCard?.curr_stock_amt || 0,
+          salesAmt: detailTotalCard?.period_tag_sales || 0,
+          salesYoyPct: detailTotalCard?.sales_yoy_pct ?? null,
+          targetInfo: detailTotalCard?.target_info?.[targetMode] || null,
+          discountRate: detailTotalCard?.discount_rate ?? null,
         },
         ...normalizedYearCards.map((card: any) => ({
           key: card.year_bucket,
@@ -917,14 +943,11 @@ export default function Section3Card({
       const fItem = findBreakdown(pastF, labelKey);
       const currentSeasonItem = activeSeasonType === 'S' ? sItem : fItem;
       const currentSeasonLabel = activeSeasonType === 'S' ? 'past_s' : 'past_f';
-      const otherSeasonItem = activeSeasonType === 'S' ? fItem : sItem;
-      const otherSeasonLabel = activeSeasonType === 'S' ? 'past_f' : 'past_s';
       const curr = Number(_stockAmt || 0);
       const ly =
         currentSeasonItem?.ly_curr_stock_amt && currentSeasonItem.ly_curr_stock_amt > 0
           ? Number(currentSeasonItem.ly_curr_stock_amt)
           : 0;
-      const categoryNodes = aggregateCategoryNodes([sItem?.category_nodes, fItem?.category_nodes]);
       const activeCategoryNodes = activeSeasonType === 'S' ? (sItem?.category_nodes || []) : (fItem?.category_nodes || []);
       const salesCurr = Number(_salesAmt || 0);
       const salesLy = activeCategoryNodes.reduce((sum, item) => sum + Number(item.ly_period_tag_sales || 0), 0);
@@ -948,15 +971,6 @@ export default function Section3Card({
                 category_nodes: activeCategoryNodes,
               }
             : null,
-          otherSeasonItem
-            ? {
-                label_key: otherSeasonLabel,
-                curr_stock_amt: otherSeasonItem.curr_stock_amt,
-                ly_curr_stock_amt: otherSeasonItem.ly_curr_stock_amt,
-                yoy_pct: otherSeasonItem.yoy_pct,
-                category_nodes: otherSeasonItem.category_nodes || [],
-              }
-            : null,
         ].filter(Boolean) as InventorySegmentCard['breakdown'],
       };
     };
@@ -967,14 +981,15 @@ export default function Section3Card({
       { label_key: 'y3_plus', s: findBreakdown(pastS, 'y3_plus'), f: findBreakdown(pastF, 'y3_plus') },
     ]
       .map((item) => {
-        const curr = Number(item.s?.curr_stock_amt || 0) + Number(item.f?.curr_stock_amt || 0);
-        const ly = Number(item.s?.ly_curr_stock_amt || 0) + Number(item.f?.ly_curr_stock_amt || 0);
+        const currentSeasonItem = activeSeasonType === 'S' ? item.s : item.f;
+        const curr = Number(currentSeasonItem?.curr_stock_amt || 0);
+        const ly = Number(currentSeasonItem?.ly_curr_stock_amt || 0);
         return {
           label_key: item.label_key,
           curr_stock_amt: curr,
           ly_curr_stock_amt: ly > 0 ? ly : null,
           yoy_pct: ly > 0 ? (curr / ly) * 100 : null,
-          category_nodes: aggregateCategoryNodes([item.s?.category_nodes, item.f?.category_nodes]),
+          category_nodes: currentSeasonItem?.category_nodes || [],
         };
       })
       .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
@@ -982,13 +997,11 @@ export default function Section3Card({
     map.set('all', {
       key: 'all',
       label: language === 'ko' ? '전체' : 'Total',
-      curr_stock_amt: section3Data?.header?.curr_stock_amt || 0,
-      ly_curr_stock_amt: section3Data?.header?.ly_curr_stock_amt ?? null,
-      yoy_pct: section3Data?.header?.curr_stock_yoy_pct ?? null,
-      sales_amt: section3Data?.header?.period_tag_sales || 0,
-      sales_yoy_pct: section3Data?.header?.period_tag_sales_ly
-        ? ((section3Data.header.period_tag_sales / section3Data.header.period_tag_sales_ly) * 100)
-        : null,
+      curr_stock_amt: detailTotalCard?.curr_stock_amt || 0,
+      ly_curr_stock_amt: null,
+      yoy_pct: null,
+      sales_amt: detailTotalCard?.period_tag_sales || 0,
+      sales_yoy_pct: detailTotalCard?.sales_yoy_pct ?? null,
       breakdown: totalYearBreakdown,
     });
 
@@ -1484,11 +1497,21 @@ export default function Section3Card({
               {t(language, 'section3Title')}
               {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
             </h3>
-            {!simpleDetail && salesPushSummary.totalAmt > 0 ? (
+            {!simpleDetail ? (
+              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
+                {language === 'ko' ? '주요 카드: S+F 합산' : 'Top cards: S+F combined'}
+              </span>
+            ) : null}
+            {salesPushSummary.totalAmt > 0 ? (
               <button
                 type="button"
-                onClick={() => setSalesPushModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold leading-tight text-rose-700 ring-1 ring-rose-100 transition hover:bg-rose-100"
+                onClick={() => {
+                  if (simpleDetail) return;
+                  setSalesPushModalOpen(true);
+                }}
+                className={`inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold leading-tight text-rose-700 ring-1 ring-rose-100 ${
+                  simpleDetail ? '' : 'transition hover:bg-rose-100'
+                }`}
               >
                 <span>{language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}</span>
                 <span>{formatCurrency(salesPushSummary.totalAmt || 0)}</span>
@@ -2736,6 +2759,11 @@ export default function Section3Card({
             <p className="inline-flex rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '아래 카드를 누르면 재고 상세가 열립니다.' : 'Tap the cards below to open stock detail.'}
             </p>
+            {detailSeasonLabel ? (
+              <p className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-amber-800 ring-1 ring-amber-100">
+                {language === 'ko' ? `세부 카드 기준: ${detailSeasonLabel}` : `Detail cards: ${detailSeasonLabel}`}
+              </p>
+            ) : null}
           </div>
           <div className={`grid grid-cols-1 items-stretch md:grid-cols-5 ${fixedHeight ? 'gap-1.5' : 'gap-2'}`}>
             {bottomCards.map((card: any) => {
