@@ -58,6 +58,28 @@ function isLegacySnapshotPayload(payload: any): boolean {
   );
 }
 
+function formatKstDate(value: Date): string {
+  const kst = new Date(value.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
+function isRecentAsOfSnapshotStale(snapshot: any, requestedDate?: string): boolean {
+  if (!requestedDate || !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return false;
+  const generatedAt = snapshot?.meta?.generated_at;
+  if (!generatedAt) return false;
+
+  const now = new Date();
+  const todayKst = formatKstDate(now);
+  const yesterdayKst = formatKstDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+
+  if (requestedDate !== todayKst && requestedDate !== yesterdayKst) {
+    return false;
+  }
+
+  const generatedDateKst = formatKstDate(new Date(generatedAt));
+  return generatedDateKst !== todayKst;
+}
+
 /**
  * GET /api/section1/store-sales
  * 
@@ -120,8 +142,9 @@ export async function GET(request: NextRequest) {
     const snapshot = forceRefresh
       ? null
       : await getSnapshot<any>('SECTION1', 'store-sales', region, brand, baseMonth || date);
+    const shouldRefreshRecentSnapshot = snapshot ? isRecentAsOfSnapshotStale(snapshot, date) : false;
 
-    if (snapshot && !isLegacySnapshotPayload(snapshot.payload)) {
+    if (snapshot && !isLegacySnapshotPayload(snapshot.payload) && !shouldRefreshRecentSnapshot) {
       // Redis HIT: 즉시 반환
       cacheHit = true;
       const durationMs = Date.now() - startTime;
@@ -142,6 +165,15 @@ export async function GET(request: NextRequest) {
 
     if (snapshot && isLegacySnapshotPayload(snapshot.payload)) {
       console.log('[section1] Legacy snapshot detected, regenerating', { region, brand, date, baseMonth });
+    }
+
+    if (snapshot && shouldRefreshRecentSnapshot) {
+      console.log('[section1] Recent as-of snapshot is stale, regenerating', {
+        region,
+        brand,
+        date,
+        generated_at: snapshot.meta.generated_at,
+      });
     }
 
     console.log('[section1] ⏳ Cache MISS, executing Snowflake query...');
