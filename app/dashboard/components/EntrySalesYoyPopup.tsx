@@ -551,10 +551,10 @@ export default function EntrySalesYoyPopup({
   const [yoyBasis, setYoyBasis] = useState<'sameStore' | 'overall'>('overall');
   const [trendWindow, setTrendWindow] = useState<'all' | 'mtd' | '120d' | '30d' | '7d'>('all');
   const [sameStoreTrendRows, setSameStoreTrendRows] = useState<
-    Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
+    Array<{ date: string; label: string; hkmcYoy: number | null; twYoy: number | null }>
   >([]);
   const [sameStoreYtdRows, setSameStoreYtdRows] = useState<
-    Array<{ label: string; hkmcYoy: number | null; twYoy: number | null }>
+    Array<{ date: string; label: string; hkmcYoy: number | null; twYoy: number | null }>
   >([]);
   const [activeTrendPoint, setActiveTrendPoint] = useState<{
     label: string;
@@ -687,12 +687,14 @@ export default function EntrySalesYoyPopup({
 
     const mergeRegionRows = (hkmcResult: any, twResult: any) => {
       const twMap = new Map(
-        Array.isArray(twResult?.rows) ? twResult.rows.map((row: any) => [String(row.label || ''), row]) : []
+        Array.isArray(twResult?.rows) ? twResult.rows.map((row: any) => [String(row.date || ''), row]) : []
       );
       return Array.isArray(hkmcResult?.rows)
         ? hkmcResult.rows.map((row: any) => {
-            const twRow: any = twMap.get(String(row.label || ''));
+            const currentDate = String(row.date || '');
+            const twRow: any = twMap.get(currentDate);
             return {
+              date: currentDate,
               label: String(row.label || ''),
               hkmcYoy: typeof row?.yoy === 'number' ? row.yoy : null,
               twYoy: typeof twRow?.yoy === 'number' ? twRow.yoy : null,
@@ -732,7 +734,7 @@ export default function EntrySalesYoyPopup({
   const trendRows = useMemo(() => {
     if (yoyBasis === 'sameStore') {
       return sameStoreTrendRows.map((row) => ({
-        date: row.label,
+        date: row.date,
         label: row.label,
         hkmcYtdYoy: row.hkmcYoy,
         hkmcDailySales: 0,
