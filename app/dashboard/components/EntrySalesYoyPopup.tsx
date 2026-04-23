@@ -1193,28 +1193,29 @@ export default function EntrySalesYoyPopup({
   };
 
   useEffect(() => {
+    if (!isReady) return;
+
     const previousDate = lastDateRef.current;
     lastDateRef.current = date;
+
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
+      setOpen(hiddenOn !== getVisibilityKey(date));
+      return;
+    }
+
+    if (reopenKey) {
+      setOpen(true);
+      return;
+    }
 
     if (previousDate !== null && previousDate !== date) {
       setOpen(true);
       setYoyBasis('overall');
       setTrendWindow('all');
     }
-  }, [date]);
-
-  useEffect(() => {
-    if (!isReady || initializedRef.current) return;
-    initializedRef.current = true;
-
-    const hiddenOn = window.localStorage.getItem(STORAGE_KEY);
-    setOpen(hiddenOn !== getVisibilityKey(date));
-  }, [date, isReady]);
-
-  useEffect(() => {
-    if (!isReady || !reopenKey) return;
-    setOpen(true);
-  }, [isReady, reopenKey]);
+  }, [date, isReady, reopenKey]);
 
   if (!open || !isReady) return null;
 
