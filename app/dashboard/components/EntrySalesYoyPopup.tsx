@@ -1232,7 +1232,7 @@ export default function EntrySalesYoyPopup({
       onClick={() => setOpen(false)}
     >
       <div
-        className="relative w-full max-w-[680px] overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         {storeDetailData ? (
@@ -1613,7 +1613,7 @@ export default function EntrySalesYoyPopup({
           </button>
         </div>
 
-        <div className="px-4 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="flex min-h-10 items-center">
               <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100/80">
@@ -1947,7 +1947,7 @@ export default function EntrySalesYoyPopup({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
           <button
             type="button"
             onClick={handleCloseForToday}
