@@ -39,10 +39,16 @@ export interface Section3Response {
     period_tag_sales_ly: number | null;
     period_act_sales: number;
     period_act_sales_ly: number | null;
+    ytd_tag_sales: number;
+    ytd_tag_sales_ly?: number | null;
+    ytd_act_sales: number;
+    ytd_act_sales_ly?: number | null;
     current_month_depleted: number;
     current_month_depleted_act: number;
     current_month_depleted_ly?: number | null;
+    current_month_depleted_act_ly?: number | null;
     current_month_discount_rate: number | null;
+    current_month_discount_rate_diff_pct?: number | null;
     discount_rate: number;
     inv_days_raw: number | null;
     inv_days: number | null;
@@ -133,6 +139,7 @@ export interface Section3Response {
       curr_stock_amt: number;
       stagnant_stock_amt: number;
       period_tag_sales: number;
+      ytd_tag_sales?: number;
       sales_yoy_pct: number | null;
       discount_rate: number | null;
       target_info: {
@@ -168,6 +175,7 @@ export interface Section3Response {
       stagnant_stock_amt: number;
       period_tag_sales: number;
       current_month_depleted: number;
+      ytd_tag_sales?: number;
       sales_yoy_pct: number | null;
       discount_rate: number;
       target_info: {
@@ -247,8 +255,18 @@ export interface Section3Response {
         period_tag_sales?: number;
         ly_period_tag_sales?: number | null;
         period_sales_yoy_pct?: number | null;
+        current_month_tag_sales?: number;
+        ly_current_month_tag_sales?: number | null;
+        current_month_sales_yoy_pct?: number | null;
+        ytd_tag_sales?: number;
+        ly_ytd_tag_sales?: number | null;
+        ytd_sales_yoy_pct?: number | null;
         discount_rate?: number | null;
         discount_rate_diff_pct?: number | null;
+        current_month_discount_rate?: number | null;
+        current_month_discount_rate_diff_pct?: number | null;
+        ytd_discount_rate?: number | null;
+        ytd_discount_rate_diff_pct?: number | null;
       }>;
     }>;
   }>;
@@ -1121,6 +1139,31 @@ ORDER BY
       AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
       AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
   `;
+  const ytdSalesQuery = `
+    SELECT
+      COALESCE(SUM(S.TAG_SALE_AMT), 0) AS ytd_tag_sales_total,
+      COALESCE(SUM(S.ACT_SALE_AMT), 0) AS ytd_act_sales_total
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      ${salesCategoryFilter}
+      AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+  `;
+  const ytdSeasonSalesQuery = `
+    SELECT
+      S.SESN,
+      COALESCE(SUM(S.TAG_SALE_AMT), 0) AS YTD_TAG_SALES_TOTAL,
+      COALESCE(SUM(S.ACT_SALE_AMT), 0) AS YTD_ACT_SALES_TOTAL
+    FROM SAP_FNF.DW_HMD_SALE_D S
+    WHERE ${brandFilter}
+      AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+      ${salesCategoryFilter}
+      AND RIGHT(S.SESN, 1) = ?
+      AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+    GROUP BY S.SESN
+  `;
   const allPastSalesQuery = `
     SELECT
       COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS period_tag_sales_total,
@@ -1167,6 +1210,12 @@ ORDER BY
       AND SUBSTR(S.PART_CD, 3, 2) IS NOT NULL
     GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
   `;
+  const allStoreCodesStr =
+    allStores.length > 0 ? allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+  const previousYearEndDate = `${yearForSales - 1}-12-31`;
+  const yearToDateStart = `${yearForSales}-01-01`;
+  const yearToDateStartLy = `${yearForSalesLy}-01-01`;
+
   const alignedSalesRowsPromise = executeSnowflakeQuery(alignedSalesQuery, [
     periodStartForSales,
     date,
@@ -1249,10 +1298,22 @@ ORDER BY
     periodStartForSalesLy,
     lyDateForSales,
   ]);
-  const allStoreCodesStr =
-    allStores.length > 0 ? allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
-  const previousYearEndDate = `${yearForSales - 1}-12-31`;
-  const yearToDateStart = `${yearForSales}-01-01`;
+  const allPastYtdSalesRowsPromise = executeSnowflakeQuery(ytdSalesQuery, [
+    currentYYForSales - 1,
+    yearToDateStart,
+    date,
+  ]);
+  const allPastYtdSalesLyRowsPromise = executeSnowflakeQuery(ytdSalesQuery, [
+    currentYYForSalesLy - 1,
+    yearToDateStartLy,
+    lyDateForSales,
+  ]);
+  const ytdSeasonSalesRowsPromise = executeSnowflakeQuery(ytdSeasonSalesQuery, [
+    currentTypeForSales,
+    currentYYForSales - 1,
+    yearToDateStart,
+    date,
+  ]);
   const yearEndStockQuery = `
     WITH latest_stock_date AS (
       SELECT MAX(STOCK_DT) AS stock_dt
@@ -1334,6 +1395,9 @@ ORDER BY
     alignedSalesLyRows,
     alignedSeasonSalesRows,
     alignedSeasonCategorySalesRows,
+    allPastYtdSalesRows,
+    allPastYtdSalesLyRows,
+    ytdSeasonSalesRows,
     yearEndStockRows,
     currentCategoryStockRows,
     ytdCategorySalesRows,
@@ -1345,6 +1409,9 @@ ORDER BY
     alignedSalesLyRowsPromise,
     alignedSeasonSalesRowsPromise,
     alignedSeasonCategorySalesRowsPromise,
+    allPastYtdSalesRowsPromise,
+    allPastYtdSalesLyRowsPromise,
+    ytdSeasonSalesRowsPromise,
     yearEndStockRowsPromise,
     currentCategoryStockRowsPromise,
     ytdCategorySalesRowsPromise,
@@ -1379,6 +1446,16 @@ ORDER BY
     applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.PERIOD_ACT_SALES_TOTAL || 0)) || 0;
   const allPastCurrentMonthTagSalesLy =
     applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0;
+  const allPastCurrentMonthActSalesLy =
+    applyExchangeRateLY(parseFloat(allPastSalesLyRows?.[0]?.CURRENT_MONTH_ACT_SALES_TOTAL || 0)) || 0;
+  const allPastYtdTagSales =
+    applyExchangeRate(parseFloat(allPastYtdSalesRows?.[0]?.YTD_TAG_SALES_TOTAL || allPastYtdSalesRows?.[0]?.ytd_tag_sales_total || 0)) || 0;
+  const allPastYtdActSales =
+    applyExchangeRate(parseFloat(allPastYtdSalesRows?.[0]?.YTD_ACT_SALES_TOTAL || allPastYtdSalesRows?.[0]?.ytd_act_sales_total || 0)) || 0;
+  const allPastYtdTagSalesLy =
+    applyExchangeRateLY(parseFloat(allPastYtdSalesLyRows?.[0]?.YTD_TAG_SALES_TOTAL || allPastYtdSalesLyRows?.[0]?.ytd_tag_sales_total || 0)) || 0;
+  const allPastYtdActSalesLy =
+    applyExchangeRateLY(parseFloat(allPastYtdSalesLyRows?.[0]?.YTD_ACT_SALES_TOTAL || allPastYtdSalesLyRows?.[0]?.ytd_act_sales_total || 0)) || 0;
   const isWearCategory = (cat2Raw: string | null | undefined) => {
     const cat2 = String(cat2Raw || '').trim().toUpperCase();
     const mapping = getCategoryMapping(cat2);
@@ -1395,6 +1472,15 @@ ORDER BY
         periodAct: applyExchangeRate(parseFloat(row.PERIOD_ACT_SALES_TOTAL || 0)) || 0,
         monthTag: applyExchangeRate(parseFloat(row.CURRENT_MONTH_TAG_SALES_TOTAL || 0)) || 0,
         monthAct: applyExchangeRate(parseFloat(row.CURRENT_MONTH_ACT_SALES_TOTAL || 0)) || 0,
+      },
+    ])
+  );
+  const ytdSeasonSalesMap = new Map<string, { ytdTag: number; ytdAct: number }>(
+    (ytdSeasonSalesRows || []).map((row: any) => [
+      String(row.SESN || '').trim().toUpperCase(),
+      {
+        ytdTag: applyExchangeRate(parseFloat(row.YTD_TAG_SALES_TOTAL || 0)) || 0,
+        ytdAct: applyExchangeRate(parseFloat(row.YTD_ACT_SALES_TOTAL || 0)) || 0,
       },
     ])
   );
@@ -1643,6 +1729,12 @@ ORDER BY
       : null;
   const allPastCurrentMonthDiscountRate =
     allPastCurrentMonthTagSales > 0 ? 1 - allPastCurrentMonthActSales / allPastCurrentMonthTagSales : null;
+  const allPastCurrentMonthDiscountRateLy =
+    allPastCurrentMonthTagSalesLy > 0 ? 1 - allPastCurrentMonthActSalesLy / allPastCurrentMonthTagSalesLy : null;
+  const allPastCurrentMonthDiscountRateDiffPct =
+    allPastCurrentMonthDiscountRate !== null && allPastCurrentMonthDiscountRateLy !== null
+      ? (allPastCurrentMonthDiscountRate - allPastCurrentMonthDiscountRateLy) * 100
+      : null;
   const buildProgressPct = (actual: number, target: number | null | undefined) =>
     target && target > 0 ? (actual / target) * 100 : null;
   const targetInfo =
@@ -1710,10 +1802,16 @@ ORDER BY
       period_tag_sales_ly: allPastPeriodTagSalesLy,
       period_act_sales: allPastPeriodActSales,
       period_act_sales_ly: allPastPeriodActSalesLy,
+      ytd_tag_sales: allPastYtdTagSales,
+      ytd_tag_sales_ly: allPastYtdTagSalesLy,
+      ytd_act_sales: allPastYtdActSales,
+      ytd_act_sales_ly: allPastYtdActSalesLy,
       current_month_depleted: allPastCurrentMonthTagSales,
       current_month_depleted_act: allPastCurrentMonthActSales,
       current_month_depleted_ly: allPastCurrentMonthTagSalesLy,
+      current_month_depleted_act_ly: allPastCurrentMonthActSalesLy,
       current_month_discount_rate: allPastCurrentMonthDiscountRate,
+      current_month_discount_rate_diff_pct: allPastCurrentMonthDiscountRateDiffPct,
       discount_rate:
         allPastPeriodTagSales > 0
           ? 1 - allPastPeriodActSales / allPastPeriodTagSales
@@ -1907,6 +2005,7 @@ GROUP BY S.SESN, S.PRDT_CD
       curr_stock_amt: yearRows.reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.CURR_STOCK_AMT || 0)) || 0), 0),
       stagnant_stock_amt: yearRows.reduce((sum: number, row: any) => sum + (applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0), 0),
       period_tag_sales: totalBucketCurrentSales,
+      ytd_tag_sales: allPastYtdTagSales,
       sales_yoy_pct: totalBucketPrevSales > 0 ? (totalBucketCurrentSales / totalBucketPrevSales) * 100 : null,
       discount_rate: totalBucketCurrentSales > 0 ? 1 - totalBucketCurrentActSales / totalBucketCurrentSales : null,
       target_info: region === 'HKMC'
@@ -1938,6 +2037,7 @@ GROUP BY S.SESN, S.PRDT_CD
       const currentMonthActSales = bucketSales.monthAct;
       const currentMonthDiscountRate =
         currentMonthTagSales > 0 ? 1 - currentMonthActSales / currentMonthTagSales : null;
+      const ytdBucketSales = ytdSeasonSalesMap.get(String(row.SESN || '').trim().toUpperCase()) ?? { ytdTag: 0, ytdAct: 0 };
 
       const currentBucketSalesForYoy = getBucketSeasonSalesMetric(bucket, 'periodTag', 0);
       const prevBucketSalesForYoy = getBucketSeasonSalesMetric(bucket, 'periodTag', 1);
@@ -1984,6 +2084,7 @@ GROUP BY S.SESN, S.PRDT_CD
         stagnant_stock_amt: applyExchangeRate(parseFloat(row.STAGNANT_STOCK_AMT || 0)) || 0,
         period_tag_sales: currentTagSales,
         current_month_depleted: currentMonthTagSales,
+        ytd_tag_sales: ytdBucketSales.ytdTag,
         sales_yoy_pct: salesYoyPct,
         discount_rate: parseFloat(row.DISCOUNT_RATE || 0),
         target_info: region === 'HKMC'
@@ -2374,11 +2475,15 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
     type CategoryNodeAgg = {
       curr_stock_amt: number;
+      current_month_tag_sales: number;
+      current_month_act_sales: number;
       period_tag_sales: number;
       period_act_sales: number;
     };
     const createCategoryNodeAgg = (): CategoryNodeAgg => ({
       curr_stock_amt: 0,
+      current_month_tag_sales: 0,
+      current_month_act_sales: 0,
       period_tag_sales: 0,
       period_act_sales: 0,
     });
@@ -2393,6 +2498,10 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         .map((cat2) => {
           const curr = currentEntries.get(cat2) || createCategoryNodeAgg();
           const ly = previousEntries.get(cat2) || createCategoryNodeAgg();
+          const currMonthDiscountRate =
+            curr.current_month_tag_sales > 0 ? 1 - curr.current_month_act_sales / curr.current_month_tag_sales : null;
+          const lyMonthDiscountRate =
+            ly.current_month_tag_sales > 0 ? 1 - ly.current_month_act_sales / ly.current_month_tag_sales : null;
           const currDiscountRate = curr.period_tag_sales > 0 ? 1 - curr.period_act_sales / curr.period_tag_sales : null;
           const lyDiscountRate = ly.period_tag_sales > 0 ? 1 - ly.period_act_sales / ly.period_tag_sales : null;
           const currShare = totalCurrStock > 0 ? (curr.curr_stock_amt / totalCurrStock) * 100 : null;
@@ -2408,8 +2517,22 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
             period_tag_sales: curr.period_tag_sales,
             ly_period_tag_sales: ly.period_tag_sales > 0 ? ly.period_tag_sales : null,
             period_sales_yoy_pct: buildYoyPct(curr.period_tag_sales, ly.period_tag_sales),
+            current_month_tag_sales: curr.current_month_tag_sales,
+            ly_current_month_tag_sales: ly.current_month_tag_sales > 0 ? ly.current_month_tag_sales : null,
+            current_month_sales_yoy_pct: buildYoyPct(curr.current_month_tag_sales, ly.current_month_tag_sales),
+            ytd_tag_sales: curr.period_tag_sales,
+            ly_ytd_tag_sales: ly.period_tag_sales > 0 ? ly.period_tag_sales : null,
+            ytd_sales_yoy_pct: buildYoyPct(curr.period_tag_sales, ly.period_tag_sales),
             discount_rate: currDiscountRate !== null ? currDiscountRate * 100 : null,
             discount_rate_diff_pct:
+              currDiscountRate !== null && lyDiscountRate !== null ? (currDiscountRate - lyDiscountRate) * 100 : null,
+            current_month_discount_rate: currMonthDiscountRate !== null ? currMonthDiscountRate * 100 : null,
+            current_month_discount_rate_diff_pct:
+              currMonthDiscountRate !== null && lyMonthDiscountRate !== null
+                ? (currMonthDiscountRate - lyMonthDiscountRate) * 100
+                : null,
+            ytd_discount_rate: currDiscountRate !== null ? currDiscountRate * 100 : null,
+            ytd_discount_rate_diff_pct:
               currDiscountRate !== null && lyDiscountRate !== null ? (currDiscountRate - lyDiscountRate) * 100 : null,
           };
         })
@@ -2442,6 +2565,8 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           if (!isMatch) continue;
           const existing = totals.get(cat2) || createCategoryNodeAgg();
           existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+          existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
           existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
           existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
           totals.set(cat2, existing);
@@ -2493,6 +2618,8 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           if (groupedLabel !== labelKey) continue;
           const existing = totals.get(cat2) || createCategoryNodeAgg();
           existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+          existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
           existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
           existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
           totals.set(cat2, existing);
@@ -2530,6 +2657,8 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         if (!matchesTarget || sesn !== seasonLabel) continue;
         const existing = totals.get(cat2) || createCategoryNodeAgg();
         existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+        existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
         existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
         existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
         totals.set(cat2, existing);
@@ -2701,6 +2830,7 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
     const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
     const escapedSalesStoreCodes =
       salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+    const currentMonthStart = `${targetDate.slice(0, 7)}-01`;
     const yearToDateStart = `${targetDate.slice(0, 4)}-01-01`;
     const currentQuery = `
 WITH latest_stock_date AS (
@@ -2726,6 +2856,8 @@ sales_by_cat AS (
   SELECT
     S.SESN,
     SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_TAG_SALES,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_ACT_SALES,
     COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
     COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
   FROM SAP_FNF.DW_HMD_SALE_D S
@@ -2739,6 +2871,8 @@ SELECT
   CONCAT('XX', st.CAT2) AS PRDT_CD,
   st.CAT2,
   st.CURR_STOCK_AMT,
+  COALESCE(sa.CURRENT_MONTH_TAG_SALES, 0) AS CURRENT_MONTH_TAG_SALES,
+  COALESCE(sa.CURRENT_MONTH_ACT_SALES, 0) AS CURRENT_MONTH_ACT_SALES,
   COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
   COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
 FROM stock_by_cat st
@@ -2747,7 +2881,17 @@ LEFT JOIN sales_by_cat sa
  AND sa.CAT2 = st.CAT2
 `;
 
-    return executeSnowflakeQuery(currentQuery, [normalizedBrand, targetDate, normalizedBrand, yearToDateStart, targetDate]);
+    return executeSnowflakeQuery(currentQuery, [
+      normalizedBrand,
+      targetDate,
+      normalizedBrand,
+      currentMonthStart,
+      targetDate,
+      currentMonthStart,
+      targetDate,
+      yearToDateStart,
+      targetDate,
+    ]);
   };
 
   const fetchLegacyInventorySegmentRows = async (targetDate: string): Promise<any[]> => {
@@ -2755,6 +2899,7 @@ LEFT JOIN sales_by_cat sa
     const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
     const escapedSalesStoreCodes =
       salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+    const currentMonthStart = `${targetDate.slice(0, 7)}-01`;
     const yearToDateStart = `${targetDate.slice(0, 4)}-01-01`;
     const legacyQuery = `
 WITH latest_month AS (
@@ -2780,6 +2925,8 @@ sales_by_cat AS (
   SELECT
     S.SESN,
     SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_TAG_SALES,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_ACT_SALES,
     COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
     COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
   FROM SAP_FNF.DW_HMD_SALE_D S
@@ -2793,6 +2940,8 @@ SELECT
   CONCAT('XX', st.CAT2) AS PRDT_CD,
   st.CAT2,
   st.CURR_STOCK_AMT,
+  COALESCE(sa.CURRENT_MONTH_TAG_SALES, 0) AS CURRENT_MONTH_TAG_SALES,
+  COALESCE(sa.CURRENT_MONTH_ACT_SALES, 0) AS CURRENT_MONTH_ACT_SALES,
   COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
   COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
 FROM stock_by_cat st
@@ -2801,7 +2950,17 @@ LEFT JOIN sales_by_cat sa
  AND sa.CAT2 = st.CAT2
 `;
 
-    return executeSnowflakeQuery(legacyQuery, [normalizedBrand, yyyymm, normalizedBrand, yearToDateStart, targetDate]);
+    return executeSnowflakeQuery(legacyQuery, [
+      normalizedBrand,
+      yyyymm,
+      normalizedBrand,
+      currentMonthStart,
+      targetDate,
+      currentMonthStart,
+      targetDate,
+      yearToDateStart,
+      targetDate,
+    ]);
   };
 
   try {

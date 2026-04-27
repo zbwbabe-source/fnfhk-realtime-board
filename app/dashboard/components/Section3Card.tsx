@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ResponsiveContainer, Tooltip, Treemap } from 'recharts';
 import { getCategoryTooltipText } from '@/lib/category-utils';
 import { t, type Language } from '@/lib/translations';
@@ -56,8 +56,18 @@ export default function Section3Card({
         period_tag_sales?: number;
         ly_period_tag_sales?: number | null;
         period_sales_yoy_pct?: number | null;
+        current_month_tag_sales?: number;
+        ly_current_month_tag_sales?: number | null;
+        current_month_sales_yoy_pct?: number | null;
+        ytd_tag_sales?: number;
+        ly_ytd_tag_sales?: number | null;
+        ytd_sales_yoy_pct?: number | null;
         discount_rate?: number | null;
         discount_rate_diff_pct?: number | null;
+        current_month_discount_rate?: number | null;
+        current_month_discount_rate_diff_pct?: number | null;
+        ytd_discount_rate?: number | null;
+        ytd_discount_rate_diff_pct?: number | null;
         current_stock_amt?: number | null;
         stagnant_stock_amt?: number | null;
         stagnant_stock_qty?: number | null;
@@ -82,8 +92,18 @@ export default function Section3Card({
       period_tag_sales?: number;
       ly_period_tag_sales?: number | null;
       period_sales_yoy_pct?: number | null;
+      current_month_tag_sales?: number;
+      ly_current_month_tag_sales?: number | null;
+      current_month_sales_yoy_pct?: number | null;
+      ytd_tag_sales?: number;
+      ly_ytd_tag_sales?: number | null;
+      ytd_sales_yoy_pct?: number | null;
       discount_rate?: number | null;
       discount_rate_diff_pct?: number | null;
+      current_month_discount_rate?: number | null;
+      current_month_discount_rate_diff_pct?: number | null;
+      ytd_discount_rate?: number | null;
+      ytd_discount_rate_diff_pct?: number | null;
       current_stock_amt?: number | null;
       stagnant_stock_qty?: number | null;
       stagnant_ratio_pct?: number | null;
@@ -121,6 +141,10 @@ export default function Section3Card({
   });
   const inventorySkuSectionRef = useRef<HTMLDivElement | null>(null);
   const [salesPushModalOpen, setSalesPushModalOpen] = useState(false);
+  const [salesPushDetailData, setSalesPushDetailData] = useState<any>(null);
+  const [salesPushDetailLoading, setSalesPushDetailLoading] = useState(false);
+  const [salesPushDetailError, setSalesPushDetailError] = useState<string | null>(null);
+  const salesPushDetailRequestKeyRef = useRef<string | null>(null);
   const [excludeUnder10Pcs, setExcludeUnder10Pcs] = useState(true);
   const [selectedSalesPushYear, setSelectedSalesPushYear] = useState<string | null>(null);
   const [selectedSalesPushCategory, setSelectedSalesPushCategory] = useState<string | null>(null);
@@ -145,6 +169,7 @@ export default function Section3Card({
     key: 'sales_push_stagnant_amt',
     direction: 'desc',
   });
+  const [depletionPeriodMode, setDepletionPeriodMode] = useState<'mtd' | 'ytd'>('mtd');
 
   const getYearBucketRank = (raw: string | null | undefined) => {
     if (!raw) return null;
@@ -161,7 +186,7 @@ export default function Section3Card({
     return raw || '';
   };
 
-  const targetMode: 'monthly' = 'monthly';
+  const targetMode: 'monthly' | 'cumulative' = depletionPeriodMode === 'mtd' ? 'monthly' : 'cumulative';
   const formatCurrency = (num: number) => {
     const converted = region === 'TW' && currencyCode === 'TWD' ? num * hkdToTwdRate : num;
     if (converted >= 1000000) return `${(converted / 1000000).toFixed(1)}M`;
@@ -199,6 +224,24 @@ export default function Section3Card({
     if (value === null || value === undefined || !Number.isFinite(value)) return '-';
     return `${Math.round(value).toLocaleString('en-US')} pcs`;
   };
+  const getMainSeasonTypeFromAsof = () => {
+    const asofDate = String(section3Data?.asof_date || '');
+    const month = asofDate.length >= 7 ? Number(asofDate.slice(5, 7)) : NaN;
+    if (!Number.isFinite(month)) return '';
+    return month >= 9 || month <= 2 ? 'F' : 'S';
+  };
+  const getPeriodStartForMode = () => {
+    if (!section3Data?.asof_date) return '';
+    const endDate = String(section3Data.asof_date);
+    if (depletionPeriodMode === 'mtd') {
+      return `${endDate.slice(0, 7)}-01`;
+    }
+    return `${endDate.slice(0, 4)}-01-01`;
+  };
+  const getPeriodModeLabel = () => {
+    if (depletionPeriodMode === 'mtd') return 'MTD';
+    return 'YTD';
+  };
 
   const metricTone = (v: number, pivot = 0) => {
     if (v > pivot) return 'text-red-700 bg-red-50';
@@ -230,9 +273,10 @@ export default function Section3Card({
   };
 
   const getPeriodStartInfo = () => {
-    if (section3Data?.period_start_date && section3Data?.asof_date) {
-      const startDate = section3Data.period_start_date;
+    if (section3Data?.asof_date) {
+      const startDate = getPeriodStartForMode();
       const endDate = section3Data.asof_date;
+      if (!startDate) return '';
       const startYear = startDate.slice(2, 4);
       const startMonth = startDate.slice(5, 7);
       const startDay = startDate.slice(8, 10);
@@ -249,13 +293,17 @@ export default function Section3Card({
   const getInventorySalesBasisInfo = () => {
     if (!section3Data?.asof_date) return '';
     const endDate = String(section3Data.asof_date);
-    const startDate = `${endDate.slice(0, 4)}-01-01`;
+    const startDate = getPeriodStartForMode();
     return language === 'ko'
-      ? `소진액 기준: ${startDate}~${endDate}`
-      : `Depleted sales basis: ${startDate}~${endDate}`;
+      ? `소진액 기준(${getPeriodModeLabel()}): ${startDate}~${endDate}`
+      : `Depleted sales basis (${getPeriodModeLabel()}): ${startDate}~${endDate}`;
   };
 
   const getTargetModeLabel = () => {
+    if (depletionPeriodMode === 'ytd') {
+      if (language === 'ko') return '누적목표';
+      return isCompactEnglish ? 'YTD' : 'YTD Target';
+    }
     if (language === 'ko') return '월목표';
     return isCompactEnglish ? 'Monthly' : 'Monthly Target';
   };
@@ -314,7 +362,19 @@ export default function Section3Card({
     const cumulativeTagSales = header.period_tag_sales || 0;
     const cumulativeActSales = header.period_act_sales || 0;
     const currentMonthTagSales = header.current_month_depleted || 0;
+    const currentMonthActSales = header.current_month_depleted_act || 0;
     const currentMonthTagSalesLy = header.current_month_depleted_ly as number | null | undefined;
+    const currentMonthActSalesLy = header.current_month_depleted_act_ly as number | null | undefined;
+    const ytdTagSales = header.ytd_tag_sales ?? cumulativeTagSales;
+    const ytdActSales = header.ytd_act_sales ?? cumulativeActSales;
+    const selectedTagSales = depletionPeriodMode === 'mtd' ? currentMonthTagSales : ytdTagSales;
+    const selectedActSales = depletionPeriodMode === 'mtd' ? currentMonthActSales : ytdActSales;
+    const selectedSalesLy = depletionPeriodMode === 'mtd'
+      ? currentMonthTagSalesLy
+      : ((header.ytd_tag_sales_ly ?? header.period_tag_sales_ly) as number | null | undefined);
+    const selectedActLy = depletionPeriodMode === 'mtd'
+      ? currentMonthActSalesLy
+      : ((header.ytd_act_sales_ly ?? header.period_act_sales_ly) as number | null | undefined);
     const cumulativeDiscountRate =
       cumulativeTagSales > 0 && Number.isFinite(cumulativeActSales) ? (1 - cumulativeActSales / cumulativeTagSales) * 100 : null;
     const currentMonthDiscountRate =
@@ -352,6 +412,37 @@ export default function Section3Card({
       currentMonthTagSalesLy !== null && currentMonthTagSalesLy !== undefined && currentMonthTagSalesLy > 0
         ? (currentMonthTagSales / currentMonthTagSalesLy) * 100
         : null;
+    const selectedDiscountRate = depletionPeriodMode === 'mtd' ? currentMonthDiscountRate : cumulativeDiscountRate;
+    const selectedDiscountRateLy =
+      depletionPeriodMode === 'mtd'
+        ? null
+        : (selectedSalesLy !== null &&
+            selectedSalesLy !== undefined &&
+            selectedSalesLy > 0 &&
+            selectedActLy !== null &&
+            selectedActLy !== undefined &&
+            Number.isFinite(selectedActLy)
+              ? (1 - selectedActLy / selectedSalesLy) * 100
+              : cumulativeDiscountRateLy);
+    const selectedDiscountRateDiffPct =
+      depletionPeriodMode === 'mtd' &&
+      header.current_month_discount_rate_diff_pct !== null &&
+      header.current_month_discount_rate_diff_pct !== undefined
+        ? Number(header.current_month_discount_rate_diff_pct)
+        : selectedDiscountRate !== null && selectedDiscountRateLy !== null
+          ? selectedDiscountRate - selectedDiscountRateLy
+          : null;
+    const selectedYoyBase =
+      selectedSalesLy !== null && selectedSalesLy !== undefined && selectedSalesLy > 0
+        ? selectedSalesLy
+        : selectedActLy !== null && selectedActLy !== undefined && selectedActLy > 0
+          ? selectedActLy
+          : null;
+    const selectedYoyCurrent =
+      selectedSalesLy !== null && selectedSalesLy !== undefined && selectedSalesLy > 0
+        ? selectedTagSales
+        : selectedActSales;
+    const selectedSalesYoyPct = selectedYoyBase !== null ? (selectedYoyCurrent / selectedYoyBase) * 100 : null;
 
     const hasTargetInfo = region === 'HKMC' && !!header.target_info?.available;
     const selectedTarget = hasTargetInfo ? header.target_info[targetMode] : null;
@@ -387,35 +478,35 @@ export default function Section3Card({
       },
       k2: {
         label: getKpiLabel('depletedStock'),
-        value: formatCurrency(cumulativeTagSales),
+        value: formatCurrency(selectedTagSales),
         badge:
-          currentMonthTagSales > 0
-            ? hasTargetInfo && monthlyTargetGross
-              ? `${language === 'ko' ? '당월' : 'MTD'} ${formatCurrency(currentMonthTagSales)} / ${language === 'ko' ? '월목표' : 'Tgt'} ${formatCurrency(monthlyTargetGross)}`
-              : `${language === 'ko' ? '당월' : 'MTD'} ${formatCurrency(currentMonthTagSales)}`
+          selectedTagSales > 0
+            ? hasTargetInfo && monthlyTargetGross && depletionPeriodMode === 'mtd'
+              ? `${language === 'ko' ? '당월' : 'MTD'} ${formatCurrency(selectedTagSales)} / ${language === 'ko' ? '월목표' : 'Tgt'} ${formatCurrency(monthlyTargetGross)}`
+              : `${getPeriodModeLabel()} ${formatCurrency(selectedTagSales)}`
             : null,
         badgeClass: 'text-orange-700 bg-orange-50',
         meta: [
-          `${t(language, 'yoy')} ${formatPercent(depletedSalesYoyPct, 0)}`,
-          <span key="k2-discount" className="inline-flex min-h-[28px] flex-col">
+          `${t(language, 'yoy')} ${formatPercent(selectedSalesYoyPct, 0)}`,
+          <span key="k2-discount" className="inline-flex min-h-[14px] flex-wrap items-baseline gap-x-1">
             <span>
               {t(language, 'discountRate')}{' '}
-              <span className="font-semibold italic text-sky-700">{formatPercent(cumulativeDiscountRate, 1)}</span>
+              <span className="font-semibold italic text-sky-700">{formatPercent(selectedDiscountRate, 1)}</span>
             </span>
-            <span
-              className={`font-semibold ${
-                cumulativeDiscountRateDiffPct !== null
-                  ? cumulativeDiscountRateDiffPct > 0
+            {selectedDiscountRateDiffPct !== null ? (
+              <span
+                className={`font-semibold ${
+                  selectedDiscountRateDiffPct > 0
                     ? 'text-rose-600'
-                    : cumulativeDiscountRateDiffPct < 0
+                    : selectedDiscountRateDiffPct < 0
                       ? 'text-emerald-600'
                       : 'text-gray-500'
-                  : 'text-gray-500'
-              }`}
-            >
-              {language === 'ko' ? '전년비 ' : 'vs LY '}
-              {formatSignedPercentPoint(cumulativeDiscountRateDiffPct)}
-            </span>
+                }`}
+              >
+                {language === 'ko' ? '전년비 ' : 'vs LY '}
+                {formatSignedPercentPoint(selectedDiscountRateDiffPct)}
+              </span>
+            ) : null}
           </span>,
         ],
       },
@@ -471,13 +562,22 @@ export default function Section3Card({
   const summaryCards = section3Data?.summary_cards;
   const detailTotalCard = summaryCards?.detail_total || null;
   const yearCards = summaryCards?.year_cards || [];
-  const detailSeasonType = String(section3Data?.detail_season_type || '').toUpperCase();
+  const rawDetailSeasonType = String(section3Data?.detail_season_type || '').toUpperCase();
+  const asofSeasonType = getMainSeasonTypeFromAsof();
+  const detailSeasonType = rawDetailSeasonType === 'S' || rawDetailSeasonType === 'F'
+    ? rawDetailSeasonType
+    : asofSeasonType;
   const detailSeasonLabel = (() => {
     const asofDate = String(section3Data?.asof_date || '');
     const yearText = asofDate.length >= 4 ? asofDate.slice(2, 4) : '';
     if (!yearText || (detailSeasonType !== 'S' && detailSeasonType !== 'F')) return '';
     return `${yearText}${detailSeasonType}`;
   })();
+  const mainPastSeasonLabel = detailSeasonType === 'S'
+    ? (language === 'ko' ? '과시즌S' : 'Old S')
+    : detailSeasonType === 'F'
+      ? (language === 'ko' ? '과시즌F' : 'Old F')
+      : '';
   const normalizedYearCards = (() => {
     const cards = [...yearCards];
     const hasThirdYearCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === 3);
@@ -513,7 +613,9 @@ export default function Section3Card({
       end: toDateString(end),
     };
   })();
-  const salesPushBaseSkuRows = (Array.isArray(section3Data?.skus) ? section3Data.skus : [])
+  const salesPushData = salesPushDetailData || section3Data;
+  const hasSalesPushSkuDetail = Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0;
+  const salesPushBaseSkuRows = (Array.isArray(salesPushData?.skus) ? salesPushData.skus : [])
     .filter((row: any) => !!row?.sales_push_flag && Number(row?.sales_push_stagnant_amt || 0) > 0)
     .map((row: any) => {
       const currentStockAmt = Number(row?.curr_stock_amt || 0);
@@ -534,7 +636,7 @@ export default function Section3Card({
   const salesPushSkuRows = excludeUnder10Pcs
     ? salesPushBaseSkuRows.filter((row: any) => Number(row?.sales_push_stagnant_qty || 0) >= 10)
     : salesPushBaseSkuRows;
-  const summarySalesPush = section3Data?.summary_cards?.sales_push_summary || null;
+  const summarySalesPush = salesPushData?.summary_cards?.sales_push_summary || null;
   const salesPushSummary = (() => {
     if (salesPushSkuRows.length === 0 && summarySalesPush) {
       return {
@@ -562,7 +664,7 @@ export default function Section3Card({
     const totalCurrentStockAmt = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.current_stock_amt, 0);
     const totalCurrentStockQty = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.current_stock_qty, 0);
     const totalStagnantQty = salesPushSkuRows.reduce((sum: number, row: any) => sum + row.sales_push_stagnant_qty, 0);
-    const stagnantTotal = Number(section3Data?.header?.stagnant_stock_amt || 0);
+    const stagnantTotal = Number(salesPushData?.header?.stagnant_stock_amt || 0);
     return {
       totalAmt,
       totalSkuCount,
@@ -640,9 +742,11 @@ export default function Section3Card({
         {
           key: 'all',
           title: language === 'ko' ? '전체' : 'Total',
-          seasonCode: detailSeasonLabel,
+          seasonCode: '',
           stockAmt: detailTotalCard?.curr_stock_amt || 0,
-          salesAmt: detailTotalCard?.period_tag_sales || 0,
+          salesAmt: targetMode === 'monthly'
+            ? Number(section3Data?.header?.current_month_depleted || 0)
+            : Number(section3Data?.header?.ytd_tag_sales ?? detailTotalCard?.ytd_tag_sales ?? detailTotalCard?.period_tag_sales ?? 0),
           salesYoyPct: detailTotalCard?.sales_yoy_pct ?? null,
           targetInfo: detailTotalCard?.target_info?.[targetMode] || null,
           discountRate: detailTotalCard?.discount_rate ?? null,
@@ -653,7 +757,9 @@ export default function Section3Card({
           seasonCode: getYearBucketRank(card.year_bucket) === 3 ? '' : card.season_code,
           stockAmt: card.curr_stock_amt,
           stagnantStockAmt: card.stagnant_stock_amt,
-          salesAmt: card.period_tag_sales,
+          salesAmt: targetMode === 'monthly'
+            ? Number(card.current_month_depleted || 0)
+            : Number(card.ytd_tag_sales ?? card.period_tag_sales ?? 0),
           salesYoyPct: card.sales_yoy_pct,
           targetInfo: card.target_info?.[targetMode] || null,
           discountRate: card.discount_rate,
@@ -746,6 +852,90 @@ export default function Section3Card({
       (a, b) => (orderMap.get(a.key) ?? 999) - (orderMap.get(b.key) ?? 999)
     );
   })();
+  const oldSeasonCards = useMemo<Array<{
+    key: 'past_s' | 'past_f';
+    label: string;
+    stockAmt: number;
+    stockYoyPct: number | null;
+    salesAmt: number;
+    salesYoyPct: number | null;
+    discountRate: number | null;
+    discountRateDiffPct: number | null;
+  }>>(() => {
+    const activeType = detailSeasonType === 'S' || detailSeasonType === 'F'
+      ? detailSeasonType
+      : String(section3Data?.season_type || '').toUpperCase().includes('SS')
+        ? 'S'
+        : 'F';
+    const summarizeOldSeasonCard = (key: 'past_s' | 'past_f') => {
+      const card = orderedInventorySegmentCards.find((item) => item.key === key);
+      if (!card) return null;
+      const nodes = (card.breakdown || []).flatMap((item) => item.category_nodes || []);
+      const selectedTagSales = (item: any) =>
+        depletionPeriodMode === 'mtd'
+          ? Number(item.current_month_tag_sales ?? item.period_tag_sales ?? 0)
+          : Number(item.ytd_tag_sales ?? item.period_tag_sales ?? 0);
+      const selectedLyTagSales = (item: any) =>
+        depletionPeriodMode === 'mtd'
+          ? Number(item.ly_current_month_tag_sales ?? item.ly_period_tag_sales ?? 0)
+          : Number(item.ly_ytd_tag_sales ?? item.ly_period_tag_sales ?? 0);
+      const selectedDiscountRate = (item: any) =>
+        depletionPeriodMode === 'mtd'
+          ? item.current_month_discount_rate ?? item.discount_rate
+          : item.ytd_discount_rate ?? item.discount_rate;
+      const selectedDiscountRateDiff = (item: any) =>
+        depletionPeriodMode === 'mtd'
+          ? item.current_month_discount_rate_diff_pct ?? item.discount_rate_diff_pct
+          : item.ytd_discount_rate_diff_pct ?? item.discount_rate_diff_pct;
+      const salesAmt = nodes.reduce((sum, item) => sum + selectedTagSales(item), 0);
+      const lySales = nodes.reduce((sum, item) => sum + selectedLyTagSales(item), 0);
+      const weightedActSales = nodes.reduce((sum, item) => {
+        const tagSales = selectedTagSales(item);
+        const discountRate = Number(selectedDiscountRate(item) ?? 0);
+        return sum + tagSales * (1 - discountRate / 100);
+      }, 0);
+      const weightedLyActSales = nodes.reduce((sum, item) => {
+        const lyTagSales = selectedLyTagSales(item);
+        const discountRate = selectedDiscountRate(item);
+        const discountRateDiff = selectedDiscountRateDiff(item);
+        if (discountRate === null || discountRate === undefined || discountRateDiff === null || discountRateDiff === undefined) {
+          return sum;
+        }
+        return sum + lyTagSales * (1 - (Number(discountRate) - Number(discountRateDiff)) / 100);
+      }, 0);
+      const discountRate = salesAmt > 0 ? (1 - weightedActSales / salesAmt) * 100 : null;
+      const lyDiscountRate = lySales > 0 ? (1 - weightedLyActSales / lySales) * 100 : null;
+      return {
+        key,
+        label: language === 'ko'
+          ? (key === 'past_s' ? '과시즌S' : '과시즌F')
+          : (key === 'past_s' ? 'Old S' : 'Old F'),
+        stockAmt: Number(card.curr_stock_amt || 0),
+        stockYoyPct: typeof card.yoy_pct === 'number' ? card.yoy_pct : null,
+        salesAmt,
+        salesYoyPct: lySales > 0 ? (salesAmt / lySales) * 100 : null,
+        discountRate,
+        discountRateDiffPct:
+          discountRate !== null && lyDiscountRate !== null ? discountRate - lyDiscountRate : null,
+      };
+    };
+    const supplementalKeys: Array<'past_s' | 'past_f'> = activeType === 'S' ? ['past_f'] : ['past_s'];
+    return supplementalKeys
+      .map((key) => summarizeOldSeasonCard(key))
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [depletionPeriodMode, detailSeasonType, language, orderedInventorySegmentCards, section3Data?.season_type]);
+  const oldSeasonTotalCard = useMemo(() => {
+    const cards = orderedInventorySegmentCards.filter((item) => item.key === 'past_s' || item.key === 'past_f');
+    if (cards.length === 0) return null;
+    const stockAmt = cards.reduce((sum, item) => sum + Number(item.curr_stock_amt || 0), 0);
+    const lyStockAmt = cards.reduce((sum, item) => sum + Number(item.ly_curr_stock_amt || 0), 0);
+    if (stockAmt <= 0 && lyStockAmt <= 0) return null;
+    return {
+      label: language === 'ko' ? '과시즌재고합계' : 'Old Season Total',
+      stockAmt,
+      stockYoyPct: lyStockAmt > 0 ? (stockAmt / lyStockAmt) * 100 : null,
+    };
+  }, [language, orderedInventorySegmentCards]);
   const getInventoryYoyTone = (yoy: number | null | undefined) => {
     if (yoy === null || yoy === undefined || !Number.isFinite(yoy)) return 'text-gray-500';
     if (yoy > 100) return 'text-rose-600';
@@ -1251,6 +1441,75 @@ export default function Section3Card({
   });
 
   useEffect(() => {
+    setSalesPushDetailData(null);
+    setSalesPushDetailError(null);
+    setSalesPushDetailLoading(false);
+    salesPushDetailRequestKeyRef.current = null;
+  }, [section3Data?.asof_date, section3Data?.brand, region, categoryFilter]);
+
+  useEffect(() => {
+    if (!salesPushModalOpen) return;
+    if (hasSalesPushSkuDetail || salesPushDetailData) return;
+    if (!summarySalesPush || Number(summarySalesPush.total_amt || 0) <= 0) return;
+
+    const date = String(section3Data?.asof_date || '');
+    const brand = String(section3Data?.brand || '');
+    if (!date || !brand) {
+      setSalesPushDetailError(language === 'ko' ? '상세 조회 기준 정보가 없습니다.' : 'Missing detail query parameters.');
+      return;
+    }
+
+    const requestKey = `${region}|${brand}|${date}|${categoryFilter}`;
+    if (salesPushDetailRequestKeyRef.current === requestKey) return;
+    salesPushDetailRequestKeyRef.current = requestKey;
+
+    const controller = new AbortController();
+    const fetchSalesPushDetail = async () => {
+      try {
+        setSalesPushDetailLoading(true);
+        setSalesPushDetailError(null);
+        const params = new URLSearchParams({
+          region,
+          brand,
+          date,
+          category_filter: categoryFilter,
+          include_yoy: 'true',
+        });
+        const res = await fetch(`/api/section3/old-season-inventory?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const json = await res.json();
+        setSalesPushDetailData(json);
+      } catch (error: any) {
+        if (error?.name === 'AbortError') return;
+        console.error('Failed to fetch sales-push detail data:', error);
+        salesPushDetailRequestKeyRef.current = null;
+        setSalesPushDetailError(language === 'ko' ? '상세 데이터를 불러오지 못했습니다.' : 'Failed to load detail data.');
+      } finally {
+        if (!controller.signal.aborted) {
+          setSalesPushDetailLoading(false);
+        }
+      }
+    };
+
+    fetchSalesPushDetail();
+    return () => controller.abort();
+  }, [
+    categoryFilter,
+    hasSalesPushSkuDetail,
+    language,
+    region,
+    salesPushDetailData,
+    salesPushModalOpen,
+    section3Data?.asof_date,
+    section3Data?.brand,
+    summarySalesPush,
+  ]);
+
+  useEffect(() => {
     if (!selectedSalesPushYear) return;
     const hasYear = salesPushYearRows.some((row: any) => row.year_bucket === selectedSalesPushYear);
     if (!hasYear) {
@@ -1489,17 +1748,65 @@ export default function Section3Card({
   }; */
 
   return (
-    <article className={`relative ${fixedHeight ? 'h-[472px] overflow-hidden' : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
-      <div className="mb-3 flex flex-col items-start justify-between gap-3 sm:flex-row">
-        <div className="flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+    <article className={`relative ${fixedHeight ? (simpleDetail ? 'h-[472px] overflow-hidden' : 'min-h-[488px]') : ''} rounded-2xl border border-gray-100 border-l-4 border-l-purple-500 bg-white p-4 shadow-sm sm:p-5`}>
+      <div className="mb-3 space-y-2">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+          <div className="flex-1">
             <h3 className={`${isCompactEnglish ? 'text-[15px]' : 'text-base'} font-semibold leading-tight text-gray-900`}>
               {t(language, 'section3Title')}
               {seasonType && <span className="ml-2 text-xs font-medium text-gray-500">({seasonType})</span>}
             </h3>
-            {!simpleDetail ? (
-              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
-                {language === 'ko' ? '주요 카드: S+F 합산' : 'Top cards: S+F combined'}
+          </div>
+
+          <div className="flex w-full shrink-0 flex-wrap gap-2 text-left sm:w-auto sm:justify-end sm:text-right">
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setDepletionPeriodMode('mtd')}
+                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  depletionPeriodMode === 'mtd' ? 'bg-orange-100 font-bold text-orange-900 ring-1 ring-inset ring-orange-300' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                MTD
+              </button>
+              <button
+                type="button"
+                onClick={() => setDepletionPeriodMode('ytd')}
+                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  depletionPeriodMode === 'ytd' ? 'bg-orange-100 font-bold text-orange-900 ring-1 ring-inset ring-orange-300' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                YTD
+              </button>
+            </div>
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <button
+                onClick={() => onCategoryFilterChange('clothes')}
+                className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  categoryFilter === 'clothes' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {t(language, 'clothesOnly')}
+              </button>
+              <button
+                onClick={() => onCategoryFilterChange('all')}
+                className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
+                  categoryFilter === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {t(language, 'allCategory')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {!simpleDetail ? (
+          <div className="flex min-h-[26px] flex-wrap items-center gap-2">
+            {!simpleDetail && periodStartInfo ? (
+              <span className="inline-flex items-center rounded-full bg-orange-50 px-2 py-1 text-[10px] font-semibold text-orange-800 ring-1 ring-orange-100">
+                {language === 'ko'
+                  ? `${getPeriodModeLabel()} 소진기간 ${periodStartInfo.replace(/^\(|\)$/g, '')}`
+                  : `${getPeriodModeLabel()} Period ${periodStartInfo.replace(/^\(|\)$/g, '')}`}
               </span>
             ) : null}
             {salesPushSummary.totalAmt > 0 ? (
@@ -1518,6 +1825,7 @@ export default function Section3Card({
               </button>
             ) : null}
           </div>
+        ) : null}
           {false && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
@@ -1535,35 +1843,13 @@ export default function Section3Card({
             </div>
           ) : null}
           {false && !simpleDetail && <p className="mt-1 text-[11px] text-gray-500">{currencyUnit}</p>}
-        </div>
-
-        <div className="w-full shrink-0 text-left sm:w-auto sm:text-right">
-          <div className="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <button
-              onClick={() => onCategoryFilterChange('clothes')}
-              className={`px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'clothes' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {t(language, 'clothesOnly')}
-            </button>
-            <button
-              onClick={() => onCategoryFilterChange('all')}
-              className={`border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
-                categoryFilter === 'all' ? 'bg-purple-100 font-bold text-purple-900 ring-1 ring-inset ring-purple-400' : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {t(language, 'allCategory')}
-            </button>
-          </div>
-        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 items-stretch gap-2 sm:gap-3">
         {[kpis.k1, kpis.k2, kpis.k3].map((item, index) => (
           <div
             key={item.label}
-            className={`min-w-0 rounded-xl border p-2.5 sm:p-3 ${
+            className={`h-full min-w-0 rounded-xl border p-2.5 sm:p-3 ${
               index === 2 && kpis.hasTargetInfo
                 ? getProgressCardTone(
                     section3Data?.header?.target_info?.[targetMode]?.progress_pct ?? null,
@@ -1574,20 +1860,15 @@ export default function Section3Card({
                 : 'border-gray-200 bg-gradient-to-br from-gray-50 to-white'
             } ${simpleDetail ? 'sm:min-h-[116px]' : 'space-y-1.5'}`}
           >
-            <div className={`flex items-start gap-2 ${simpleDetail ? 'min-h-[20px]' : 'min-h-[32px]'}`}>
+            <div className={`flex items-start gap-2 ${simpleDetail ? 'min-h-[20px]' : ''}`}>
               <p className={`${isCompactEnglish ? 'text-[11px]' : 'text-xs'} text-gray-600`}>{item.label}</p>
+              {!simpleDetail && index === 0 && mainPastSeasonLabel ? (
+                <span className="inline-flex shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-indigo-700 ring-1 ring-indigo-100">
+                  {mainPastSeasonLabel}
+                </span>
+              ) : null}
             </div>
-            <div className={`${simpleDetail ? 'min-h-[20px]' : 'min-h-[16px]'} text-[11px] leading-tight`}>
-              {index === 1 && periodStartInfo
-                ? (
-                    <span className="inline-block rounded-md bg-orange-50 px-2 py-0.5 font-medium text-orange-900">
-                      {language === 'ko'
-                        ? `소진기간 ${periodStartInfo.replace(/^\(|\)$/g, '')}`
-                        : `Period ${periodStartInfo.replace(/^\(|\)$/g, '')}`}
-                    </span>
-                  )
-                : null}
-            </div>
+            {simpleDetail ? <div className="min-h-[20px] text-[11px] leading-tight" /> : null}
             <p className={`${simpleDetail ? 'mt-1 text-2xl' : compactMainMetric ? 'text-lg sm:text-xl' : 'text-[1.7rem] sm:text-[2rem]'} font-bold leading-tight tabular-nums text-gray-900`}>
               {item.value}
             </p>
@@ -1617,6 +1898,104 @@ export default function Section3Card({
                 {line}
               </p>
             ))}
+            {!simpleDetail && index === 0 && (oldSeasonCards.length > 0 || oldSeasonTotalCard) ? (
+              <div className="mt-2 grid gap-1.5">
+                {oldSeasonCards.map((seasonCard) => (
+                  <div
+                    key={seasonCard.key}
+                    className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-2 py-1.5 text-[10px] leading-tight text-gray-700"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-indigo-800">{seasonCard.label}</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(seasonCard.stockAmt)}</span>
+                    </div>
+                    <p className="mt-0.5 truncate">
+                      {language === 'ko' ? '재고 YoY ' : 'Stock YoY '}
+                      {seasonCard.stockYoyPct !== null ? (
+                        <span className={`font-medium ${getInventoryYoyTone(seasonCard.stockYoyPct)}`}>
+                          {formatPercent(seasonCard.stockYoyPct, 0)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-gray-500">-</span>
+                      )}
+                    </p>
+                  </div>
+                ))}
+                {oldSeasonTotalCard ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-1.5 text-[10px] leading-tight text-gray-700">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-800">{oldSeasonTotalCard.label}</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(oldSeasonTotalCard.stockAmt)}</span>
+                    </div>
+                    <p className="mt-0.5 truncate">
+                      {language === 'ko' ? '재고 YoY ' : 'Stock YoY '}
+                      {oldSeasonTotalCard.stockYoyPct !== null ? (
+                        <span className={`font-medium ${getInventoryYoyTone(oldSeasonTotalCard.stockYoyPct)}`}>
+                          {formatPercent(oldSeasonTotalCard.stockYoyPct, 0)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-gray-500">-</span>
+                      )}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {!simpleDetail && index === 1 && oldSeasonCards.length > 0 ? (
+              <div className="mt-2 grid gap-1.5">
+                {oldSeasonCards.map((seasonCard) => (
+                  <div
+                    key={`${seasonCard.key}-sales`}
+                    className="rounded-lg border border-orange-100 bg-orange-50/70 px-2 py-1.5 text-[10px] leading-tight text-gray-700"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-orange-800">{seasonCard.label}</span>
+                      <span className="font-semibold text-gray-900">{formatCurrency(seasonCard.salesAmt)}</span>
+                    </div>
+                    <p className="mt-0.5 truncate">
+                      {language === 'ko' ? '소진 YoY ' : 'Depleted YoY '}
+                      {seasonCard.salesYoyPct !== null ? (
+                        <span className={`font-medium ${getInventoryYoyTone(seasonCard.salesYoyPct)}`}>
+                          {formatPercent(seasonCard.salesYoyPct, 0)}
+                        </span>
+                      ) : (
+                        <span className="font-medium text-gray-500">-</span>
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {!simpleDetail && index === 2 && oldSeasonCards.length > 0 ? (
+              <div className="mt-2 grid gap-1.5">
+                {oldSeasonCards.map((seasonCard) => (
+                  <div
+                    key={`${seasonCard.key}-discount`}
+                    className="rounded-lg border border-emerald-100 bg-emerald-50/70 px-2 py-1.5 text-[10px] leading-tight text-gray-700"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-emerald-800">{seasonCard.label}</span>
+                      <span className="font-semibold text-sky-700">{formatPercent(seasonCard.discountRate, 1)}</span>
+                    </div>
+                    <p className="mt-0.5 truncate">
+                      <span className="font-medium text-gray-500">
+                        {language === 'ko' ? '할인율' : 'Discount rate'}
+                      </span>
+                      <span className="ml-1">
+                        {language === 'ko' ? '전년비 ' : 'vs LY '}
+                        {seasonCard.discountRateDiffPct !== null ? (
+                          <span className={`font-semibold ${getInventoryDiffTone(seasonCard.discountRateDiffPct)}`}>
+                            {formatSignedPercentPoint(seasonCard.discountRateDiffPct)}
+                          </span>
+                        ) : (
+                          <span className="font-medium text-gray-500">-</span>
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -2406,6 +2785,21 @@ export default function Section3Card({
               </div>
             </div>
 
+            {salesPushDetailLoading || salesPushDetailError || (!salesPushDetailLoading && !salesPushDetailError && salesPushSummary.totalAmt > 0 && sortedSalesPushYearRows.length === 0) ? (
+              <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                salesPushDetailError
+                  ? 'border-rose-100 bg-rose-50 text-rose-700'
+                  : salesPushDetailLoading
+                    ? 'border-violet-100 bg-violet-50 text-violet-700'
+                    : 'border-gray-200 bg-gray-50 text-gray-600'
+              }`}>
+                {salesPushDetailError ||
+                  (salesPushDetailLoading
+                    ? (language === 'ko' ? '상세 데이터를 불러오는 중입니다.' : 'Loading detail data.')
+                    : (language === 'ko' ? '상세 품번 데이터가 아직 준비되지 않았습니다.' : 'Detail SKU data is not available yet.'))}
+              </div>
+            ) : null}
+
             {sortedSalesPushAllSkuRows.length > 0 ? (
               <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
                 <div className="border-b border-gray-200 px-4 py-3">
@@ -2603,6 +2997,17 @@ export default function Section3Card({
                         <td className="px-4 py-3 text-right font-semibold tabular-nums text-rose-700">{row.sales_rate_pct !== null && row.sales_rate_pct !== undefined ? formatPercent(row.sales_rate_pct, 2) : '-'}</td>
                       </tr>
                     ))}
+                    {sortedSalesPushYearRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                          {salesPushDetailLoading
+                            ? (language === 'ko' ? '상세 데이터를 불러오는 중입니다.' : 'Loading detail data.')
+                            : salesPushDetailError
+                              ? salesPushDetailError
+                              : (language === 'ko' ? '표시할 상세 데이터가 없습니다.' : 'No detail rows to display.')}
+                        </td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>

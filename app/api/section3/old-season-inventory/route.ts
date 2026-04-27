@@ -108,6 +108,19 @@ export async function GET(request: NextRequest) {
           payload &&
           payload.header &&
           Object.prototype.hasOwnProperty.call(payload.header, 'current_month_depleted_act');
+        const hasCurrentMonthDepletedActLy =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'current_month_depleted_act_ly');
+        const hasCurrentMonthDiscountRateDiff =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'current_month_discount_rate_diff_pct');
+        const hasYtdSalesFields =
+          payload &&
+          payload.header &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'ytd_tag_sales') &&
+          Object.prototype.hasOwnProperty.call(payload.header, 'ytd_act_sales');
         const hasCurrentStockQty =
           payload &&
           payload.header &&
@@ -188,6 +201,9 @@ export async function GET(request: NextRequest) {
           hasPeriodActSales &&
           hasCurrentMonthDepleted &&
           hasCurrentMonthDepletedAct &&
+          hasCurrentMonthDepletedActLy &&
+          hasCurrentMonthDiscountRateDiff &&
+          hasYtdSalesFields &&
           hasCurrentStockQty &&
           hasStagnantStockQty &&
           hasYearQtyFields &&

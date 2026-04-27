@@ -180,26 +180,27 @@ export default function Section1Card({
   const countActiveStores = (stores: any[], metricKey: 'mtd_act' | 'mtd_act_py' | 'ytd_act' | 'ytd_act_py') =>
     stores.filter((store) => Number(store?.[metricKey] || 0) > 0).length;
 
+  const emptyValue = '-';
   const emptyKpis = {
     k1: {
       label: salesLabel,
-      value: '-',
-      discountRate: '-',
-      discountDiff: '-',
-      projectedSales: '-',
-      projectedYoy: '-',
+      value: emptyValue,
+      discountRate: emptyValue,
+      discountDiff: emptyValue,
+      projectedSales: emptyValue,
+      projectedYoy: emptyValue,
       projectedYoyRaw: null,
       projectedTooltip:
         language === 'ko'
           ? '과거 동일 월 매출 기반 환산 로직을 불러오는 중입니다.'
           : 'Loading projection logic based on historical month sales.',
     } as KpiBlock,
-    k2: { label: t(language, 'yoy'), value: '-' } as KpiBlock,
+    k2: { label: t(language, 'yoy'), value: emptyValue } as KpiBlock,
     k3: {
       label: t(language, 'progress'),
-      value: '-',
+      value: emptyValue,
       projectedLabel,
-      projectedValue: '-',
+      projectedValue: emptyValue,
       projectedTooltip:
         language === 'ko'
           ? '과거 동일 월 매출 기반 환산 로직을 불러오는 중입니다.'

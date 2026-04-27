@@ -665,14 +665,6 @@ export default function DashboardPage() {
 
     const fetchSummaryData = async () => {
       try {
-        // Prevent stale previous-date cards from staying visible when latest fetch fails.
-        setHkmcSection1Data(null);
-        setTwSection1Data(null);
-        setHkmcSection2Data(null);
-        setTwSection2Data(null);
-        setHkmcSection3Data(null);
-        setTwSection3Data(null);
-
         const mode = isYtdMode ? 'ytd' : 'mtd';
         const shouldForceRefresh = refreshKey > 0;
         const fetchOptions: RequestInit = { signal: controller.signal };
@@ -683,19 +675,35 @@ export default function DashboardPage() {
           options: RequestInit = fetchOptions,
           timeoutMs = 60000
         ) => {
-          try {
-            const fetchPromise = fetch(url, options);
-            const timeoutPromise = new Promise<null>((resolve) =>
-              setTimeout(() => resolve(null), timeoutMs)
-            );
-            const r = (await Promise.race([fetchPromise, timeoutPromise])) as Response | null;
-            if (!r) return null;
-            return r.ok ? r.json() : null;
-          } catch (e: any) {
-            if (e?.name === 'AbortError') return null;
-            console.error('Summary fetch failed:', url, e);
-            return null;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+              const fetchPromise = fetch(url, { ...options, cache: 'no-store' });
+              const timeoutPromise = new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), timeoutMs)
+              );
+              const r = (await Promise.race([fetchPromise, timeoutPromise])) as Response | null;
+              if (!r) {
+                if (attempt === 0) continue;
+                return null;
+              }
+              if (r.ok) return r.json();
+              if (attempt === 0 && (r.status === 404 || r.status === 500 || r.status === 502 || r.status === 503)) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                continue;
+              }
+              console.error('Summary fetch returned non-OK:', url, r.status);
+              return null;
+            } catch (e: any) {
+              if (e?.name === 'AbortError') return null;
+              if (attempt === 0) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                continue;
+              }
+              console.error('Summary fetch failed:', url, e);
+              return null;
+            }
           }
+          return null;
         };
 
         // Start all requests together, but render Section1 first (top card perceived speed).
@@ -716,8 +724,8 @@ export default function DashboardPage() {
 
         const section1Task = Promise.all([hkmcS1Promise, twS1Promise]).then(([hkmcS1, twS1]) => {
           if (isCancelled) return;
-          setHkmcSection1Data(hkmcS1);
-          setTwSection1Data(twS1);
+          if (hkmcS1) setHkmcSection1Data(hkmcS1);
+          if (twS1) setTwSection1Data(twS1);
           setDataLoadStatus((prev) => ({ ...prev, section1: hkmcS1 && twS1 ? 'success' : 'error' }));
         });
 
