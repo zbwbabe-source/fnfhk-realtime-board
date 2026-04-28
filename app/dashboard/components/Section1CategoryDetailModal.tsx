@@ -162,6 +162,13 @@ export default function Section1CategoryDetailModal({
     return 'text-gray-500';
   };
 
+  const shareDiffClass = (value: number | null | undefined) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 'text-gray-400';
+    if (value > 0) return 'text-green-600';
+    if (value < 0) return 'text-red-500';
+    return 'text-gray-500';
+  };
+
   const getLocalizedCategoryTitle = () => {
     if (language === 'ko') return data?.category_title || categoryTitle;
 
@@ -333,7 +340,7 @@ export default function Section1CategoryDetailModal({
                           <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                             {formatPercent(row.sales_share_pct)}
                           </td>
-                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${diffClass(row.sales_share_diff_pct)}`}>
+                          <td className={`px-4 py-3 text-right font-semibold tabular-nums ${shareDiffClass(row.sales_share_diff_pct)}`}>
                             {formatDiff(row.sales_share_diff_pct)}
                           </td>
                         </tr>

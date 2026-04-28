@@ -452,7 +452,7 @@ export default function Section1Card({
 
     cards.sort((a, b) => b.sales - a.sales);
     return cards;
-  }, [section1Data, isYtdMode]);
+  }, [section1Data, isYtdMode, date]);
 
   const storeCountMatrixItems = useMemo(() => {
     if (!section1Data || typeof section1Data !== 'object') {
@@ -591,19 +591,31 @@ export default function Section1Card({
       .sort((a, b) => (isYtdMode ? b.ytdSales - a.ytdSales : b.mtdSales - a.mtdSales));
   }, [section1Data, isYtdMode]);
 
-  const top5StoreCards = storeMetricCards.slice(0, 5);
-  const worst5StoreCards = storeMetricCards
-    .filter((item) => {
-      const isClosed = item.prevSales > 0 && item.sales <= 0;
-      return item.sales > 0 && !isClosed;
-    })
-    .slice(-5)
-    .sort((a, b) => b.sales - a.sales);
-  const detailTopStoreCards = storeMetricCards.slice(0, 4);
-  const detailBottomStoreCards = [...storeMetricCards]
-    .filter((item) => item.sales > 0)
-    .slice(-4)
-    .sort((a, b) => a.sales - b.sales);
+  const growthRankedStoreCards = [...storeMetricCards]
+    .filter((item) => item.sales > 0 && item.prevSales > 0 && item.yoy !== null)
+    .sort((a, b) => {
+      const yoyGap = (b.yoy ?? 0) - (a.yoy ?? 0);
+      if (yoyGap !== 0) return yoyGap;
+      const discountGap = (a.discountDiff ?? 0) - (b.discountDiff ?? 0);
+      if (discountGap !== 0) return discountGap;
+      return b.sales - a.sales;
+    });
+  const top5StoreCards = growthRankedStoreCards.slice(0, 5);
+  const worst5StoreCards = [...growthRankedStoreCards].slice(-5).sort((a, b) => {
+    const yoyGap = (a.yoy ?? 0) - (b.yoy ?? 0);
+    if (yoyGap !== 0) return yoyGap;
+    const discountGap = (b.discountDiff ?? 0) - (a.discountDiff ?? 0);
+    if (discountGap !== 0) return discountGap;
+    return a.sales - b.sales;
+  });
+  const detailTopStoreCards = growthRankedStoreCards.slice(0, 4);
+  const detailBottomStoreCards = [...growthRankedStoreCards].slice(-4).sort((a, b) => {
+    const yoyGap = (a.yoy ?? 0) - (b.yoy ?? 0);
+    if (yoyGap !== 0) return yoyGap;
+    const discountGap = (b.discountDiff ?? 0) - (a.discountDiff ?? 0);
+    if (discountGap !== 0) return discountGap;
+    return a.sales - b.sales;
+  });
   const detailStoreCards = [...detailTopStoreCards, ...detailBottomStoreCards];
   const openStoreDetail = (storeCode: string, storeName: string) => {
     if (!storeCode) return;
@@ -696,9 +708,9 @@ export default function Section1Card({
                   }`}
                 >
                   {language === 'ko' ? (
-                    <span className="inline-block leading-tight">상위<br />매장</span>
+                    <span className="inline-block leading-tight">성장<br />상위</span>
                   ) : (
-                    'Top'
+                    'Growth Top'
                   )}
                 </button>
                 <button
@@ -710,9 +722,9 @@ export default function Section1Card({
                   }`}
                 >
                   {language === 'ko' ? (
-                    <span className="inline-block leading-tight">하위<br />매장</span>
+                    <span className="inline-block leading-tight">성장<br />하위</span>
                   ) : (
-                    'Bottom'
+                    'Growth Bottom'
                   )}
                 </button>
               </div>
@@ -960,16 +972,24 @@ export default function Section1Card({
                     ? 'text-green-700'
                     : 'text-red-700'
                   : 'text-gray-700';
+              const discountDiffColor =
+                item.discountDiff !== null && typeof item.discountDiff === 'number' && isFinite(item.discountDiff)
+                  ? item.discountDiff > 0
+                    ? 'text-red-600'
+                    : item.discountDiff < 0
+                      ? 'text-green-600'
+                      : 'text-gray-600'
+                  : 'text-gray-600';
               const storeFullName = String(item.fullName || item.title);
               const shortCode = getStoreShortCode(storeFullName) || item.title;
               const groupLabel =
                 index < detailTopStoreCards.length
                   ? language === 'ko'
-                    ? `상위 ${index + 1}`
-                    : `Top ${index + 1}`
+                    ? `성장 상위 ${index + 1}`
+                    : `Growth Top ${index + 1}`
                   : language === 'ko'
-                    ? `하위 ${index - detailTopStoreCards.length + 1}`
-                    : `Bottom ${index - detailTopStoreCards.length + 1}`;
+                    ? `성장 하위 ${index - detailTopStoreCards.length + 1}`
+                    : `Growth Bottom ${index - detailTopStoreCards.length + 1}`;
 
               return (
                 <button
@@ -982,25 +1002,42 @@ export default function Section1Card({
                   <p className="mt-1 truncate text-[13px] font-bold leading-tight text-gray-800" title={storeFullName}>
                     {shortCode}
                   </p>
-                  <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">{formatCurrency(item.sales || 0)}</p>
-                  <p className={`mt-1 text-[11px] font-medium tabular-nums ${yoyColor}`}>
+                  <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">
                     {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : 'YoY -'}
+                  </p>
+                  <p className={`mt-1 text-[11px] font-medium tabular-nums ${yoyColor}`}>
+                    {formatCurrency(item.sales || 0)}
+                  </p>
+                  <p className="mt-1 text-[10px] font-medium tabular-nums text-gray-600">
+                    {language === 'ko' ? '할인율' : 'Disc.'}{' '}
+                    <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>{' '}
+                    <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>
                   </p>
                 </button>
               );
             })}
           </div>
-          <div className="mt-1 flex justify-start">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <p className="inline-flex rounded-lg bg-purple-50 px-2 py-0.5 text-[9px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '매장 카드를 클릭하면 판매 구성 상세가 열립니다.' : 'Click a store card to open the sales mix detail.'}
             </p>
+            {allStoreTreemapItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAllStoresOpen(true)}
+                className="inline-flex rounded-lg border border-purple-200 bg-white px-2.5 py-1 text-[10px] font-semibold leading-tight text-purple-700 shadow-sm transition-colors hover:bg-purple-50"
+              >
+                {language === 'ko' ? '전체매장 보기' : 'View All Stores'}
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {!simpleDetail && detailCards.length > 0 && (
         <div className="mt-4 border-t border-gray-100 pt-3">
-          <div className="mb-2 flex items-center justify-start gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
             <p className="inline-flex rounded-lg bg-purple-50 px-2 py-0.5 text-[10px] font-medium leading-tight text-purple-700 ring-1 ring-purple-100">
               {language === 'ko' ? '아래 카드를 누르면 상세 내역이 열립니다.' : 'Tap the cards below to open detail.'}
             </p>
@@ -1010,6 +1047,16 @@ export default function Section1Card({
             <span className="text-[10px] font-medium leading-tight text-gray-500">
               {modePeriodLabel}
             </span>
+            </div>
+            {activeDetailView !== 'season' && allStoreTreemapItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAllStoresOpen(true)}
+                className="inline-flex rounded-lg border border-purple-200 bg-white px-2.5 py-1 text-[10px] font-semibold leading-tight text-purple-700 shadow-sm transition-colors hover:bg-purple-50"
+              >
+                {language === 'ko' ? '전체매장 보기' : 'View All Stores'}
+              </button>
+            )}
           </div>
           <div className="grid w-full min-w-0 grid-cols-5 gap-1.5">
             {detailCards.map((item) => {
