@@ -4,6 +4,8 @@ import { fetchSection1StoreSales } from '@/lib/section1/store-sales';
 
 export const dynamic = 'force-dynamic';
 
+const DAILY_YOY_BASIS = 'last_year_same_weekday_364d';
+
 function isLegacySnapshotPayload(payload: any): boolean {
   const total = payload?.total_subtotal;
   const expectedSameStoreFilterRule = 'exclude_offline_mtd_zero_sales_days_ge_5';
@@ -55,6 +57,7 @@ function isLegacySnapshotPayload(payload: any): boolean {
     typeof total.forecast_source === 'undefined' ||
     !Array.isArray(total.forecast_months) ||
     !hasTargetLocalFields
+    || total.daily_yoy_basis !== DAILY_YOY_BASIS
   );
 }
 

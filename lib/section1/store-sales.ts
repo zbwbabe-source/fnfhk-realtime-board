@@ -6,6 +6,8 @@ import { getSeasonCode } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
 import targetData from '@/data/target.json';
 
+const DAILY_YOY_BASIS = 'last_year_same_weekday_364d';
+
 /**
  * 매장별 YTD 목표 계산 함수
  */
@@ -178,6 +180,10 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
+function getLastYearSameWeekdayDate(date: Date): Date {
+  return addDays(date, -364);
+}
+
 function shiftYears(date: Date, years: number): Date {
   const next = new Date(date);
   next.setFullYear(next.getFullYear() + years);
@@ -331,6 +337,8 @@ export async function fetchSection1StoreSales({
   const previousYearDate = new Date(asofDate);
   previousYearDate.setFullYear(asofDate.getFullYear() - 1);
   const previousYearDateString = formatDateToYmd(previousYearDate);
+  const previousYearSameWeekdayDate = getLastYearSameWeekdayDate(asofDate);
+  const previousYearSameWeekdayDateString = formatDateToYmd(previousYearSameWeekdayDate);
   const month = asofDate.getMonth() + 1;
   const currentSesn = getSeasonCode(asofDate);
   const nextSesn = getNextSeasonCode(currentSesn);
@@ -575,7 +583,7 @@ export async function fetchSection1StoreSales({
       SELECT
         LOCAL_SHOP_CD AS shop_cd,
         SUM(CASE WHEN TO_DATE(SALE_DT) = TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) AS daily_act,
-        SUM(CASE WHEN TO_DATE(SALE_DT) = DATEADD(YEAR, -1, TO_DATE(?)) THEN ACT_SALE_AMT ELSE 0 END) AS daily_act_py,
+        SUM(CASE WHEN TO_DATE(SALE_DT) = TO_DATE(?) THEN ACT_SALE_AMT ELSE 0 END) AS daily_act_py,
         SUM(
           CASE
             WHEN TO_DATE(SALE_DT) BETWEEN DATEADD(DAY, -6, TO_DATE(?)) AND TO_DATE(?)
@@ -595,10 +603,24 @@ export async function fetchSection1StoreSales({
         AND (
           TO_DATE(SALE_DT) BETWEEN DATEADD(DAY, -6, TO_DATE(?)) AND TO_DATE(?)
           OR TO_DATE(SALE_DT) BETWEEN DATEADD(YEAR, -1, DATEADD(DAY, -6, TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
+          OR TO_DATE(SALE_DT) = TO_DATE(?)
         )
       GROUP BY LOCAL_SHOP_CD
     `,
-    [resolvedDate, resolvedDate, resolvedDate, resolvedDate, resolvedDate, resolvedDate, brand, resolvedDate, resolvedDate, resolvedDate, resolvedDate]
+    [
+      resolvedDate,
+      previousYearSameWeekdayDateString,
+      resolvedDate,
+      resolvedDate,
+      resolvedDate,
+      resolvedDate,
+      brand,
+      resolvedDate,
+      resolvedDate,
+      resolvedDate,
+      resolvedDate,
+      previousYearSameWeekdayDateString,
+    ]
   );
 
   // TW 리전일 때 환율 적용
@@ -828,6 +850,7 @@ export async function fetchSection1StoreSales({
       mom,
       daily_act,
       daily_act_py,
+      daily_yoy_basis: DAILY_YOY_BASIS,
       daily_yoy,
       recent_7d_act,
       recent_7d_act_py,
@@ -1090,6 +1113,7 @@ export async function fetchSection1StoreSales({
       mom,
       daily_act,
       daily_act_py,
+      daily_yoy_basis: DAILY_YOY_BASIS,
       daily_yoy,
       same_store_daily_yoy: sameStoreDailyActPy > 0 ? (sameStoreDailyAct / sameStoreDailyActPy) * 100 : null,
       recent_7d_act,

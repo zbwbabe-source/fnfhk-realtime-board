@@ -869,23 +869,19 @@ export default function DashboardPage() {
         const data = metaRes?.ok ? await metaRes.json() : {};
         const latestData = latestRes?.ok ? await latestRes.json() : null;
         const metaDates: string[] = Array.isArray(data.available_dates) ? data.available_dates : [];
-        const metaTopDate = metaDates[0] || '';
         let resolvedLatestDate = clampDateToMax(
           typeof latestData?.latest_date === 'string' ? latestData.latest_date : '',
           fallbackDate
         );
+        const metaTopDate = metaDates[0] || '';
+        const trustedLatestDate = resolvedLatestDate || metaTopDate || fallbackDate;
+        const nextDates = metaDates.filter((metaDate) => metaDate <= trustedLatestDate);
 
-        // Guard against stale latest-date cache response by preferring fresher meta top date.
-        if (resolvedLatestDate && metaTopDate && resolvedLatestDate < metaTopDate) {
-          resolvedLatestDate = metaTopDate;
-        }
-        const nextDates = [...metaDates];
-
-        if (resolvedLatestDate && !nextDates.includes(resolvedLatestDate)) {
-          nextDates.unshift(resolvedLatestDate);
+        if (trustedLatestDate && !nextDates.includes(trustedLatestDate)) {
+          nextDates.unshift(trustedLatestDate);
         }
 
-        const initialDate = resolvedLatestDate || metaTopDate || fallbackDate;
+        const initialDate = trustedLatestDate;
 
         if (nextDates.length > 0) {
           setAvailableDates(nextDates);
@@ -893,7 +889,7 @@ export default function DashboardPage() {
             if (prev && nextDates.includes(prev)) return prev;
             return initialDate;
           });
-          setLatestDate(metaTopDate || resolvedLatestDate || fallbackDate);
+          setLatestDate(trustedLatestDate);
         } else {
           setAvailableDates([initialDate]);
           setDate((prev) => (prev || initialDate));
@@ -929,7 +925,7 @@ export default function DashboardPage() {
           typeof latestData?.latest_date === 'string' ? latestData.latest_date : '',
           fallbackDate
         );
-        const knownLatest = availableDates[0] || latestDate;
+        const knownLatest = latestDate || availableDates[0];
 
         if (nextLatestDate && knownLatest && nextLatestDate < knownLatest) {
           const refreshRes = await fetch(`/api/latest-date?region=HKMC&brand=${brand}&forceRefresh=true`, {
@@ -949,9 +945,12 @@ export default function DashboardPage() {
 
         if (!nextLatestDate || nextLatestDate === latestDate) return;
 
-        const wasViewingLatest = !date || date === latestDate;
+        const wasViewingLatest = !date || date === latestDate || date > nextLatestDate;
         setLatestDate(nextLatestDate);
-        setAvailableDates((prev) => (prev.includes(nextLatestDate) ? prev : [nextLatestDate, ...prev]));
+        setAvailableDates((prev) => [
+          nextLatestDate,
+          ...prev.filter((availableDate) => availableDate !== nextLatestDate && availableDate <= nextLatestDate),
+        ]);
 
         if (wasViewingLatest) {
           setDate(nextLatestDate);

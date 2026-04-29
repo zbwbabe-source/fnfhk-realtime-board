@@ -83,6 +83,12 @@ function getLyDateString(date: string): string {
   return formatDate(ly);
 }
 
+function getLySameWeekdayDateString(date: string): string {
+  const current = new Date(date);
+  current.setDate(current.getDate() - 364);
+  return formatDate(current);
+}
+
 function getPeriodStartDate(date: string, mode: 'mtd' | 'ytd'): string {
   const current = new Date(date);
   if (mode === 'ytd') {
@@ -104,7 +110,7 @@ function getPeriodRangeForMetric(
 ) {
   const normalizedMetricKey = metricKey || mode;
   if (normalizedMetricKey === 'daily') {
-    return { mode: 'mtd' as const, periodStartDate: date, lyPeriodStartDate: getLyDateString(date) };
+    return { mode: 'mtd' as const, periodStartDate: date, lyPeriodStartDate: getLySameWeekdayDateString(date) };
   }
   if (normalizedMetricKey === 'recent7d') {
     const periodStartDate = shiftDays(date, -6);
@@ -188,8 +194,8 @@ export async function fetchSection1StoreDetail({
     throw new Error(`Store ${shopCd} does not belong to ${region}/${brand}`);
   }
 
-  const lyDate = getLyDateString(date);
   const { mode: normalizedMode, periodStartDate, lyPeriodStartDate } = getPeriodRangeForMetric(date, mode, metricKey);
+  const lyDate = metricKey === 'daily' ? lyPeriodStartDate : getLyDateString(date);
   const isTwRegion = region === 'TW';
   const currentPeriod = isTwRegion ? getPeriodFromDateString(date) : '';
   const lyPeriod = isTwRegion ? getPeriodFromDateString(lyDate) : '';

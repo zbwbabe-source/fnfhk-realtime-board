@@ -188,16 +188,14 @@ function parseLocalDate(date: string) {
   return parsed;
 }
 
-function shiftYears(date: Date, years: number) {
-  const shifted = new Date(date);
-  shifted.setFullYear(shifted.getFullYear() + years);
-  return shifted;
-}
-
 function shiftDays(date: Date, days: number) {
   const shifted = new Date(date);
   shifted.setDate(shifted.getDate() + days);
   return shifted;
+}
+
+function getLastYearSameWeekdayDate(date: Date) {
+  return shiftDays(date, -364);
 }
 
 function formatDateKey(date: Date) {
@@ -503,7 +501,7 @@ function buildLabels(date: string) {
     };
   }
 
-  const previousYearDate = shiftYears(currentDate, -1);
+  const previousYearDate = getLastYearSameWeekdayDate(currentDate);
   const recent7dStart = shiftDays(currentDate, -6);
 
   return {
@@ -513,7 +511,7 @@ function buildLabels(date: string) {
       {
         key: 'daily',
         metric: 'Daily YoY',
-        period: `This ${WEEKDAY_EN[currentDate.getDay()]} vs Last ${WEEKDAY_EN[previousYearDate.getDay()]}`,
+        period: `${formatMonthDay(currentDate)} ${WEEKDAY_EN[currentDate.getDay()]} vs ${formatMonthDay(previousYearDate)} ${WEEKDAY_EN[previousYearDate.getDay()]}`,
       },
       {
         key: 'recent7d',
