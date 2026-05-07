@@ -475,6 +475,13 @@
       "brand": "M",
       "country": "TW",
       "channel": "Warehouse"
+    },
+    {
+      "store_code": "T19",
+      "store_name": "Hanshin TC",
+      "brand": "M",
+      "country": "TW",
+      "channel": "정상"
     }
   ],
   "hkmc_stores_non_wh": [

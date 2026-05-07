@@ -835,8 +835,8 @@ export default function Section1Card({
           <div className="grid grid-cols-[1fr_0.9fr] items-start gap-2.5">
             <div className="grid min-w-0 grid-rows-[16px_auto] border-r border-blue-100 pr-2.5">
               <div className="group relative block h-4">
-                <p className="cursor-help text-[10px] font-medium leading-none text-gray-500 underline decoration-dotted underline-offset-2">
-                  {language === 'ko' ? '월말환산' : 'Projection'}
+                <p className="cursor-help text-[9px] font-medium leading-none text-gray-500 underline decoration-dotted underline-offset-2">
+                  {language === 'ko' ? '월말환산 YoY' : 'Projection YoY'}
                 </p>
                 <div className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden w-56 rounded bg-gray-900 px-2 py-1.5 text-[10px] leading-relaxed text-white shadow-md group-hover:block">
                   {(kpis.k1 as any).projectedTooltip}
