@@ -1,6 +1,6 @@
 import { executeSnowflakeQuery } from '@/lib/snowflake';
 import { getStoreMaster, normalizeBrand } from '@/lib/store-utils';
-import { buildProjectionWeightData, calculateMonthEndProjection, calculateProjectedYoY } from '@/lib/weight-utils';
+import { buildProjectionWeightData, calculateMonthEndProjection } from '@/lib/weight-utils';
 import { getPeriodFromDateString, getPeriodFromYearMonth, getExchangeRate, convertTwdToHkd } from '@/lib/exchange-rate-utils';
 import { getSeasonCode } from '@/lib/date-utils';
 import { getCategoryMapping } from '@/lib/category-utils';
@@ -430,14 +430,23 @@ export async function fetchSection1StoreSales({
             THEN TAG_SALE_AMT ELSE 0
           END
         ) AS ytd_tag,
-        
+
         SUM(
           CASE
             WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('YEAR', TO_DATE(?))) AND DATEADD(YEAR, -1, TO_DATE(?))
             THEN TAG_SALE_AMT ELSE 0
           END
-        ) AS ytd_tag_py
-        
+        ) AS ytd_tag_py,
+
+        /* LY 전월 전체 실적 (월말환산 YoY 분모용) */
+        SUM(
+          CASE
+            WHEN SALE_DT BETWEEN DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?)))
+                             AND LAST_DAY(DATEADD(YEAR, -1, DATE_TRUNC('MONTH', TO_DATE(?))))
+            THEN ACT_SALE_AMT ELSE 0
+          END
+        ) AS full_month_act_py
+
       FROM SAP_FNF.DW_HMD_SALE_D
       WHERE
         (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
@@ -494,6 +503,8 @@ export async function fetchSection1StoreSales({
     resolvedDate, // YTD TAG current
     resolvedDate,
     resolvedDate, // YTD TAG PY
+    resolvedDate,
+    resolvedDate, // full_month_act_py
     brand, // brand filter
     resolvedDate,
     resolvedDate, // date range filter
@@ -777,6 +788,7 @@ export async function fetchSection1StoreSales({
     const ytd_tag = row ? applyExchangeRate(parseFloat(row.YTD_TAG || 0)) : 0;
     const ytd_tag_py = row ? applyExchangeRate(parseFloat(row.YTD_TAG_PY || 0)) : 0;
     const yoy_ytd = row ? parseFloat(row.YOY_YTD || 0) : 0;
+    const full_month_act_py = row ? applyExchangeRate(parseFloat(row.FULL_MONTH_ACT_PY || 0)) : 0;
 
     // 할인율 계산: 1 - (ACT / TAG)
     const discount_rate_mtd = mtd_tag > 0 ? (1 - mtd_act / mtd_tag) * 100 : 0;
@@ -815,13 +827,12 @@ export async function fetchSection1StoreSales({
     const monthEndProjection = calculateMonthEndProjection(mtd_act, resolvedDate, weightMap);
     const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
-    // 환산 YoY 계산 (MTD 기준)
-    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, resolvedDate, weightMap);
+    // 환산 YoY 계산: TY 월말환산 / LY 전월 전체실적 (LY는 이미 월말까지 실적이 있으므로 환산 불필요)
+    const projectedYoY = full_month_act_py > 0 ? (monthEndProjection / full_month_act_py) * 100 : 0;
     const previousMonthActualYtd = ytd_act - mtd_act;
     const previousMonthActualYtdPy = ytd_act_py - mtd_act_py;
-    const currentMonthFullPy = getMonthlySales(storeInfo.store_code, year - 1, month);
     const ytdMonthEndProjection = previousMonthActualYtd + monthEndProjection;
-    const ytdProjectedBasePy = previousMonthActualYtdPy + currentMonthFullPy;
+    const ytdProjectedBasePy = previousMonthActualYtdPy + full_month_act_py;
     const projected_progress_ytd = ytd_target > 0 ? (ytdMonthEndProjection / ytd_target) * 100 : 0;
     const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
 
@@ -858,6 +869,7 @@ export async function fetchSection1StoreSales({
       monthEndProjection,
       projected_progress,
       projectedYoY,
+      full_month_act_py,
       discount_rate_mtd,
       discount_rate_mtd_ly,
       discount_rate_mtd_diff,
@@ -1044,17 +1056,13 @@ export async function fetchSection1StoreSales({
     const monthEndProjection = calculateMonthEndProjection(mtd_act, resolvedDate, weightMap);
     const projected_progress = target_mth > 0 ? (monthEndProjection / target_mth) * 100 : 0;
 
-    // 합계의 환산 YoY 계산
-    const projectedYoY = calculateProjectedYoY(mtd_act, mtd_act_py, resolvedDate, weightMap);
+    // 합계의 환산 YoY 계산: TY 월말환산 / LY 전월 전체실적 합계
+    const full_month_act_py = stores.reduce((sum, s) => sum + (s.full_month_act_py || 0), 0);
+    const projectedYoY = full_month_act_py > 0 ? (monthEndProjection / full_month_act_py) * 100 : 0;
     const previousMonthActualYtd = ytd_act - mtd_act;
     const previousMonthActualYtdPy = ytd_act_py - mtd_act_py;
     const ytdMonthEndProjection = previousMonthActualYtd + monthEndProjection;
-    const monthEndDate = getMonthEndDate(asofDate);
-    const previousYearMonthEndDate = new Date(monthEndDate);
-    previousYearMonthEndDate.setFullYear(monthEndDate.getFullYear() - 1);
-    const previousYearMonthEndString = formatDateToYmd(previousYearMonthEndDate);
-    const fullMonthProgressivePy = calculateMonthEndProjection(mtd_act_py, previousYearMonthEndString, weightMap);
-    const ytdProjectedBasePy = previousMonthActualYtdPy + fullMonthProgressivePy;
+    const ytdProjectedBasePy = previousMonthActualYtdPy + full_month_act_py;
     const projected_progress_ytd = ytd_target > 0 ? (ytdMonthEndProjection / ytd_target) * 100 : 0;
     const ytdProjectedYoY = ytdProjectedBasePy > 0 ? (ytdMonthEndProjection / ytdProjectedBasePy) * 100 : 0;
     const comparisonMetrics = calculateStoreComparisonMetrics(stores);
@@ -1081,6 +1089,7 @@ export async function fetchSection1StoreSales({
     const sameStoreRecent7dActPy = sameStoreRecent7dEligibleStores.reduce((sum, store) => sum + (store.recent_7d_act_py || 0), 0);
     const sameStoreProjectedMtd = sameStoreProjectedEligibleStores.reduce((sum, store) => sum + (store.mtd_act || 0), 0);
     const sameStoreProjectedMtdPy = sameStoreProjectedEligibleStores.reduce((sum, store) => sum + (store.mtd_act_py || 0), 0);
+    const sameStoreFullMonthActPy = sameStoreProjectedEligibleStores.reduce((sum, store) => sum + (store.full_month_act_py || 0), 0);
     stores.forEach((store) => {
       const months = Array.isArray(store.forecast_months) ? store.forecast_months : [];
       months.forEach((item: any) => {
@@ -1125,8 +1134,8 @@ export async function fetchSection1StoreSales({
       projected_progress,
       projectedYoY,
       same_store_projected_yoy:
-        sameStoreProjectedMtdPy > 0
-          ? calculateProjectedYoY(sameStoreProjectedMtd, sameStoreProjectedMtdPy, resolvedDate, weightMap)
+        sameStoreFullMonthActPy > 0
+          ? (calculateMonthEndProjection(sameStoreProjectedMtd, resolvedDate, weightMap) / sameStoreFullMonthActPy) * 100
           : null,
       same_store_yoy: comparisonMetrics.same_store_yoy,
       active_store_count_mtd: comparisonMetrics.active_store_count_mtd,
