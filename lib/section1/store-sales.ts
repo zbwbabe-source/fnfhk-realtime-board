@@ -479,7 +479,8 @@ export async function fetchSection1StoreSales({
         WHEN ytd_act_py > 0
         THEN (ytd_act / ytd_act_py) * 100
         ELSE 0
-      END AS yoy_ytd
+      END AS yoy_ytd,
+      full_month_act_py
     FROM store_sales
     ORDER BY shop_cd
   `;
