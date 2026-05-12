@@ -964,7 +964,7 @@ export default function Section1Card({
 
       {simpleDetail && detailStoreCards.length > 0 && (
         <div className="mt-3 border-t border-gray-100 pt-2.5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             {detailStoreCards.map((item, index) => {
               const yoyColor =
                 item.yoy !== null && typeof item.yoy === 'number' && isFinite(item.yoy)
@@ -996,19 +996,19 @@ export default function Section1Card({
                   type="button"
                   key={`${groupLabel}-${item.key}`}
                   onClick={() => openStoreDetail(item.storeCode, storeFullName)}
-                  className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-3 py-2.5 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
+                  className="rounded-lg border border-gray-200 bg-gradient-to-br from-gray-50 to-white px-2.5 py-2 text-left shadow-sm transition-colors hover:border-purple-200 hover:bg-purple-50/40"
                 >
-                  <p className="text-[10px] font-semibold tracking-[0.08em] text-gray-400">{groupLabel}</p>
-                  <p className="mt-1 truncate text-[13px] font-bold leading-tight text-gray-800" title={storeFullName}>
+                  <p className="text-[9px] font-semibold leading-tight text-gray-400">{groupLabel}</p>
+                  <p className="mt-0.5 truncate text-[12px] font-bold leading-tight text-gray-800" title={storeFullName}>
                     {shortCode}
                   </p>
-                  <p className="mt-2 text-[15px] font-bold leading-tight tabular-nums text-gray-900">
+                  <p className="mt-1 text-[11px] font-bold leading-tight tabular-nums text-gray-900">
                     {typeof item.yoy === 'number' && isFinite(item.yoy) ? `YoY ${item.yoy.toFixed(0)}%` : 'YoY -'}
                   </p>
-                  <p className={`mt-1 text-[11px] font-medium tabular-nums ${yoyColor}`}>
+                  <p className={`mt-0.5 text-[10px] font-medium leading-tight tabular-nums ${yoyColor}`}>
                     {formatCurrency(item.sales || 0)}
                   </p>
-                  <p className="mt-1 text-[10px] font-medium tabular-nums text-gray-600">
+                  <p className="mt-0.5 text-[9px] font-medium leading-tight tabular-nums text-gray-600">
                     {language === 'ko' ? '할인율' : 'Disc.'}{' '}
                     <span className="discount-rate-emphasis">{formatRate(item.discountRate)}</span>{' '}
                     <span className={`font-semibold ${discountDiffColor}`}>({formatPercentPointDiff(item.discountDiff)})</span>

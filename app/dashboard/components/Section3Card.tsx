@@ -351,8 +351,14 @@ export default function Section3Card({
     }
 
     const header = section3Data.header;
-    const currentStock = header.curr_stock_amt || 0;
-    const currentStockYoyPct = header.curr_stock_yoy_pct as number | null | undefined;
+    const activePastSeasonKey = String(section3Data?.season_type || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    const fallbackPastSeasonCard = Array.isArray(section3Data?.inventory_segment_cards)
+      ? section3Data.inventory_segment_cards.find((card: any) => card?.key === activePastSeasonKey)
+      : null;
+    const currentStock = header.curr_stock_amt || Number(fallbackPastSeasonCard?.curr_stock_amt || 0);
+    const currentStockYoyPct =
+      (header.curr_stock_yoy_pct as number | null | undefined) ??
+      (typeof fallbackPastSeasonCard?.yoy_pct === 'number' ? fallbackPastSeasonCard.yoy_pct : null);
     const inventoryDays = header.inv_days as number | null | undefined;
     const stagnantStock = header.stagnant_stock_amt || 0;
     const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;
@@ -2007,7 +2013,7 @@ export default function Section3Card({
               {language === 'ko' ? '현재 재고 (TAG기준)' : isCompactEnglish ? 'Current stock (TAG)' : 'Based on current stock (TAG)'}
             </p>
             <span className="inline-flex shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 ring-1 ring-gray-200">
-              {`Total ${formatCurrency(section3Data?.header?.curr_stock_amt || 0)}`}
+              {`Total ${formatCurrency(orderedInventorySegmentCards.reduce((sum, card) => sum + Number(card.curr_stock_amt || 0), 0))}`}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">

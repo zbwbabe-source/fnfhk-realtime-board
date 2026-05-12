@@ -2335,8 +2335,12 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
       previousOldSeasonApparelAmt = convertTwdToHkd(previousOldSeasonApparelAmt, getPeriodFromDateString(previousDate)) || 0;
     }
     const pastSeasonKey: InventorySegmentKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
-    currentAmounts[pastSeasonKey] = currentOldSeasonApparelAmt;
-    previousAmounts[pastSeasonKey] = previousOldSeasonApparelAmt;
+    if (currentOldSeasonApparelAmt > 0) {
+      currentAmounts[pastSeasonKey] = currentOldSeasonApparelAmt;
+    }
+    if (previousOldSeasonApparelAmt > 0) {
+      previousAmounts[pastSeasonKey] = previousOldSeasonApparelAmt;
+    }
 
     const buildYoyPct = (curr: number, ly: number) =>
       ly > 0 ? Math.round((curr / ly) * 10000) / 100 : null;
