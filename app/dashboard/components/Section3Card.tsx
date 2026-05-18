@@ -598,15 +598,41 @@ export default function Section3Card({
     const labelKey = rank === 1 ? 'y1' : rank === 2 ? 'y2' : 'y3_plus';
     const breakdown = activePastSeasonBreakdown.find((item: any) => item?.label_key === labelKey);
     if (!breakdown) return null;
+    const yearBucket = rank === 1 ? '1년차' : rank === 2 ? '2년차' : '3년차 이상';
+    const heatmapCell = Array.isArray(section3Data?.target_heatmap?.rows)
+      ? section3Data.target_heatmap.rows
+          .find((row: any) => String(row?.year_bucket || '') === yearBucket)
+          ?.cells?.find((cell: any) => cell?.category_key === 'all')
+      : null;
+    const heatmapTargetInfo = heatmapCell
+      ? {
+          progress_pct: heatmapCell.progress_pct ?? null,
+          projected_progress_pct: heatmapCell.projected_progress_pct ?? null,
+          actual_discount_rate: heatmapCell.actual_discount_rate ?? null,
+          target_discount_rate: heatmapCell.target_discount_rate ?? null,
+        }
+      : null;
+    const fallbackSalesAmt = Number(
+      heatmapCell?.actual_sold_amt ??
+      breakdown.current_month_tag_sales ??
+      breakdown.period_tag_sales ??
+      0
+    );
     return {
-      year_bucket: rank === 1 ? '1년차' : rank === 2 ? '2년차' : '3년차 이상',
+      year_bucket: yearBucket,
       season_code: '',
       curr_stock_amt: Number(breakdown.curr_stock_amt || 0),
       stagnant_stock_amt: 0,
       period_tag_sales: Number(breakdown.period_tag_sales || 0),
+      current_month_depleted: fallbackSalesAmt,
       sales_yoy_pct: breakdown.period_sales_yoy_pct ?? null,
-      discount_rate: breakdown.discount_rate ?? null,
-      target_info: null,
+      discount_rate: heatmapCell?.actual_discount_rate ?? breakdown.discount_rate ?? null,
+      target_info: heatmapTargetInfo
+        ? {
+            monthly: heatmapTargetInfo,
+            cumulative: null,
+          }
+        : null,
       completed: Number(breakdown.curr_stock_amt || 0) <= 0,
       category_nodes: breakdown.category_nodes || [],
     };
@@ -623,6 +649,17 @@ export default function Section3Card({
       }
       if (Number(card.period_tag_sales || 0) <= 0) {
         card.period_tag_sales = fallback.period_tag_sales;
+      }
+      if (Number(card.current_month_depleted || 0) <= 0) {
+        card.current_month_depleted = fallback.current_month_depleted;
+      }
+      if (!card.target_info && fallback.target_info) {
+        card.target_info = fallback.target_info;
+      } else if (!card.target_info?.monthly && fallback.target_info?.monthly) {
+        card.target_info = {
+          ...(card.target_info || {}),
+          monthly: fallback.target_info.monthly,
+        };
       }
       if (!card.category_nodes && fallback.category_nodes) {
         card.category_nodes = fallback.category_nodes;
@@ -817,7 +854,7 @@ export default function Section3Card({
           stockAmt: card.curr_stock_amt,
           stagnantStockAmt: card.stagnant_stock_amt,
           salesAmt: targetMode === 'monthly'
-            ? Number(card.current_month_depleted || 0)
+            ? Number(card.current_month_depleted ?? card.period_tag_sales ?? 0)
             : Number(card.ytd_tag_sales ?? card.period_tag_sales ?? 0),
           salesYoyPct: card.sales_yoy_pct,
           targetInfo: card.target_info?.[targetMode] || null,
