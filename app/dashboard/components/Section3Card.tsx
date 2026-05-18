@@ -1599,6 +1599,7 @@ export default function Section3Card({
     salesPushDetailRequestKeyRef.current = requestKey;
 
     const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 25000);
     const fetchSalesPushDetail = async () => {
       try {
         setSalesPushDetailLoading(true);
@@ -1608,7 +1609,7 @@ export default function Section3Card({
           brand,
           date,
           category_filter: categoryFilter,
-          include_yoy: 'true',
+          include_yoy: 'false',
         });
         const res = await fetch(`/api/section3/old-season-inventory?${params.toString()}`, {
           signal: controller.signal,
@@ -1619,11 +1620,17 @@ export default function Section3Card({
         const json = await res.json();
         setSalesPushDetailData(json);
       } catch (error: any) {
-        if (error?.name === 'AbortError') return;
+        if (error?.name === 'AbortError') {
+          salesPushDetailRequestKeyRef.current = null;
+          setSalesPushDetailLoading(false);
+          setSalesPushDetailError(language === 'ko' ? '상세 조회 시간이 초과되었습니다. 잠시 후 다시 열어주세요.' : 'Detail request timed out. Please try again shortly.');
+          return;
+        }
         console.error('Failed to fetch sales-push detail data:', error);
         salesPushDetailRequestKeyRef.current = null;
         setSalesPushDetailError(language === 'ko' ? '상세 데이터를 불러오지 못했습니다.' : 'Failed to load detail data.');
       } finally {
+        window.clearTimeout(timeoutId);
         if (!controller.signal.aborted) {
           setSalesPushDetailLoading(false);
         }
@@ -1631,7 +1638,10 @@ export default function Section3Card({
     };
 
     fetchSalesPushDetail();
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [
     categoryFilter,
     hasSalesPushSkuDetail,
