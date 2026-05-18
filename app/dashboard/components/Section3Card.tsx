@@ -584,8 +584,59 @@ export default function Section3Card({
     : detailSeasonType === 'F'
       ? (language === 'ko' ? '과시즌F' : 'Old F')
       : '';
+  const fallbackInventorySegmentCards = Array.isArray(section3Data?.inventory_segment_cards)
+    ? section3Data.inventory_segment_cards
+    : [];
+  const activePastSeasonKey = detailSeasonType === 'S' ? 'past_s' : 'past_f';
+  const activePastSeasonInventoryCard = fallbackInventorySegmentCards.find(
+    (card: any) => card?.key === activePastSeasonKey
+  );
+  const activePastSeasonBreakdown = Array.isArray(activePastSeasonInventoryCard?.breakdown)
+    ? activePastSeasonInventoryCard.breakdown
+    : [];
+  const getFallbackYearCard = (rank: number) => {
+    const labelKey = rank === 1 ? 'y1' : rank === 2 ? 'y2' : 'y3_plus';
+    const breakdown = activePastSeasonBreakdown.find((item: any) => item?.label_key === labelKey);
+    if (!breakdown) return null;
+    return {
+      year_bucket: rank === 1 ? '1년차' : rank === 2 ? '2년차' : '3년차 이상',
+      season_code: '',
+      curr_stock_amt: Number(breakdown.curr_stock_amt || 0),
+      stagnant_stock_amt: 0,
+      period_tag_sales: Number(breakdown.period_tag_sales || 0),
+      sales_yoy_pct: breakdown.period_sales_yoy_pct ?? null,
+      discount_rate: breakdown.discount_rate ?? null,
+      target_info: null,
+      completed: Number(breakdown.curr_stock_amt || 0) <= 0,
+      category_nodes: breakdown.category_nodes || [],
+    };
+  };
   const normalizedYearCards = (() => {
     const cards = [...yearCards];
+    if (cards.length === 0) {
+      [1, 2, 3].forEach((rank) => {
+        const fallback = getFallbackYearCard(rank);
+        if (fallback && (fallback.curr_stock_amt > 0 || fallback.period_tag_sales > 0 || rank === 3)) {
+          cards.push(fallback);
+        }
+      });
+    } else {
+      cards.forEach((card: any) => {
+        const rank = getYearBucketRank(card?.year_bucket);
+        if (rank === null) return;
+        const fallback = getFallbackYearCard(rank);
+        if (!fallback) return;
+        if (Number(card.curr_stock_amt || 0) <= 0) {
+          card.curr_stock_amt = fallback.curr_stock_amt;
+        }
+        if (Number(card.period_tag_sales || 0) <= 0) {
+          card.period_tag_sales = fallback.period_tag_sales;
+        }
+        if (!card.category_nodes && fallback.category_nodes) {
+          card.category_nodes = fallback.category_nodes;
+        }
+      });
+    }
     const hasThirdYearCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === 3);
     if (region === 'TW' && !hasThirdYearCard) {
       cards.push({
@@ -602,6 +653,8 @@ export default function Section3Card({
     }
     return cards;
   })();
+  const fallbackDetailStockAmt = Number(activePastSeasonInventoryCard?.curr_stock_amt || 0);
+  const detailTotalStockAmt = Number(detailTotalCard?.curr_stock_amt || 0) || fallbackDetailStockAmt;
   const salesPushWindow = (() => {
     if (!section3Data?.asof_date) {
       return {
@@ -749,7 +802,7 @@ export default function Section3Card({
           key: 'all',
           title: language === 'ko' ? '전체' : 'Total',
           seasonCode: '',
-          stockAmt: detailTotalCard?.curr_stock_amt || 0,
+          stockAmt: detailTotalStockAmt,
           salesAmt: targetMode === 'monthly'
             ? Number(section3Data?.header?.current_month_depleted || 0)
             : Number(section3Data?.header?.ytd_tag_sales ?? detailTotalCard?.ytd_tag_sales ?? detailTotalCard?.period_tag_sales ?? 0),
@@ -1193,7 +1246,7 @@ export default function Section3Card({
     map.set('all', {
       key: 'all',
       label: language === 'ko' ? '전체' : 'Total',
-      curr_stock_amt: detailTotalCard?.curr_stock_amt || 0,
+      curr_stock_amt: detailTotalStockAmt,
       ly_curr_stock_amt: null,
       yoy_pct: null,
       sales_amt: detailTotalCard?.period_tag_sales || 0,
