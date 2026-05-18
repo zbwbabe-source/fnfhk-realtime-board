@@ -613,44 +613,44 @@ export default function Section3Card({
   };
   const normalizedYearCards = (() => {
     const cards = [...yearCards];
-    if (cards.length === 0) {
-      [1, 2, 3].forEach((rank) => {
-        const fallback = getFallbackYearCard(rank);
-        if (fallback && (fallback.curr_stock_amt > 0 || fallback.period_tag_sales > 0 || rank === 3)) {
-          cards.push(fallback);
-        }
-      });
-    } else {
-      cards.forEach((card: any) => {
-        const rank = getYearBucketRank(card?.year_bucket);
-        if (rank === null) return;
-        const fallback = getFallbackYearCard(rank);
-        if (!fallback) return;
-        if (Number(card.curr_stock_amt || 0) <= 0) {
-          card.curr_stock_amt = fallback.curr_stock_amt;
-        }
-        if (Number(card.period_tag_sales || 0) <= 0) {
-          card.period_tag_sales = fallback.period_tag_sales;
-        }
-        if (!card.category_nodes && fallback.category_nodes) {
-          card.category_nodes = fallback.category_nodes;
-        }
-      });
-    }
-    const hasThirdYearCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === 3);
-    if (region === 'TW' && !hasThirdYearCard) {
-      cards.push({
-        year_bucket: '3년차 이상',
-        season_code: '',
-        curr_stock_amt: 0,
-        stagnant_stock_amt: 0,
-        period_tag_sales: 0,
-        sales_yoy_pct: null,
-        discount_rate: null,
-        target_info: null,
-        completed: true,
-      });
-    }
+    cards.forEach((card: any) => {
+      const rank = getYearBucketRank(card?.year_bucket);
+      if (rank === null) return;
+      const fallback = getFallbackYearCard(rank);
+      if (!fallback) return;
+      if (Number(card.curr_stock_amt || 0) <= 0) {
+        card.curr_stock_amt = fallback.curr_stock_amt;
+      }
+      if (Number(card.period_tag_sales || 0) <= 0) {
+        card.period_tag_sales = fallback.period_tag_sales;
+      }
+      if (!card.category_nodes && fallback.category_nodes) {
+        card.category_nodes = fallback.category_nodes;
+      }
+    });
+
+    [1, 2, 3].forEach((rank) => {
+      const hasRankCard = cards.some((card: any) => getYearBucketRank(card?.year_bucket) === rank);
+      if (hasRankCard) return;
+      const fallback = getFallbackYearCard(rank);
+      if (fallback && (fallback.curr_stock_amt > 0 || fallback.period_tag_sales > 0 || rank === 3)) {
+        cards.push(fallback);
+        return;
+      }
+      if (region === 'TW' && rank === 3) {
+        cards.push({
+          year_bucket: '3년차 이상',
+          season_code: '',
+          curr_stock_amt: 0,
+          stagnant_stock_amt: 0,
+          period_tag_sales: 0,
+          sales_yoy_pct: null,
+          discount_rate: null,
+          target_info: null,
+          completed: true,
+        });
+      }
+    });
     return cards;
   })();
   const fallbackDetailStockAmt = Number(activePastSeasonInventoryCard?.curr_stock_amt || 0);
