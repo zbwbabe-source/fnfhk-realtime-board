@@ -339,6 +339,38 @@ export default function Section3Card({
   };
 
   const periodStartInfo = getPeriodStartInfo();
+  const getActivePastSeasonInventoryCard = () => {
+    const activePastSeasonKey = String(section3Data?.season_type || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    return Array.isArray(section3Data?.inventory_segment_cards)
+      ? section3Data.inventory_segment_cards.find((card: any) => card?.key === activePastSeasonKey)
+      : null;
+  };
+  const getFallbackStagnantByYear = () => {
+    const card = getActivePastSeasonInventoryCard();
+    const breakdown = Array.isArray(card?.breakdown) ? card.breakdown : [];
+    const result: Record<'y1' | 'y2' | 'y3_plus' | 'total', number> = {
+      y1: 0,
+      y2: 0,
+      y3_plus: 0,
+      total: 0,
+    };
+
+    breakdown.forEach((item: any) => {
+      const labelKey = String(item?.label_key || '') as 'y1' | 'y2' | 'y3_plus';
+      if (labelKey !== 'y1' && labelKey !== 'y2' && labelKey !== 'y3_plus') return;
+      const nodes = Array.isArray(item?.category_nodes) ? item.category_nodes : [];
+      const stagnantAmt = nodes.reduce((sum: number, node: any) => {
+        const stockAmt = Number(node?.curr_stock_amt || 0);
+        const monthSales = Number(node?.current_month_tag_sales || 0);
+        if (stockAmt <= 0) return sum;
+        return monthSales <= 0 || monthSales < stockAmt * 0.001 ? sum + stockAmt : sum;
+      }, 0);
+      result[labelKey] = stagnantAmt;
+      result.total += stagnantAmt;
+    });
+
+    return result;
+  };
 
   const calculateKPIs = () => {
     if (!section3Data?.header) {
@@ -351,16 +383,14 @@ export default function Section3Card({
     }
 
     const header = section3Data.header;
-    const activePastSeasonKey = String(section3Data?.season_type || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
-    const fallbackPastSeasonCard = Array.isArray(section3Data?.inventory_segment_cards)
-      ? section3Data.inventory_segment_cards.find((card: any) => card?.key === activePastSeasonKey)
-      : null;
+    const fallbackPastSeasonCard = getActivePastSeasonInventoryCard();
     const currentStock = header.curr_stock_amt || Number(fallbackPastSeasonCard?.curr_stock_amt || 0);
     const currentStockYoyPct =
       (header.curr_stock_yoy_pct as number | null | undefined) ??
       (typeof fallbackPastSeasonCard?.yoy_pct === 'number' ? fallbackPastSeasonCard.yoy_pct : null);
     const inventoryDays = header.inv_days as number | null | undefined;
-    const stagnantStock = header.stagnant_stock_amt || 0;
+    const fallbackStagnantByYear = getFallbackStagnantByYear();
+    const stagnantStock = header.stagnant_stock_amt || fallbackStagnantByYear.total || 0;
     const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;
     const prevMonthStagnantRatio = (header.prev_month_stagnant_ratio || 0) * 100;
     const stagnantRatioChange = stagnantRatio - prevMonthStagnantRatio;
@@ -553,9 +583,10 @@ export default function Section3Card({
   };
 
   const kpis = calculateKPIs();
+  const headerFallbackStagnantByYear = getFallbackStagnantByYear();
   const stagnantRatioRisk =
     section3Data?.header?.curr_stock_amt > 0
-      ? (section3Data.header.stagnant_stock_amt / section3Data.header.curr_stock_amt) * 100
+      ? ((section3Data.header.stagnant_stock_amt || headerFallbackStagnantByYear.total || 0) / section3Data.header.curr_stock_amt) * 100
       : 0;
   const showRiskBadge = stagnantRatioRisk >= 30;
   const seasonType = getSection3SeasonType();
@@ -594,6 +625,7 @@ export default function Section3Card({
   const activePastSeasonBreakdown = Array.isArray(activePastSeasonInventoryCard?.breakdown)
     ? activePastSeasonInventoryCard.breakdown
     : [];
+  const fallbackStagnantByYear = getFallbackStagnantByYear();
   const getFallbackYearCard = (rank: number) => {
     const labelKey = rank === 1 ? 'y1' : rank === 2 ? 'y2' : 'y3_plus';
     const breakdown = activePastSeasonBreakdown.find((item: any) => item?.label_key === labelKey);
@@ -622,7 +654,7 @@ export default function Section3Card({
       year_bucket: yearBucket,
       season_code: '',
       curr_stock_amt: Number(breakdown.curr_stock_amt || 0),
-      stagnant_stock_amt: 0,
+      stagnant_stock_amt: fallbackStagnantByYear[labelKey],
       period_tag_sales: Number(breakdown.period_tag_sales || 0),
       current_month_depleted: fallbackSalesAmt,
       sales_yoy_pct: breakdown.period_sales_yoy_pct ?? null,
@@ -692,6 +724,12 @@ export default function Section3Card({
   })();
   const fallbackDetailStockAmt = Number(activePastSeasonInventoryCard?.curr_stock_amt || 0);
   const detailTotalStockAmt = Number(detailTotalCard?.curr_stock_amt || 0) || fallbackDetailStockAmt;
+  const effectiveStagnantStockAmt =
+    Number(summaryCards?.stagnant_card?.stagnant_stock_amt || 0) || fallbackStagnantByYear.total;
+  const effectiveStagnantRatio =
+    Number(summaryCards?.stagnant_card?.stagnant_ratio || 0) ||
+    (detailTotalStockAmt > 0 ? effectiveStagnantStockAmt / detailTotalStockAmt : 0);
+  const effectivePrevMonthStagnantRatio = Number(summaryCards?.stagnant_card?.prev_month_stagnant_ratio || 0);
   const salesPushWindow = (() => {
     if (!section3Data?.asof_date) {
       return {
@@ -866,13 +904,13 @@ export default function Section3Card({
               key: 'stagnant',
               title: language === 'ko' ? '정체재고' : 'Stagnant Stock',
               seasonCode: '',
-              stockAmt: summaryCards.stagnant_card.stagnant_stock_amt,
+              stockAmt: effectiveStagnantStockAmt,
               salesAmt: null,
               salesYoyPct: null,
               targetInfo: null,
               discountRate: null,
-              stagnantRatio: summaryCards.stagnant_card.stagnant_ratio,
-              prevMonthStagnantRatio: summaryCards.stagnant_card.prev_month_stagnant_ratio,
+              stagnantRatio: effectiveStagnantRatio,
+              prevMonthStagnantRatio: effectivePrevMonthStagnantRatio,
               invDays: summaryCards.stagnant_card.inv_days,
               breakdown: normalizedYearCards.map((yearCard: any) => ({
                 label: getYearBucketLabel(yearCard.year_bucket),
@@ -1315,7 +1353,7 @@ export default function Section3Card({
       map.set('stagnant', {
         key: 'stagnant',
         label: language === 'ko' ? '정체재고' : 'Stagnant Stock',
-        curr_stock_amt: summaryCards.stagnant_card.stagnant_stock_amt,
+        curr_stock_amt: effectiveStagnantStockAmt,
         ly_curr_stock_amt: null,
         yoy_pct: null,
         sales_amt: null,
