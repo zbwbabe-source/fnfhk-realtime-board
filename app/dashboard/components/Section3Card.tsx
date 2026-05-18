@@ -811,6 +811,7 @@ export default function Section3Card({
       totalSalesRatePct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
     };
   })();
+  const canOpenSalesPushDetail = !simpleDetail && effectiveStagnantStockAmt > 0;
   const salesPushYearRows = ['1년차', '2년차', '3년차 이상']
     .map((bucket) => {
       const rows = salesPushSkuRows.filter((row: any) => row.year_bucket === bucket);
@@ -1584,7 +1585,7 @@ export default function Section3Card({
   useEffect(() => {
     if (!salesPushModalOpen) return;
     if (hasSalesPushSkuDetail || salesPushDetailData) return;
-    if (!summarySalesPush || Number(summarySalesPush.total_amt || 0) <= 0) return;
+    if (!canOpenSalesPushDetail) return;
 
     const date = String(section3Data?.asof_date || '');
     const brand = String(section3Data?.brand || '');
@@ -1640,7 +1641,7 @@ export default function Section3Card({
     salesPushModalOpen,
     section3Data?.asof_date,
     section3Data?.brand,
-    summarySalesPush,
+    canOpenSalesPushDetail,
   ]);
 
   useEffect(() => {
@@ -1943,7 +1944,7 @@ export default function Section3Card({
                   : `${getPeriodModeLabel()} Period ${periodStartInfo.replace(/^\(|\)$/g, '')}`}
               </span>
             ) : null}
-            {salesPushSummary.totalAmt > 0 ? (
+            {canOpenSalesPushDetail ? (
               <button
                 type="button"
                 onClick={() => {
@@ -1955,7 +1956,9 @@ export default function Section3Card({
                 }`}
               >
                 <span>{language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}</span>
-                <span>{formatCurrency(salesPushSummary.totalAmt || 0)}</span>
+                {salesPushSummary.totalAmt > 0 ? (
+                  <span>{formatCurrency(salesPushSummary.totalAmt || 0)}</span>
+                ) : null}
               </button>
             ) : null}
           </div>
@@ -3324,34 +3327,6 @@ export default function Section3Card({
 
               return (
                 <div key={card.key} className="flex h-full min-w-0 flex-col">
-                  {card.key === 'stagnant' && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
-                    <div className="mb-1.5 flex justify-start">
-                      <button
-                        type="button"
-                        onClick={() => setSalesPushModalOpen(true)}
-                        className="inline-flex max-w-full items-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100"
-                      >
-                        <div className="hidden min-w-0">
-                          <p className="text-xs font-semibold text-rose-700">
-                            {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
-                          </p>
-                          {salesPushWindow ? (
-                            <p className="mt-0.5 text-[10px] leading-tight text-gray-500">
-                              {language === 'ko'
-                                ? `전년 동일 30일 판매 기준 ${salesPushWindow?.start}~${salesPushWindow?.end}`
-                                : `LY 30-day sales window ${salesPushWindow?.start}~${salesPushWindow?.end}`}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span className="truncate text-rose-700">
-                          {language === 'ko' ? '판매Push 정체재고' : 'Sales-Push Stagnant'}
-                        </span>
-                        <span className="shrink-0 font-bold text-rose-700">
-                          {formatCurrency(salesPushSummary.totalAmt || 0)}
-                        </span>
-                      </button>
-                    </div>
-                  ) : null}
                 <button
                   type="button"
                   onClick={() => {
