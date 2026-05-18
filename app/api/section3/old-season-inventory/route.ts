@@ -162,6 +162,22 @@ export async function GET(request: NextRequest) {
               !row.sales_push_flag ||
               Object.prototype.hasOwnProperty.call(row, 'ly_push_30d_sales_qty')
           );
+        const hasSalesPushFields =
+          lightweight ||
+          (
+            payload &&
+            Array.isArray(payload.skus) &&
+            payload.skus.every(
+              (row: any) =>
+                Object.prototype.hasOwnProperty.call(row, 'sales_push_flag') &&
+                Object.prototype.hasOwnProperty.call(row, 'sales_push_stagnant_amt') &&
+                Object.prototype.hasOwnProperty.call(row, 'sales_push_stagnant_qty') &&
+                Object.prototype.hasOwnProperty.call(row, 'ly_push_30d_tag_sales') &&
+                Object.prototype.hasOwnProperty.call(row, 'ly_push_30d_sales_qty')
+            ) &&
+            payload.summary_cards &&
+            payload.summary_cards.sales_push_summary
+          );
         const hasTargetInfo =
           region !== 'HKMC' ||
           (
@@ -210,6 +226,7 @@ export async function GET(request: NextRequest) {
           hasCategoryQtyFields &&
           hasSkuQtyFields &&
           hasSalesPushLyQtyFields &&
+          hasSalesPushFields &&
           hasTargetInfo &&
           hasDetailSeasonType &&
           hasDetailSummaryCard
