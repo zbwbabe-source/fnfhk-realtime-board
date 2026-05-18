@@ -3324,7 +3324,7 @@ export default function Section3Card({
 
               return (
                 <div key={card.key} className="flex h-full min-w-0 flex-col">
-                  {false && card.key === 'stagnant' && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
+                  {card.key === 'stagnant' && !simpleDetail && salesPushSummary.totalAmt > 0 ? (
                     <div className="mb-1.5 flex justify-start">
                       <button
                         type="button"
