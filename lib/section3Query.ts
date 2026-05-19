@@ -2499,16 +2499,22 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         .filter((item) => item.curr_stock_amt > 0 || (item.ly_curr_stock_amt ?? 0) > 0);
     type CategoryNodeAgg = {
       curr_stock_amt: number;
+      curr_stock_qty: number;
       current_month_tag_sales: number;
+      current_month_sales_qty: number;
       current_month_act_sales: number;
       period_tag_sales: number;
+      period_sales_qty: number;
       period_act_sales: number;
     };
     const createCategoryNodeAgg = (): CategoryNodeAgg => ({
       curr_stock_amt: 0,
+      curr_stock_qty: 0,
       current_month_tag_sales: 0,
+      current_month_sales_qty: 0,
       current_month_act_sales: 0,
       period_tag_sales: 0,
+      period_sales_qty: 0,
       period_act_sales: 0,
     });
     const sortCategoryNodesWithYoy = (
@@ -2534,15 +2540,20 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           return {
             cat2,
             curr_stock_amt: curr.curr_stock_amt,
+            curr_stock_qty: curr.curr_stock_qty,
             ly_curr_stock_amt: ly.curr_stock_amt > 0 ? ly.curr_stock_amt : null,
             yoy_pct: buildYoyPct(curr.curr_stock_amt, ly.curr_stock_amt),
             stock_share_pct: currShare,
             stock_share_diff_pct: currShare !== null && lyShare !== null ? currShare - lyShare : null,
             period_tag_sales: curr.period_tag_sales,
+            period_sales_qty: curr.period_sales_qty,
             ly_period_tag_sales: ly.period_tag_sales > 0 ? ly.period_tag_sales : null,
+            ly_period_sales_qty: ly.period_sales_qty > 0 ? ly.period_sales_qty : null,
             period_sales_yoy_pct: buildYoyPct(curr.period_tag_sales, ly.period_tag_sales),
             current_month_tag_sales: curr.current_month_tag_sales,
+            current_month_sales_qty: curr.current_month_sales_qty,
             ly_current_month_tag_sales: ly.current_month_tag_sales > 0 ? ly.current_month_tag_sales : null,
+            ly_current_month_sales_qty: ly.current_month_sales_qty > 0 ? ly.current_month_sales_qty : null,
             current_month_sales_yoy_pct: buildYoyPct(curr.current_month_tag_sales, ly.current_month_tag_sales),
             ytd_tag_sales: curr.period_tag_sales,
             ly_ytd_tag_sales: ly.period_tag_sales > 0 ? ly.period_tag_sales : null,
@@ -2589,9 +2600,12 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           if (!isMatch) continue;
           const existing = totals.get(cat2) || createCategoryNodeAgg();
           existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.curr_stock_qty += parseFloat(row.CURR_STOCK_QTY || 0) || 0;
           existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+          existing.current_month_sales_qty += parseFloat(row.CURRENT_MONTH_SALES_QTY || 0) || 0;
           existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
           existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+          existing.period_sales_qty += parseFloat(row.PERIOD_SALES_QTY || 0) || 0;
           existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
           totals.set(cat2, existing);
         }
@@ -2642,9 +2656,12 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
           if (groupedLabel !== labelKey) continue;
           const existing = totals.get(cat2) || createCategoryNodeAgg();
           existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+          existing.curr_stock_qty += parseFloat(row.CURR_STOCK_QTY || 0) || 0;
           existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+          existing.current_month_sales_qty += parseFloat(row.CURRENT_MONTH_SALES_QTY || 0) || 0;
           existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
           existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+          existing.period_sales_qty += parseFloat(row.PERIOD_SALES_QTY || 0) || 0;
           existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
           totals.set(cat2, existing);
         }
@@ -2681,9 +2698,12 @@ WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
         if (!matchesTarget || sesn !== seasonLabel) continue;
         const existing = totals.get(cat2) || createCategoryNodeAgg();
         existing.curr_stock_amt += applyRateForDate(parseFloat(row.CURR_STOCK_AMT || 0) || 0);
+        existing.curr_stock_qty += parseFloat(row.CURR_STOCK_QTY || 0) || 0;
         existing.current_month_tag_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_TAG_SALES || 0) || 0);
+        existing.current_month_sales_qty += parseFloat(row.CURRENT_MONTH_SALES_QTY || 0) || 0;
         existing.current_month_act_sales += applyRateForDate(parseFloat(row.CURRENT_MONTH_ACT_SALES || 0) || 0);
         existing.period_tag_sales += applyRateForDate(parseFloat(row.PERIOD_TAG_SALES || 0) || 0);
+        existing.period_sales_qty += parseFloat(row.PERIOD_SALES_QTY || 0) || 0;
         existing.period_act_sales += applyRateForDate(parseFloat(row.PERIOD_ACT_SALES || 0) || 0);
         totals.set(cat2, existing);
       }
@@ -2868,7 +2888,8 @@ stock_by_cat AS (
   SELECT
     s.SESN,
     SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
-    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT,
+    COALESCE(SUM(s.STOCK_QTY), 0) AS CURR_STOCK_QTY
   FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
   CROSS JOIN latest_stock_date l
   WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
@@ -2881,8 +2902,10 @@ sales_by_cat AS (
     S.SESN,
     SUBSTR(S.PART_CD, 3, 2) AS CAT2,
     COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_TAG_SALES,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.SALE_QTY ELSE 0 END), 0) AS CURRENT_MONTH_SALES_QTY,
     COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_ACT_SALES,
     COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
+    COALESCE(SUM(S.SALE_QTY), 0) AS PERIOD_SALES_QTY,
     COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
   FROM SAP_FNF.DW_HMD_SALE_D S
   WHERE ${brandFilter}
@@ -2895,9 +2918,12 @@ SELECT
   CONCAT('XX', st.CAT2) AS PRDT_CD,
   st.CAT2,
   st.CURR_STOCK_AMT,
+  st.CURR_STOCK_QTY,
   COALESCE(sa.CURRENT_MONTH_TAG_SALES, 0) AS CURRENT_MONTH_TAG_SALES,
+  COALESCE(sa.CURRENT_MONTH_SALES_QTY, 0) AS CURRENT_MONTH_SALES_QTY,
   COALESCE(sa.CURRENT_MONTH_ACT_SALES, 0) AS CURRENT_MONTH_ACT_SALES,
   COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
+  COALESCE(sa.PERIOD_SALES_QTY, 0) AS PERIOD_SALES_QTY,
   COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
 FROM stock_by_cat st
 LEFT JOIN sales_by_cat sa
@@ -2909,6 +2935,8 @@ LEFT JOIN sales_by_cat sa
       normalizedBrand,
       targetDate,
       normalizedBrand,
+      currentMonthStart,
+      targetDate,
       currentMonthStart,
       targetDate,
       currentMonthStart,
@@ -2937,7 +2965,8 @@ stock_by_cat AS (
   SELECT
     s.SESN,
     s.SUB_CTGR AS CAT2,
-    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT,
+    COALESCE(SUM(s.STOCK_QTY), 0) AS CURR_STOCK_QTY
   FROM SAP_FNF.PREP_HMD_STOCK s
   CROSS JOIN latest_month m
   WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
@@ -2950,8 +2979,10 @@ sales_by_cat AS (
     S.SESN,
     SUBSTR(S.PART_CD, 3, 2) AS CAT2,
     COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.TAG_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_TAG_SALES,
+    COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.SALE_QTY ELSE 0 END), 0) AS CURRENT_MONTH_SALES_QTY,
     COALESCE(SUM(CASE WHEN S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?) THEN S.ACT_SALE_AMT ELSE 0 END), 0) AS CURRENT_MONTH_ACT_SALES,
     COALESCE(SUM(S.TAG_SALE_AMT), 0) AS PERIOD_TAG_SALES,
+    COALESCE(SUM(S.SALE_QTY), 0) AS PERIOD_SALES_QTY,
     COALESCE(SUM(S.ACT_SALE_AMT), 0) AS PERIOD_ACT_SALES
   FROM SAP_FNF.DW_HMD_SALE_D S
   WHERE ${brandFilter}
@@ -2964,9 +2995,12 @@ SELECT
   CONCAT('XX', st.CAT2) AS PRDT_CD,
   st.CAT2,
   st.CURR_STOCK_AMT,
+  st.CURR_STOCK_QTY,
   COALESCE(sa.CURRENT_MONTH_TAG_SALES, 0) AS CURRENT_MONTH_TAG_SALES,
+  COALESCE(sa.CURRENT_MONTH_SALES_QTY, 0) AS CURRENT_MONTH_SALES_QTY,
   COALESCE(sa.CURRENT_MONTH_ACT_SALES, 0) AS CURRENT_MONTH_ACT_SALES,
   COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
+  COALESCE(sa.PERIOD_SALES_QTY, 0) AS PERIOD_SALES_QTY,
   COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
 FROM stock_by_cat st
 LEFT JOIN sales_by_cat sa
@@ -2978,6 +3012,8 @@ LEFT JOIN sales_by_cat sa
       normalizedBrand,
       yyyymm,
       normalizedBrand,
+      currentMonthStart,
+      targetDate,
       currentMonthStart,
       targetDate,
       currentMonthStart,
@@ -3088,8 +3124,10 @@ LEFT JOIN sales_by_cat sa
       if (!yearBucket) return;
       (Array.isArray(bucket?.category_nodes) ? bucket.category_nodes : []).forEach((node: any) => {
         const stockAmt = Number(node?.curr_stock_amt || 0);
+        const stockQty = Number(node?.curr_stock_qty || 0);
         const currentMonthSales = Number(node?.current_month_tag_sales || 0);
         const lyPushSales = Number(node?.ly_current_month_tag_sales || node?.ly_period_tag_sales || 0);
+        const lyPushSalesQty = Number(node?.ly_current_month_sales_qty || node?.ly_period_sales_qty || 0);
         const stagnant = stockAmt > 0 && (currentMonthSales <= 0 || currentMonthSales < stockAmt * 0.001);
         const qualifies = stagnant && lyPushSales >= stockAmt * 0.05;
         fallbackRows.push({
@@ -3100,16 +3138,16 @@ LEFT JOIN sales_by_cat sa
           is_synthetic_category: true,
           base_stock_amt: 0,
           curr_stock_amt: stockAmt,
-          curr_stock_qty: qualifies ? 10 : 0,
+          curr_stock_qty: stockQty,
           stagnant_stock_amt: stagnant ? stockAmt : 0,
-          stagnant_stock_qty: qualifies ? 10 : 0,
+          stagnant_stock_qty: stagnant ? stockQty : 0,
           depleted_stock_amt: 0,
           period_tag_sales: Number(node?.period_tag_sales || 0),
           period_act_sales: 0,
           ly_push_30d_tag_sales: lyPushSales,
-          ly_push_30d_sales_qty: 0,
+          ly_push_30d_sales_qty: lyPushSalesQty,
           sales_push_stagnant_amt: qualifies ? stockAmt : 0,
-          sales_push_stagnant_qty: qualifies ? 10 : 0,
+          sales_push_stagnant_qty: qualifies ? stockQty : 0,
           sales_push_flag: qualifies,
         });
       });
@@ -3119,7 +3157,10 @@ LEFT JOIN sales_by_cat sa
     if (qualifiedRows.length > 0) {
       const totalAmt = qualifiedRows.reduce((sum, row) => sum + Number(row.sales_push_stagnant_amt || 0), 0);
       const totalLySales = qualifiedRows.reduce((sum, row) => sum + Number(row.ly_push_30d_tag_sales || 0), 0);
+      const totalLySalesQty = qualifiedRows.reduce((sum, row) => sum + Number(row.ly_push_30d_sales_qty || 0), 0);
       const totalCurrentStockAmt = qualifiedRows.reduce((sum, row) => sum + Number(row.curr_stock_amt || 0), 0);
+      const totalCurrentStockQty = qualifiedRows.reduce((sum, row) => sum + Number(row.curr_stock_qty || 0), 0);
+      const totalStagnantQty = qualifiedRows.reduce((sum, row) => sum + Number(row.sales_push_stagnant_qty || 0), 0);
       const effectiveStagnantAmt =
         Number(response.summary_cards?.stagnant_card?.stagnant_stock_amt || 0) ||
         fallbackRows.reduce((sum, row) => sum + Number(row.stagnant_stock_amt || 0), 0);
@@ -3130,10 +3171,10 @@ LEFT JOIN sales_by_cat sa
           total_amt: totalAmt,
           total_sku_count: qualifiedRows.length,
           total_ly_sales: totalLySales,
-          total_ly_sales_qty: 0,
+          total_ly_sales_qty: totalLySalesQty,
           total_current_stock_amt: totalCurrentStockAmt,
-          total_current_stock_qty: 0,
-          total_stagnant_qty: 0,
+          total_current_stock_qty: totalCurrentStockQty,
+          total_stagnant_qty: totalStagnantQty,
           share_of_stagnant_pct: effectiveStagnantAmt > 0 ? (totalAmt / effectiveStagnantAmt) * 100 : null,
           total_sales_rate_pct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
         },

@@ -775,8 +775,10 @@ export default function Section3Card({
       if (!yearBucket) return;
       (Array.isArray(bucket?.category_nodes) ? bucket.category_nodes : []).forEach((node: any) => {
         const stockAmt = Number(node?.curr_stock_amt || 0);
+        const stockQty = Number(node?.curr_stock_qty || 0);
         const currentMonthSales = Number(node?.current_month_tag_sales || 0);
         const lyPushSales = Number(node?.ly_current_month_tag_sales || node?.ly_period_tag_sales || 0);
+        const lyPushSalesQty = Number(node?.ly_current_month_sales_qty || node?.ly_period_sales_qty || 0);
         const stagnant = stockAmt > 0 && (currentMonthSales <= 0 || currentMonthSales < stockAmt * 0.001);
         const qualifies = stagnant && lyPushSales >= stockAmt * 0.05;
         rows.push({
@@ -784,12 +786,12 @@ export default function Section3Card({
           cat2: String(node?.cat2 || ''),
           prdt_cd: String(node?.cat2 || ''),
           sales_push_stagnant_amt: qualifies ? stockAmt : 0,
-          sales_push_stagnant_qty: qualifies ? 10 : 0,
+          sales_push_stagnant_qty: qualifies ? stockQty : 0,
           is_synthetic_category: true,
           curr_stock_amt: stockAmt,
-          curr_stock_qty: 0,
+          curr_stock_qty: stockQty,
           ly_push_30d_tag_sales: lyPushSales,
-          ly_push_30d_sales_qty: 0,
+          ly_push_30d_sales_qty: lyPushSalesQty,
           sales_push_flag: qualifies,
         });
       });
