@@ -2997,6 +2997,78 @@ LEFT JOIN sales_by_cat sa
     response.inventory_segment_cards = [];
   }
 
+  const calculatePastSeasonStagnantFromSegments = (cards: any[], targetDate: string) => {
+    const target = new Date(`${targetDate}T00:00:00`);
+    const targetMonth = target.getMonth() + 1;
+    const activePastKey = targetMonth >= 3 && targetMonth <= 8 ? 'past_s' : 'past_f';
+    const activePastCard = Array.isArray(cards)
+      ? cards.find((card: any) => card?.key === activePastKey)
+      : null;
+    const currStockAmt = Number(activePastCard?.curr_stock_amt || 0);
+    const stagnantStockAmt = (Array.isArray(activePastCard?.breakdown) ? activePastCard.breakdown : [])
+      .reduce((bucketSum: number, bucket: any) => {
+        const nodeSum = (Array.isArray(bucket?.category_nodes) ? bucket.category_nodes : [])
+          .reduce((sum: number, node: any) => {
+            const stockAmt = Number(node?.curr_stock_amt || 0);
+            const monthSales = Number(node?.current_month_tag_sales || 0);
+            if (stockAmt <= 0) return sum;
+            return monthSales <= 0 || monthSales < stockAmt * 0.001 ? sum + stockAmt : sum;
+          }, 0);
+        return bucketSum + nodeSum;
+      }, 0);
+
+    return {
+      currStockAmt,
+      stagnantStockAmt,
+      stagnantRatio: currStockAmt > 0 ? stagnantStockAmt / currStockAmt : 0,
+    };
+  };
+
+  try {
+    const currentFallbackStagnant = calculatePastSeasonStagnantFromSegments(response.inventory_segment_cards || [], date);
+    const asof = new Date(`${date}T00:00:00`);
+    const prevMonthEndDate = new Date(asof.getFullYear(), asof.getMonth(), 0);
+    const prevMonthEnd = formatDateYYYYMMDD(prevMonthEndDate);
+    const prevMonthEndLyDate = new Date(`${prevMonthEnd}T00:00:00`);
+    prevMonthEndLyDate.setFullYear(prevMonthEndLyDate.getFullYear() - 1);
+    const prevMonthCards = await buildInventorySegmentCards(prevMonthEnd, formatDateYYYYMMDD(prevMonthEndLyDate));
+    const prevFallbackStagnant = calculatePastSeasonStagnantFromSegments(prevMonthCards, prevMonthEnd);
+
+    if (response.header) {
+      if (!Number(response.header.curr_stock_amt || 0) && currentFallbackStagnant.currStockAmt > 0) {
+        response.header.curr_stock_amt = currentFallbackStagnant.currStockAmt;
+      }
+      if (!Number(response.header.stagnant_stock_amt || 0) && currentFallbackStagnant.stagnantStockAmt > 0) {
+        response.header.stagnant_stock_amt = currentFallbackStagnant.stagnantStockAmt;
+      }
+      if (!Number(response.header.stagnant_ratio || 0) && currentFallbackStagnant.stagnantRatio > 0) {
+        response.header.stagnant_ratio = currentFallbackStagnant.stagnantRatio;
+      }
+      if (prevFallbackStagnant.currStockAmt > 0) {
+        response.header.prev_month_curr_stock_amt = prevFallbackStagnant.currStockAmt;
+        response.header.prev_month_stagnant_stock_amt = prevFallbackStagnant.stagnantStockAmt;
+        response.header.prev_month_stagnant_ratio = prevFallbackStagnant.stagnantRatio;
+      }
+    }
+
+    if (response.summary_cards?.stagnant_card) {
+      if (!Number(response.summary_cards.stagnant_card.curr_stock_amt || 0) && currentFallbackStagnant.currStockAmt > 0) {
+        response.summary_cards.stagnant_card.curr_stock_amt = currentFallbackStagnant.currStockAmt;
+      }
+      if (!Number(response.summary_cards.stagnant_card.stagnant_stock_amt || 0) && currentFallbackStagnant.stagnantStockAmt > 0) {
+        response.summary_cards.stagnant_card.stagnant_stock_amt = currentFallbackStagnant.stagnantStockAmt;
+      }
+      if (!Number(response.summary_cards.stagnant_card.stagnant_ratio || 0) && currentFallbackStagnant.stagnantRatio > 0) {
+        response.summary_cards.stagnant_card.stagnant_ratio = currentFallbackStagnant.stagnantRatio;
+      }
+      if (prevFallbackStagnant.currStockAmt > 0) {
+        response.summary_cards.stagnant_card.prev_month_stagnant_ratio = prevFallbackStagnant.stagnantRatio;
+      }
+    }
+  } catch (error: any) {
+    console.error('[section3] failed to build previous month stagnant fallback:', error.message);
+  }
+
   if (
     !lightweight &&
     (!response.summary_cards?.sales_push_summary || Number(response.summary_cards.sales_push_summary.total_amt || 0) <= 0) &&
