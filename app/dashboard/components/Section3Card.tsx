@@ -748,8 +748,50 @@ export default function Section3Card({
     };
   })();
   const salesPushData = salesPushDetailData || section3Data;
-  const hasSalesPushSkuDetail = Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0;
-  const salesPushBaseSkuRows = (Array.isArray(salesPushData?.skus) ? salesPushData.skus : [])
+  const salesPushInventoryFallbackRows = (() => {
+    if (Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0) return [];
+    const activePastKey = String(salesPushData?.season_type || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    const activePastCard = Array.isArray(salesPushData?.inventory_segment_cards)
+      ? salesPushData.inventory_segment_cards.find((card: any) => card?.key === activePastKey)
+      : null;
+    const yearBucketLabel: Record<string, string> = {
+      y1: '1년차',
+      y2: '2년차',
+      y3_plus: '3년차 이상',
+    };
+    const rows: any[] = [];
+    (Array.isArray(activePastCard?.breakdown) ? activePastCard.breakdown : []).forEach((bucket: any) => {
+      const yearBucket = yearBucketLabel[String(bucket?.label_key || '')];
+      if (!yearBucket) return;
+      (Array.isArray(bucket?.category_nodes) ? bucket.category_nodes : []).forEach((node: any) => {
+        const stockAmt = Number(node?.curr_stock_amt || 0);
+        const currentMonthSales = Number(node?.current_month_tag_sales || 0);
+        const lyPushSales = Number(node?.ly_current_month_tag_sales || node?.ly_period_tag_sales || 0);
+        const stagnant = stockAmt > 0 && (currentMonthSales <= 0 || currentMonthSales < stockAmt * 0.001);
+        const qualifies = stagnant && lyPushSales >= stockAmt * 0.05;
+        rows.push({
+          year_bucket: yearBucket,
+          cat2: String(node?.cat2 || ''),
+          prdt_cd: String(node?.cat2 || ''),
+          sales_push_stagnant_amt: qualifies ? stockAmt : 0,
+          sales_push_stagnant_qty: qualifies ? 10 : 0,
+          is_synthetic_category: true,
+          curr_stock_amt: stockAmt,
+          curr_stock_qty: 0,
+          ly_push_30d_tag_sales: lyPushSales,
+          ly_push_30d_sales_qty: 0,
+          sales_push_flag: qualifies,
+        });
+      });
+    });
+    return rows;
+  })();
+  const salesPushRawRows =
+    Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0
+      ? salesPushData.skus
+      : salesPushInventoryFallbackRows;
+  const hasSalesPushSkuDetail = salesPushRawRows.length > 0;
+  const salesPushBaseSkuRows = salesPushRawRows
     .filter((row: any) => !!row?.sales_push_flag && Number(row?.sales_push_stagnant_amt || 0) > 0)
     .map((row: any) => {
       const currentStockAmt = Number(row?.curr_stock_amt || 0);
@@ -760,6 +802,7 @@ export default function Section3Card({
         prdt_cd: String(row?.prdt_cd || ''),
         sales_push_stagnant_amt: Number(row?.sales_push_stagnant_amt || 0),
         sales_push_stagnant_qty: Number(row?.sales_push_stagnant_qty || 0),
+        is_synthetic_category: !!row?.is_synthetic_category,
         current_stock_amt: currentStockAmt,
         current_stock_qty: Number(row?.curr_stock_qty || 0),
         ly_push_30d_tag_sales: salesAmt,
@@ -768,7 +811,7 @@ export default function Section3Card({
       };
     });
   const salesPushSkuRows = excludeUnder10Pcs
-    ? salesPushBaseSkuRows.filter((row: any) => Number(row?.sales_push_stagnant_qty || 0) >= 10)
+    ? salesPushBaseSkuRows.filter((row: any) => row?.is_synthetic_category || Number(row?.sales_push_stagnant_qty || 0) >= 10)
     : salesPushBaseSkuRows;
   const summarySalesPush = salesPushData?.summary_cards?.sales_push_summary || null;
   const salesPushSummary = (() => {

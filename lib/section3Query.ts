@@ -1877,11 +1877,17 @@ ORDER BY
   lyPushEndDateObj.setDate(lyPushEndDateObj.getDate() + 29);
   const lyPushEndDate = formatDateYYYYMMDD(lyPushEndDateObj);
 
-  const salesPushSourceRows = visibleSkuRows.map((row: any) => ({
+  const salesPushRawRows = visibleSkuRows.length > 0 ? visibleSkuRows : skuRows;
+  const salesPushSourceRows = salesPushRawRows.map((row: any) => {
+    const prdtCd = String(row?.PRDT_CD || '').trim();
+    const cat2 = String(row?.CAT2 || '').trim();
+    const isSyntheticCategory = prdtCd.toUpperCase().startsWith('XX') && prdtCd.length === 4 && prdtCd.slice(2).toUpperCase() === cat2.toUpperCase();
+    return {
     sesn: String(row?.SESN || '').trim(),
-    prdt_cd: String(row?.PRDT_CD || '').trim(),
+    prdt_cd: isSyntheticCategory ? cat2 : prdtCd,
     year_bucket: String(row?.YEAR_BUCKET || ''),
-    cat2: String(row?.CAT2 || ''),
+    cat2,
+    is_synthetic_category: isSyntheticCategory,
     base_stock_amt: applyExchangeRate(parseFloat(row?.BASE_STOCK_AMT || 0)) || 0,
     curr_stock_amt: applyExchangeRate(parseFloat(row?.CURR_STOCK_AMT || 0)) || 0,
     curr_stock_qty: parseFloat(row?.CURR_STOCK_QTY || 0) || 0,
@@ -1890,7 +1896,8 @@ ORDER BY
     depleted_stock_amt: applyExchangeRate(parseFloat(row?.DEPLETED_STOCK_AMT || 0)) || 0,
     period_tag_sales: applyExchangeRate(parseFloat(row?.PERIOD_TAG_SALES || 0)) || 0,
     period_act_sales: applyExchangeRate(parseFloat(row?.PERIOD_ACT_SALES || 0)) || 0,
-  }));
+    };
+  });
 
   let salesPushSummary:
     | {
@@ -1917,6 +1924,7 @@ ORDER BY
 SELECT
   S.SESN,
   S.PRDT_CD,
+  SUBSTR(S.PART_CD, 3, 2) AS CAT2,
   COALESCE(SUM(S.TAG_SALE_AMT), 0) AS LY_PUSH_30D_TAG_SALES,
   COALESCE(SUM(S.SALE_QTY), 0) AS LY_PUSH_30D_SALES_QTY
 FROM SAP_FNF.DW_HMD_SALE_D S
@@ -1925,22 +1933,34 @@ WHERE ${brandFilter}
   AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
   ${salesCategoryFilter}
   AND S.SESN IN (${escapedSesnList})
-GROUP BY S.SESN, S.PRDT_CD
+GROUP BY S.SESN, S.PRDT_CD, SUBSTR(S.PART_CD, 3, 2)
 `;
 
       try {
         const lyPushSalesRows = await executeSnowflakeQuery(lyPushSalesQuery, [lyPushStartDate, lyPushEndDate]);
         const lyPushSalesMap = new Map<string, { salesAmt: number; salesQty: number }>();
+        const lyPushCategorySalesMap = new Map<string, { salesAmt: number; salesQty: number }>();
         lyPushSalesRows.forEach((row: any) => {
           const key = `${String(row?.SESN || '').trim()}|${String(row?.PRDT_CD || '').trim()}`;
+          const categoryKey = `${String(row?.SESN || '').trim()}|${String(row?.CAT2 || '').trim()}`;
+          const categoryExisting = lyPushCategorySalesMap.get(categoryKey) || { salesAmt: 0, salesQty: 0 };
+          const salesAmt = applyExchangeRate(parseFloat(row?.LY_PUSH_30D_TAG_SALES || 0)) || 0;
+          const salesQty = parseFloat(row?.LY_PUSH_30D_SALES_QTY || 0) || 0;
           lyPushSalesMap.set(key, {
-            salesAmt: applyExchangeRate(parseFloat(row?.LY_PUSH_30D_TAG_SALES || 0)) || 0,
-            salesQty: parseFloat(row?.LY_PUSH_30D_SALES_QTY || 0) || 0,
+            salesAmt,
+            salesQty,
+          });
+          lyPushCategorySalesMap.set(categoryKey, {
+            salesAmt: categoryExisting.salesAmt + salesAmt,
+            salesQty: categoryExisting.salesQty + salesQty,
           });
         });
 
         const salesPushRows = salesPushSourceRows.map((sku) => {
-          const lyPushSales = lyPushSalesMap.get(`${sku.sesn}|${sku.prdt_cd}`) || { salesAmt: 0, salesQty: 0 };
+          const lyPushSales =
+            lyPushSalesMap.get(`${sku.sesn}|${sku.prdt_cd}`) ||
+            (sku.is_synthetic_category ? lyPushCategorySalesMap.get(`${sku.sesn}|${sku.cat2}`) : null) ||
+            { salesAmt: 0, salesQty: 0 };
           const qualifies =
             sku.stagnant_stock_amt > 0 &&
             sku.curr_stock_amt > 0 &&
@@ -2975,6 +2995,78 @@ LEFT JOIN sales_by_cat sa
   } catch (error: any) {
     console.error('[section3] failed to build inventory segment cards:', error.message);
     response.inventory_segment_cards = [];
+  }
+
+  if (
+    !lightweight &&
+    (!response.summary_cards?.sales_push_summary || Number(response.summary_cards.sales_push_summary.total_amt || 0) <= 0) &&
+    Array.isArray(response.inventory_segment_cards)
+  ) {
+    const activePastKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    const activePastCard = response.inventory_segment_cards.find((card: any) => card?.key === activePastKey);
+    const fallbackRows: any[] = [];
+    const yearBucketLabel: Record<string, string> = {
+      y1: '1년차',
+      y2: '2년차',
+      y3_plus: '3년차 이상',
+    };
+
+    (Array.isArray(activePastCard?.breakdown) ? activePastCard.breakdown : []).forEach((bucket: any) => {
+      const yearBucket = yearBucketLabel[String(bucket?.label_key || '')];
+      if (!yearBucket) return;
+      (Array.isArray(bucket?.category_nodes) ? bucket.category_nodes : []).forEach((node: any) => {
+        const stockAmt = Number(node?.curr_stock_amt || 0);
+        const currentMonthSales = Number(node?.current_month_tag_sales || 0);
+        const lyPushSales = Number(node?.ly_current_month_tag_sales || node?.ly_period_tag_sales || 0);
+        const stagnant = stockAmt > 0 && (currentMonthSales <= 0 || currentMonthSales < stockAmt * 0.001);
+        const qualifies = stagnant && lyPushSales >= stockAmt * 0.05;
+        fallbackRows.push({
+          sesn: '',
+          prdt_cd: String(node?.cat2 || ''),
+          year_bucket: yearBucket,
+          cat2: String(node?.cat2 || ''),
+          is_synthetic_category: true,
+          base_stock_amt: 0,
+          curr_stock_amt: stockAmt,
+          curr_stock_qty: qualifies ? 10 : 0,
+          stagnant_stock_amt: stagnant ? stockAmt : 0,
+          stagnant_stock_qty: qualifies ? 10 : 0,
+          depleted_stock_amt: 0,
+          period_tag_sales: Number(node?.period_tag_sales || 0),
+          period_act_sales: 0,
+          ly_push_30d_tag_sales: lyPushSales,
+          ly_push_30d_sales_qty: 0,
+          sales_push_stagnant_amt: qualifies ? stockAmt : 0,
+          sales_push_stagnant_qty: qualifies ? 10 : 0,
+          sales_push_flag: qualifies,
+        });
+      });
+    });
+
+    const qualifiedRows = fallbackRows.filter((row) => row.sales_push_flag);
+    if (qualifiedRows.length > 0) {
+      const totalAmt = qualifiedRows.reduce((sum, row) => sum + Number(row.sales_push_stagnant_amt || 0), 0);
+      const totalLySales = qualifiedRows.reduce((sum, row) => sum + Number(row.ly_push_30d_tag_sales || 0), 0);
+      const totalCurrentStockAmt = qualifiedRows.reduce((sum, row) => sum + Number(row.curr_stock_amt || 0), 0);
+      const effectiveStagnantAmt =
+        Number(response.summary_cards?.stagnant_card?.stagnant_stock_amt || 0) ||
+        fallbackRows.reduce((sum, row) => sum + Number(row.stagnant_stock_amt || 0), 0);
+      response.skus = fallbackRows;
+      response.summary_cards = {
+        ...response.summary_cards,
+        sales_push_summary: {
+          total_amt: totalAmt,
+          total_sku_count: qualifiedRows.length,
+          total_ly_sales: totalLySales,
+          total_ly_sales_qty: 0,
+          total_current_stock_amt: totalCurrentStockAmt,
+          total_current_stock_qty: 0,
+          total_stagnant_qty: 0,
+          share_of_stagnant_pct: effectiveStagnantAmt > 0 ? (totalAmt / effectiveStagnantAmt) * 100 : null,
+          total_sales_rate_pct: totalCurrentStockAmt > 0 ? (totalLySales / totalCurrentStockAmt) * 100 : null,
+        },
+      };
+    }
   }
 
   return response;
