@@ -3023,6 +3023,149 @@ LEFT JOIN sales_by_cat sa
     ]);
   };
 
+  const fetchSalesPushSkuFallbackRows = async (targetDate: string) => {
+    const target = new Date(`${targetDate}T00:00:00`);
+    const targetMonth = target.getMonth() + 1;
+    const targetYear = target.getFullYear();
+    const targetType = targetMonth >= 9 || targetMonth <= 2 ? 'F' : 'S';
+    const targetYY = targetMonth >= 9 ? targetYear % 100 : targetMonth <= 2 ? (targetYear - 1) % 100 : targetYear % 100;
+    const maxPastYY = targetYY - 1;
+    const currentMonthStart = `${targetDate.slice(0, 7)}-01`;
+    const lyPushStartDateObj = new Date(`${targetDate}T00:00:00`);
+    lyPushStartDateObj.setFullYear(lyPushStartDateObj.getFullYear() - 1);
+    const lyPushStartDate = formatDateYYYYMMDD(lyPushStartDateObj);
+    const lyPushEndDateObj = new Date(`${lyPushStartDate}T00:00:00`);
+    lyPushEndDateObj.setDate(lyPushEndDateObj.getDate() + 29);
+    const lyPushEndDate = formatDateYYYYMMDD(lyPushEndDateObj);
+    const escapedStoreCodes = allStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',');
+    const escapedSalesStoreCodes =
+      salesStores.length > 0 ? salesStores.map((code) => `'${code.replace(/'/g, "''")}'`).join(',') : "''";
+    const fallbackQuery = `
+WITH latest_stock_date AS (
+  SELECT MAX(STOCK_DT) AS stock_dt
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D
+  WHERE (CASE WHEN BRD_CD IN ('M','I') THEN 'M' ELSE BRD_CD END) = ?
+    AND LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+),
+stock_by_sku AS (
+  SELECT
+    s.SESN,
+    s.PRDT_CD,
+    SUBSTR(s.PRDT_CD, 7, 2) AS CAT2,
+    COALESCE(SUM(s.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT,
+    COALESCE(SUM(s.STOCK_QTY), 0) AS CURR_STOCK_QTY
+  FROM SAP_FNF.DW_HMD_STOCK_SNAP_D s
+  CROSS JOIN latest_stock_date l
+  WHERE (CASE WHEN s.BRD_CD IN ('M','I') THEN 'M' ELSE s.BRD_CD END) = ?
+    AND s.LOCAL_SHOP_CD IN (${escapedStoreCodes})
+    AND s.STOCK_DT = l.stock_dt
+    AND RIGHT(s.SESN, 1) = ?
+    AND TRY_TO_NUMBER(LEFT(s.SESN, 2)) <= ?
+    ${stockCategoryFilter.replace(/ST\./g, 's.')}
+  GROUP BY s.SESN, s.PRDT_CD, SUBSTR(s.PRDT_CD, 7, 2)
+),
+current_sales AS (
+  SELECT
+    S.SESN,
+    S.PRDT_CD,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS CURRENT_MONTH_TAG_SALES,
+    COALESCE(SUM(S.SALE_QTY), 0) AS CURRENT_MONTH_SALES_QTY
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+    ${salesCategoryFilter}
+  GROUP BY S.SESN, S.PRDT_CD
+),
+ly_push_sales AS (
+  SELECT
+    S.SESN,
+    S.PRDT_CD,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS LY_PUSH_30D_TAG_SALES,
+    COALESCE(SUM(S.SALE_QTY), 0) AS LY_PUSH_30D_SALES_QTY
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN TO_DATE(?) AND TO_DATE(?)
+    ${salesCategoryFilter}
+  GROUP BY S.SESN, S.PRDT_CD
+)
+SELECT
+  st.SESN,
+  st.PRDT_CD,
+  st.CAT2,
+  st.CURR_STOCK_AMT,
+  st.CURR_STOCK_QTY,
+  COALESCE(cs.CURRENT_MONTH_TAG_SALES, 0) AS CURRENT_MONTH_TAG_SALES,
+  COALESCE(cs.CURRENT_MONTH_SALES_QTY, 0) AS CURRENT_MONTH_SALES_QTY,
+  COALESCE(ly.LY_PUSH_30D_TAG_SALES, 0) AS LY_PUSH_30D_TAG_SALES,
+  COALESCE(ly.LY_PUSH_30D_SALES_QTY, 0) AS LY_PUSH_30D_SALES_QTY
+FROM stock_by_sku st
+LEFT JOIN current_sales cs
+  ON cs.SESN = st.SESN
+ AND cs.PRDT_CD = st.PRDT_CD
+LEFT JOIN ly_push_sales ly
+  ON ly.SESN = st.SESN
+ AND ly.PRDT_CD = st.PRDT_CD
+WHERE st.CURR_STOCK_AMT > 0
+`;
+
+    const rows = await executeSnowflakeQuery(fallbackQuery, [
+      normalizedBrand,
+      targetDate,
+      normalizedBrand,
+      targetType,
+      maxPastYY,
+      currentMonthStart,
+      targetDate,
+      lyPushStartDate,
+      lyPushEndDate,
+    ]);
+    const currentPeriod = getPeriodFromDateString(targetDate);
+    const lyPeriod = getPeriodFromDateString(lyPushStartDate);
+
+    return rows.map((row: any) => {
+      const sesn = String(row?.SESN || '').trim();
+      const match = sesn.match(/^(\d{2})([FS])$/);
+      const seasonYY = match ? Number(match[1]) : targetYY;
+      const diff = targetYY - seasonYY;
+      const yearBucket = diff === 1 ? '1년차' : diff === 2 ? '2년차' : '3년차 이상';
+      const currStockAmt = region === 'TW'
+        ? (convertTwdToHkd(parseFloat(row?.CURR_STOCK_AMT || 0), currentPeriod) || 0)
+        : (parseFloat(row?.CURR_STOCK_AMT || 0) || 0);
+      const currentMonthTagSales = region === 'TW'
+        ? (convertTwdToHkd(parseFloat(row?.CURRENT_MONTH_TAG_SALES || 0), currentPeriod) || 0)
+        : (parseFloat(row?.CURRENT_MONTH_TAG_SALES || 0) || 0);
+      const lyPushSales = region === 'TW'
+        ? (convertTwdToHkd(parseFloat(row?.LY_PUSH_30D_TAG_SALES || 0), lyPeriod) || 0)
+        : (parseFloat(row?.LY_PUSH_30D_TAG_SALES || 0) || 0);
+      const stagnant = currStockAmt > 0 && (currentMonthTagSales <= 0 || currentMonthTagSales < currStockAmt * 0.001);
+      const qualifies = stagnant && lyPushSales >= currStockAmt * 0.05;
+
+      return {
+        sesn,
+        prdt_cd: String(row?.PRDT_CD || '').trim(),
+        year_bucket: yearBucket,
+        cat2: String(row?.CAT2 || '').trim(),
+        is_synthetic_category: false,
+        base_stock_amt: 0,
+        curr_stock_amt: currStockAmt,
+        curr_stock_qty: parseFloat(row?.CURR_STOCK_QTY || 0) || 0,
+        stagnant_stock_amt: stagnant ? currStockAmt : 0,
+        stagnant_stock_qty: stagnant ? (parseFloat(row?.CURR_STOCK_QTY || 0) || 0) : 0,
+        depleted_stock_amt: 0,
+        period_tag_sales: currentMonthTagSales,
+        period_act_sales: 0,
+        ly_push_30d_tag_sales: lyPushSales,
+        ly_push_30d_sales_qty: parseFloat(row?.LY_PUSH_30D_SALES_QTY || 0) || 0,
+        sales_push_stagnant_amt: qualifies ? currStockAmt : 0,
+        sales_push_stagnant_qty: qualifies ? (parseFloat(row?.CURR_STOCK_QTY || 0) || 0) : 0,
+        sales_push_flag: qualifies,
+      };
+    });
+  };
+
   try {
     const lyDateObj = new Date(`${date}T00:00:00`);
     lyDateObj.setFullYear(lyDateObj.getFullYear() - 1);
@@ -3110,6 +3253,12 @@ LEFT JOIN sales_by_cat sa
     (!response.summary_cards?.sales_push_summary || Number(response.summary_cards.sales_push_summary.total_amt || 0) <= 0) &&
     Array.isArray(response.inventory_segment_cards)
   ) {
+    let skuFallbackRows: any[] = [];
+    try {
+      skuFallbackRows = await fetchSalesPushSkuFallbackRows(date);
+    } catch (error: any) {
+      console.error('[section3] failed to build sales-push sku fallback:', error.message);
+    }
     const activePastKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
     const activePastCard = response.inventory_segment_cards.find((card: any) => card?.key === activePastKey);
     const fallbackRows: any[] = [];
@@ -3153,7 +3302,8 @@ LEFT JOIN sales_by_cat sa
       });
     });
 
-    const qualifiedRows = fallbackRows.filter((row) => row.sales_push_flag);
+    const effectiveFallbackRows = skuFallbackRows.length > 0 ? skuFallbackRows : fallbackRows;
+    const qualifiedRows = effectiveFallbackRows.filter((row) => row.sales_push_flag);
     if (qualifiedRows.length > 0) {
       const totalAmt = qualifiedRows.reduce((sum, row) => sum + Number(row.sales_push_stagnant_amt || 0), 0);
       const totalLySales = qualifiedRows.reduce((sum, row) => sum + Number(row.ly_push_30d_tag_sales || 0), 0);
@@ -3163,8 +3313,8 @@ LEFT JOIN sales_by_cat sa
       const totalStagnantQty = qualifiedRows.reduce((sum, row) => sum + Number(row.sales_push_stagnant_qty || 0), 0);
       const effectiveStagnantAmt =
         Number(response.summary_cards?.stagnant_card?.stagnant_stock_amt || 0) ||
-        fallbackRows.reduce((sum, row) => sum + Number(row.stagnant_stock_amt || 0), 0);
-      response.skus = fallbackRows;
+        effectiveFallbackRows.reduce((sum, row) => sum + Number(row.stagnant_stock_amt || 0), 0);
+      response.skus = effectiveFallbackRows;
       response.summary_cards = {
         ...response.summary_cards,
         sales_push_summary: {

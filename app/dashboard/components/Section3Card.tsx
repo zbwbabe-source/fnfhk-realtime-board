@@ -802,7 +802,7 @@ export default function Section3Card({
     Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0
       ? salesPushData.skus
       : salesPushInventoryFallbackRows;
-  const hasSalesPushSkuDetail = salesPushRawRows.length > 0;
+  const hasSalesPushSkuDetail = Array.isArray(salesPushData?.skus) && salesPushData.skus.length > 0;
   const salesPushBaseSkuRows = salesPushRawRows
     .filter((row: any) => !!row?.sales_push_flag && Number(row?.sales_push_stagnant_amt || 0) > 0)
     .map((row: any) => {
