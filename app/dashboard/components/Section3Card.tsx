@@ -1286,7 +1286,7 @@ export default function Section3Card({
   };
   const buildStagnantCategoryNodes = (yearBucket: string) => {
     const categoryRows = Array.isArray(section3Data?.categories) ? section3Data.categories : [];
-    return categoryRows
+    const rowsFromCategories = categoryRows
       .filter((row: any) => String(row?.year_bucket || '') === yearBucket && Number(row?.stagnant_stock_amt || 0) > 0)
       .map((row: any) => {
         const currentStockAmt = Number(row?.curr_stock_amt || 0);
@@ -1301,6 +1301,29 @@ export default function Section3Card({
           stagnant_ratio_pct: currentStockAmt > 0 ? (stagnantStockAmt / currentStockAmt) * 100 : null,
         };
       })
+      .sort((a: any, b: any) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
+    if (rowsFromCategories.length > 0) return rowsFromCategories;
+
+    const rank = getYearBucketRank(yearBucket);
+    const labelKey = rank === 1 ? 'y1' : rank === 2 ? 'y2' : rank === 3 ? 'y3_plus' : '';
+    const breakdown = activePastSeasonBreakdown.find((item: any) => item?.label_key === labelKey);
+    return (Array.isArray(breakdown?.category_nodes) ? breakdown.category_nodes : [])
+      .map((node: any) => {
+        const currentStockAmt = Number(node?.curr_stock_amt || 0);
+        const monthSales = Number(node?.current_month_tag_sales || 0);
+        const isStagnant = currentStockAmt > 0 && (monthSales <= 0 || monthSales < currentStockAmt * 0.001);
+        if (!isStagnant) return null;
+        return {
+          cat2: String(node?.cat2 || '-'),
+          year_bucket: yearBucket,
+          curr_stock_amt: currentStockAmt,
+          current_stock_amt: currentStockAmt,
+          stagnant_stock_amt: currentStockAmt,
+          stagnant_stock_qty: Number(node?.curr_stock_qty || node?.stagnant_stock_qty || 0),
+          stagnant_ratio_pct: 100,
+        };
+      })
+      .filter(Boolean)
       .sort((a: any, b: any) => (b.curr_stock_amt - a.curr_stock_amt) || a.cat2.localeCompare(b.cat2));
   };
   const buildInventoryDetailCardMap = () => {
@@ -1414,24 +1437,28 @@ export default function Section3Card({
         yoy_pct: null,
         sales_amt: null,
         sales_yoy_pct: null,
-        breakdown: normalizedYearCards.map((yearCard: any) => ({
-          label_key: String(yearCard.year_bucket || ''),
-          curr_stock_amt: Number(yearCard.stagnant_stock_amt || 0),
-          current_stock_amt: Number(yearCard.curr_stock_amt || 0),
-          stagnant_stock_qty:
-            Number(
-              (Array.isArray(section3Data?.years)
-                ? section3Data.years.find((row: any) => String(row?.year_bucket || '') === String(yearCard.year_bucket || ''))?.stagnant_stock_qty
-                : 0) || 0
-            ),
-          stagnant_ratio_pct:
-            Number(yearCard.curr_stock_amt || 0) > 0
-              ? (Number(yearCard.stagnant_stock_amt || 0) / Number(yearCard.curr_stock_amt || 0)) * 100
-              : null,
-          ly_curr_stock_amt: null,
-          yoy_pct: null,
-          category_nodes: buildStagnantCategoryNodes(String(yearCard.year_bucket || '')),
-        })).filter((row: any) => row.curr_stock_amt > 0),
+        breakdown: normalizedYearCards.map((yearCard: any) => {
+          const categoryNodes = buildStagnantCategoryNodes(String(yearCard.year_bucket || ''));
+          const fallbackQty = categoryNodes.reduce((sum: number, node: any) => sum + Number(node?.stagnant_stock_qty || 0), 0);
+          return {
+            label_key: String(yearCard.year_bucket || ''),
+            curr_stock_amt: Number(yearCard.stagnant_stock_amt || 0),
+            current_stock_amt: Number(yearCard.curr_stock_amt || 0),
+            stagnant_stock_qty:
+              Number(
+                (Array.isArray(section3Data?.years)
+                  ? section3Data.years.find((row: any) => String(row?.year_bucket || '') === String(yearCard.year_bucket || ''))?.stagnant_stock_qty
+                  : 0) || 0
+              ) || fallbackQty,
+            stagnant_ratio_pct:
+              Number(yearCard.curr_stock_amt || 0) > 0
+                ? (Number(yearCard.stagnant_stock_amt || 0) / Number(yearCard.curr_stock_amt || 0)) * 100
+                : null,
+            ly_curr_stock_amt: null,
+            yoy_pct: null,
+            category_nodes: categoryNodes,
+          };
+        }).filter((row: any) => row.curr_stock_amt > 0),
       });
     }
 
