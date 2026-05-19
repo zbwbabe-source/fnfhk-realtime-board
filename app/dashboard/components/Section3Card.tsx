@@ -390,10 +390,14 @@ export default function Section3Card({
       (typeof fallbackPastSeasonCard?.yoy_pct === 'number' ? fallbackPastSeasonCard.yoy_pct : null);
     const inventoryDays = header.inv_days as number | null | undefined;
     const fallbackStagnantByYear = getFallbackStagnantByYear();
+    const isStagnantFallback = !Number(header.stagnant_stock_amt || 0) && fallbackStagnantByYear.total > 0;
     const stagnantStock = header.stagnant_stock_amt || fallbackStagnantByYear.total || 0;
     const stagnantRatio = currentStock > 0 ? (stagnantStock / currentStock) * 100 : 0;
-    const prevMonthStagnantRatio = (header.prev_month_stagnant_ratio || 0) * 100;
-    const stagnantRatioChange = stagnantRatio - prevMonthStagnantRatio;
+    const prevMonthStagnantRatio =
+      isStagnantFallback && !Number(header.prev_month_stagnant_ratio || 0)
+        ? null
+        : (header.prev_month_stagnant_ratio || 0) * 100;
+    const stagnantRatioChange = prevMonthStagnantRatio !== null ? stagnantRatio - prevMonthStagnantRatio : null;
 
     const cumulativeTagSales = header.period_tag_sales || 0;
     const cumulativeActSales = header.period_act_sales || 0;
@@ -572,10 +576,10 @@ export default function Section3Card({
         : {
             label: getKpiLabel('stagnantRatio'),
             value: `${stagnantRatio.toFixed(1)}%`,
-            badge: stagnantRatioChange !== 0 ? formatSignedPercentPoint(stagnantRatioChange) : null,
-            badgeClass: metricTone(stagnantRatioChange, 0),
+            badge: stagnantRatioChange !== null && stagnantRatioChange !== 0 ? formatSignedPercentPoint(stagnantRatioChange) : null,
+            badgeClass: stagnantRatioChange !== null ? metricTone(stagnantRatioChange, 0) : 'text-gray-500 bg-gray-100',
             meta: [
-              `${t(language, 'vsLastMonthEnd')} ${formatSignedPercentPoint(stagnantRatioChange)}`,
+              `${t(language, 'vsLastMonthEnd')} ${stagnantRatioChange !== null ? formatSignedPercentPoint(stagnantRatioChange) : '-'}`,
             ],
           },
       hasTargetInfo,
@@ -729,7 +733,13 @@ export default function Section3Card({
   const effectiveStagnantRatio =
     Number(summaryCards?.stagnant_card?.stagnant_ratio || 0) ||
     (detailTotalStockAmt > 0 ? effectiveStagnantStockAmt / detailTotalStockAmt : 0);
-  const effectivePrevMonthStagnantRatio = Number(summaryCards?.stagnant_card?.prev_month_stagnant_ratio || 0);
+  const isUsingStagnantFallback =
+    !Number(summaryCards?.stagnant_card?.stagnant_stock_amt || 0) && fallbackStagnantByYear.total > 0;
+  const rawPrevMonthStagnantRatio = summaryCards?.stagnant_card?.prev_month_stagnant_ratio;
+  const effectivePrevMonthStagnantRatio =
+    isUsingStagnantFallback && !Number(rawPrevMonthStagnantRatio || 0)
+      ? null
+      : Number(rawPrevMonthStagnantRatio || 0);
   const salesPushWindow = (() => {
     if (!section3Data?.asof_date) {
       return {
@@ -2312,7 +2322,9 @@ export default function Section3Card({
                 <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
                   <p className="text-[11px] text-gray-500">{language === 'ko' ? '전월말 대비' : 'vs Last Month End'}</p>
                   <p className="mt-1 text-base font-bold tabular-nums text-gray-900">
-                    {formatSignedPercentPoint(((summaryCards?.stagnant_card?.stagnant_ratio ?? 0) - (summaryCards?.stagnant_card?.prev_month_stagnant_ratio ?? 0)) * 100)}
+                    {effectivePrevMonthStagnantRatio !== null
+                      ? formatSignedPercentPoint((effectiveStagnantRatio - effectivePrevMonthStagnantRatio) * 100)
+                      : '-'}
                   </p>
                 </div>
               </div>
@@ -3414,8 +3426,12 @@ export default function Section3Card({
                         )}
                         {renderMetricLine(
                           t(language, 'vsLastMonthEnd'),
-                          formatSignedPercentPoint(((card.stagnantRatio ?? 0) - (card.prevMonthStagnantRatio ?? 0)) * 100),
-                          ((card.stagnantRatio ?? 0) - (card.prevMonthStagnantRatio ?? 0)) * 100 > 0 ? 'text-red-600' : 'text-green-600'
+                          card.prevMonthStagnantRatio !== null && card.prevMonthStagnantRatio !== undefined
+                            ? formatSignedPercentPoint(((card.stagnantRatio ?? 0) - card.prevMonthStagnantRatio) * 100)
+                            : '-',
+                          card.prevMonthStagnantRatio !== null && card.prevMonthStagnantRatio !== undefined
+                            ? (((card.stagnantRatio ?? 0) - card.prevMonthStagnantRatio) * 100 > 0 ? 'text-red-600' : 'text-green-600')
+                            : 'text-gray-400'
                         )}
                         {!fixedHeight && Array.isArray(card.breakdown) &&
                           card.breakdown.map((item: any) =>
