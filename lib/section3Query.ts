@@ -469,6 +469,35 @@ CURR_STOCK_DT_RESOLVED AS (
   FROM PARAM PA
 ),
 
+POST_SNAPSHOT_SALES_RAW AS (
+  SELECT
+    S.SESN,
+    CASE
+      WHEN PA.BASE_STOCK_DT < CAST('2025-09-22' AS DATE)
+      THEN CONCAT('XX', SUBSTR(S.PART_CD, 3, 2))
+      ELSE S.PRDT_CD
+    END AS PRDT_CD,
+    SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    SUM(S.TAG_SALE_AMT) AS TAG_SALES_AMT,
+    SUM(S.SALE_QTY) AS SALES_QTY
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN PARAM PA
+  CROSS JOIN CURR_STOCK_DT_RESOLVED CSD
+  WHERE ${brandFilter}
+    AND CSD.EFFECTIVE_CURR_STOCK_DT < DATEADD(day, 1, PA.ASOF_DATE)
+    AND S.SALE_DT BETWEEN CSD.EFFECTIVE_CURR_STOCK_DT AND PA.ASOF_DATE
+    ${shopFilter}
+    ${salesCategoryFilter}
+  GROUP BY
+    S.SESN,
+    CASE
+      WHEN PA.BASE_STOCK_DT < CAST('2025-09-22' AS DATE)
+      THEN CONCAT('XX', SUBSTR(S.PART_CD, 3, 2))
+      ELSE S.PRDT_CD
+    END,
+    SUBSTR(S.PART_CD, 3, 2)
+),
+
 BASE_STOCK_SNAP_RAW AS (
   SELECT
     ST.SESN,
@@ -525,7 +554,7 @@ BASE_COHORT_CAT AS (
   FROM BASE_STOCK_SNAP
 ),
 
-CURR_STOCK_SNAP_RAW AS (
+CURR_STOCK_AT_SNAPSHOT_RAW AS (
   SELECT
     ST.SESN,
     CASE
@@ -560,7 +589,21 @@ CURR_STOCK_SNAP_RAW AS (
     SUBSTR(ST.PRDT_CD, 7, 2)
 ),
 
-CURR_STOCK_SKU_RAW AS (
+CURR_STOCK_SNAP_RAW AS (
+  SELECT
+    CS.SESN,
+    CS.PRDT_CD,
+    CS.CAT2,
+    GREATEST(CS.CURR_STOCK_AMT - COALESCE(PS.TAG_SALES_AMT, 0), 0) AS CURR_STOCK_AMT,
+    GREATEST(CS.CURR_STOCK_QTY - COALESCE(PS.SALES_QTY, 0), 0) AS CURR_STOCK_QTY
+  FROM CURR_STOCK_AT_SNAPSHOT_RAW CS
+  LEFT JOIN POST_SNAPSHOT_SALES_RAW PS
+    ON CS.SESN = PS.SESN
+    AND CS.PRDT_CD = PS.PRDT_CD
+    AND CS.CAT2 = PS.CAT2
+),
+
+CURR_STOCK_SKU_AT_SNAPSHOT_RAW AS (
   SELECT
     ST.SESN,
     ST.PRDT_CD,
@@ -582,6 +625,20 @@ CURR_STOCK_SKU_RAW AS (
         AND BC.CAT2 = SUBSTR(ST.PRDT_CD, 7, 2)
     )
   GROUP BY ST.SESN, ST.PRDT_CD, SUBSTR(ST.PRDT_CD, 7, 2)
+),
+
+CURR_STOCK_SKU_RAW AS (
+  SELECT
+    CS.SESN,
+    CS.PRDT_CD,
+    CS.CAT2,
+    GREATEST(CS.CURR_STOCK_AMT - COALESCE(PS.TAG_SALES_AMT, 0), 0) AS CURR_STOCK_AMT,
+    GREATEST(CS.CURR_STOCK_QTY - COALESCE(PS.SALES_QTY, 0), 0) AS CURR_STOCK_QTY
+  FROM CURR_STOCK_SKU_AT_SNAPSHOT_RAW CS
+  LEFT JOIN POST_SNAPSHOT_SALES_RAW PS
+    ON CS.SESN = PS.SESN
+    AND CS.PRDT_CD = PS.PRDT_CD
+    AND CS.CAT2 = PS.CAT2
 ),
 
 CURR_STOCK_SNAP AS (
@@ -1342,19 +1399,43 @@ ORDER BY
       WHERE ${brandFilter}
         AND LOCAL_SHOP_CD IN (${allStoreCodesStr})
         AND STOCK_DT <= DATEADD(DAY, 1, TO_DATE(?))
+    ),
+    stock_by_cat AS (
+      SELECT
+        ST.SESN,
+        SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
+        COALESCE(SUM(ST.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
+      FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
+      CROSS JOIN latest_stock_date L
+      WHERE ${brandFilter}
+        AND ST.LOCAL_SHOP_CD IN (${allStoreCodesStr})
+        AND ST.STOCK_DT = L.stock_dt
+        AND RIGHT(ST.SESN, 1) = ?
+        AND TRY_TO_NUMBER(LEFT(ST.SESN, 2)) <= ?
+      GROUP BY ST.SESN, SUBSTR(ST.PRDT_CD, 7, 2)
+    ),
+    post_snapshot_sales_by_cat AS (
+      SELECT
+        S.SESN,
+        SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+        COALESCE(SUM(S.TAG_SALE_AMT), 0) AS TAG_SALES_AMT
+      FROM SAP_FNF.DW_HMD_SALE_D S
+      CROSS JOIN latest_stock_date L
+      WHERE ${brandFilter}
+        AND S.LOCAL_SHOP_CD IN (${salesStoreCodesStr})
+        AND S.SALE_DT BETWEEN L.stock_dt AND TO_DATE(?)
+        AND RIGHT(S.SESN, 1) = ?
+        AND TRY_TO_NUMBER(LEFT(S.SESN, 2)) <= ?
+      GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
     )
     SELECT
       ST.SESN,
-      SUBSTR(ST.PRDT_CD, 7, 2) AS CAT2,
-      COALESCE(SUM(ST.TAG_STOCK_AMT), 0) AS CURR_STOCK_AMT
-    FROM SAP_FNF.DW_HMD_STOCK_SNAP_D ST
-    CROSS JOIN latest_stock_date L
-    WHERE ${brandFilter}
-      AND ST.LOCAL_SHOP_CD IN (${allStoreCodesStr})
-      AND ST.STOCK_DT = L.stock_dt
-      AND RIGHT(ST.SESN, 1) = ?
-      AND TRY_TO_NUMBER(LEFT(ST.SESN, 2)) <= ?
-    GROUP BY ST.SESN, SUBSTR(ST.PRDT_CD, 7, 2)
+      ST.CAT2,
+      GREATEST(ST.CURR_STOCK_AMT - COALESCE(PS.TAG_SALES_AMT, 0), 0) AS CURR_STOCK_AMT
+    FROM stock_by_cat ST
+    LEFT JOIN post_snapshot_sales_by_cat PS
+      ON PS.SESN = ST.SESN
+     AND PS.CAT2 = ST.CAT2
   `;
   const ytdCategorySalesQuery = `
     SELECT
@@ -1376,6 +1457,9 @@ ORDER BY
     currentYYForSales - 1,
   ]);
   const currentCategoryStockRowsPromise = executeSnowflakeQuery(currentCategoryStockQuery, [
+    date,
+    currentTypeForSales,
+    currentYYForSales - 1,
     date,
     currentTypeForSales,
     currentYYForSales - 1,
@@ -2897,6 +2981,30 @@ stock_by_cat AS (
     AND s.STOCK_DT = l.stock_dt
   GROUP BY s.SESN, SUBSTR(s.PRDT_CD, 7, 2)
 ),
+post_snapshot_sales_by_cat AS (
+  SELECT
+    S.SESN,
+    SUBSTR(S.PART_CD, 3, 2) AS CAT2,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS TAG_SALES_AMT,
+    COALESCE(SUM(S.SALE_QTY), 0) AS SALES_QTY
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN latest_stock_date l
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN l.stock_dt AND TO_DATE(?)
+  GROUP BY S.SESN, SUBSTR(S.PART_CD, 3, 2)
+),
+rolled_stock_by_cat AS (
+  SELECT
+    st.SESN,
+    st.CAT2,
+    GREATEST(st.CURR_STOCK_AMT - COALESCE(ps.TAG_SALES_AMT, 0), 0) AS CURR_STOCK_AMT,
+    GREATEST(st.CURR_STOCK_QTY - COALESCE(ps.SALES_QTY, 0), 0) AS CURR_STOCK_QTY
+  FROM stock_by_cat st
+  LEFT JOIN post_snapshot_sales_by_cat ps
+    ON ps.SESN = st.SESN
+   AND ps.CAT2 = st.CAT2
+),
 sales_by_cat AS (
   SELECT
     S.SESN,
@@ -2925,7 +3033,7 @@ SELECT
   COALESCE(sa.PERIOD_TAG_SALES, 0) AS PERIOD_TAG_SALES,
   COALESCE(sa.PERIOD_SALES_QTY, 0) AS PERIOD_SALES_QTY,
   COALESCE(sa.PERIOD_ACT_SALES, 0) AS PERIOD_ACT_SALES
-FROM stock_by_cat st
+FROM rolled_stock_by_cat st
 LEFT JOIN sales_by_cat sa
   ON sa.SESN = st.SESN
  AND sa.CAT2 = st.CAT2
@@ -2935,6 +3043,7 @@ LEFT JOIN sales_by_cat sa
       normalizedBrand,
       targetDate,
       normalizedBrand,
+      targetDate,
       currentMonthStart,
       targetDate,
       currentMonthStart,
@@ -3065,6 +3174,32 @@ stock_by_sku AS (
     ${stockCategoryFilter.replace(/ST\./g, 's.')}
   GROUP BY s.SESN, s.PRDT_CD, SUBSTR(s.PRDT_CD, 7, 2)
 ),
+post_snapshot_sales_by_sku AS (
+  SELECT
+    S.SESN,
+    S.PRDT_CD,
+    COALESCE(SUM(S.TAG_SALE_AMT), 0) AS TAG_SALES_AMT,
+    COALESCE(SUM(S.SALE_QTY), 0) AS SALES_QTY
+  FROM SAP_FNF.DW_HMD_SALE_D S
+  CROSS JOIN latest_stock_date l
+  WHERE ${brandFilter}
+    AND S.LOCAL_SHOP_CD IN (${escapedSalesStoreCodes})
+    AND S.SALE_DT BETWEEN l.stock_dt AND TO_DATE(?)
+    ${salesCategoryFilter}
+  GROUP BY S.SESN, S.PRDT_CD
+),
+rolled_stock_by_sku AS (
+  SELECT
+    st.SESN,
+    st.PRDT_CD,
+    st.CAT2,
+    GREATEST(st.CURR_STOCK_AMT - COALESCE(ps.TAG_SALES_AMT, 0), 0) AS CURR_STOCK_AMT,
+    GREATEST(st.CURR_STOCK_QTY - COALESCE(ps.SALES_QTY, 0), 0) AS CURR_STOCK_QTY
+  FROM stock_by_sku st
+  LEFT JOIN post_snapshot_sales_by_sku ps
+    ON ps.SESN = st.SESN
+   AND ps.PRDT_CD = st.PRDT_CD
+),
 current_sales AS (
   SELECT
     S.SESN,
@@ -3101,7 +3236,7 @@ SELECT
   COALESCE(cs.CURRENT_MONTH_SALES_QTY, 0) AS CURRENT_MONTH_SALES_QTY,
   COALESCE(ly.LY_PUSH_30D_TAG_SALES, 0) AS LY_PUSH_30D_TAG_SALES,
   COALESCE(ly.LY_PUSH_30D_SALES_QTY, 0) AS LY_PUSH_30D_SALES_QTY
-FROM stock_by_sku st
+FROM rolled_stock_by_sku st
 LEFT JOIN current_sales cs
   ON cs.SESN = st.SESN
  AND cs.PRDT_CD = st.PRDT_CD
@@ -3117,6 +3252,7 @@ WHERE st.CURR_STOCK_AMT > 0
       normalizedBrand,
       targetType,
       maxPastYY,
+      targetDate,
       currentMonthStart,
       targetDate,
       lyPushStartDate,

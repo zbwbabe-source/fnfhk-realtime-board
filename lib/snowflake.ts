@@ -12,6 +12,7 @@ export interface SnowflakeConfig {
 }
 
 let connectionPool: snowflake.Connection | null = null;
+let connectionPromise: Promise<snowflake.Connection> | null = null;
 const parseTimeout = (value: string | undefined, fallbackMs: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
@@ -78,7 +79,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
   });
 }
 
-export async function getSnowflakeConnection(): Promise<snowflake.Connection> {
+async function openSnowflakeConnection(): Promise<snowflake.Connection> {
   if (connectionPool && connectionPool.isUp()) {
     return connectionPool;
   }
@@ -111,6 +112,22 @@ export async function getSnowflakeConnection(): Promise<snowflake.Connection> {
   } catch (err) {
     console.error('❌ Snowflake connection failed:', err);
     throw err;
+  }
+}
+
+export async function getSnowflakeConnection(): Promise<snowflake.Connection> {
+  if (connectionPool && connectionPool.isUp()) {
+    return connectionPool;
+  }
+
+  if (!connectionPromise) {
+    connectionPromise = openSnowflakeConnection();
+  }
+
+  try {
+    return await connectionPromise;
+  } finally {
+    connectionPromise = null;
   }
 }
 
