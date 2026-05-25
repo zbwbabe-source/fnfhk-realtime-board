@@ -3312,14 +3312,22 @@ WHERE st.CURR_STOCK_AMT > 0
     response.inventory_segment_cards = [];
   }
 
-  if (response.header && Array.isArray(response.inventory_segment_cards)) {
-    const activePastKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
-    const activePastCard = response.inventory_segment_cards.find((card: any) => card?.key === activePastKey);
-    const fallbackLyStockAmt = Number(activePastCard?.ly_curr_stock_amt || 0);
-    if (fallbackLyStockAmt > 0 && !(Number(response.header.ly_curr_stock_amt || 0) > 0)) {
-      response.header.ly_curr_stock_amt = fallbackLyStockAmt;
-      response.header.curr_stock_yoy_pct =
-        Math.round((response.header.curr_stock_amt / fallbackLyStockAmt) * 10000) / 100;
+  if (includeYoY && response.header && !(Number(response.header.ly_curr_stock_amt || 0) > 0)) {
+    try {
+      const lyDateObj = new Date(`${date}T00:00:00`);
+      lyDateObj.setFullYear(lyDateObj.getFullYear() - 1);
+      const lyDate = formatDateYYYYMMDD(lyDateObj);
+      let lyCurrStockRaw = await fetchPreviousYearCurrentStock(lyDate, categoryFilter);
+      if (region === 'TW') {
+        lyCurrStockRaw = convertTwdToHkd(lyCurrStockRaw, getPeriodFromDateString(lyDate)) || 0;
+      }
+      if (lyCurrStockRaw > 0) {
+        response.header.ly_curr_stock_amt = lyCurrStockRaw;
+        response.header.curr_stock_yoy_pct =
+          Math.round((response.header.curr_stock_amt / lyCurrStockRaw) * 10000) / 100;
+      }
+    } catch (error: any) {
+      console.error('[section3] failed to retry current stock YoY:', error.message);
     }
   }
 
