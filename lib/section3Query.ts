@@ -3404,6 +3404,18 @@ WHERE st.CURR_STOCK_AMT > 0
   }
 
   if (
+    includeYoY &&
+    response.header &&
+    Number(response.header.curr_stock_amt || 0) > 0 &&
+    Number(response.header.ly_curr_stock_amt || 0) > 0
+  ) {
+    response.header.curr_stock_yoy_pct =
+      Math.round(
+        (Number(response.header.curr_stock_amt) / Number(response.header.ly_curr_stock_amt)) * 10000
+      ) / 100;
+  }
+
+  if (
     !lightweight &&
     (!response.summary_cards?.sales_push_summary || Number(response.summary_cards.sales_push_summary.total_amt || 0) <= 0) &&
     Array.isArray(response.inventory_segment_cards)
