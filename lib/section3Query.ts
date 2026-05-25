@@ -2289,8 +2289,8 @@ GROUP BY S.SESN, S.PRDT_CD, SUBSTR(S.PART_CD, 3, 2)
           : 0;
     } catch (error: any) {
       console.error('[section3] failed to compute current stock YoY:', error.message);
-      response.header.ly_curr_stock_amt = 0;
-      response.header.curr_stock_yoy_pct = 0;
+      response.header.ly_curr_stock_amt = null;
+      response.header.curr_stock_yoy_pct = null;
     }
   }
 
@@ -3310,6 +3310,17 @@ WHERE st.CURR_STOCK_AMT > 0
   } catch (error: any) {
     console.error('[section3] failed to build inventory segment cards:', error.message);
     response.inventory_segment_cards = [];
+  }
+
+  if (response.header && Array.isArray(response.inventory_segment_cards)) {
+    const activePastKey = String(seasonType || '').toUpperCase().includes('SS') ? 'past_s' : 'past_f';
+    const activePastCard = response.inventory_segment_cards.find((card: any) => card?.key === activePastKey);
+    const fallbackLyStockAmt = Number(activePastCard?.ly_curr_stock_amt || 0);
+    if (fallbackLyStockAmt > 0 && !(Number(response.header.ly_curr_stock_amt || 0) > 0)) {
+      response.header.ly_curr_stock_amt = fallbackLyStockAmt;
+      response.header.curr_stock_yoy_pct =
+        Math.round((response.header.curr_stock_amt / fallbackLyStockAmt) * 10000) / 100;
+    }
   }
 
   const calculatePastSeasonStagnantFromSegments = (cards: any[], targetDate: string) => {
